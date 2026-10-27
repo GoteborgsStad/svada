@@ -1,0 +1,372 @@
+# =====================================================================
+# compose.dhi.yml – Organisation "DHI" (provider-sidan)
+# =====================================================================
+# Tjänsterna styrs med Compose-PROFILER så att endast den aktuella
+# delens stack startar (resursstrategin).
+#
+# FCF-modellen (profil "dhi-fcf"): läser brunn 4526:s riktiga mätvärden ur
+# CSV-filerna i data/ (inget sensorled) och framställer dataprodukten:
+#   docker compose -f compose.dhi.yml --profile dhi-fcf up -d
+#
+# EDC-providern (profil "dhi-edc") behöver fcf-sim som dataplan, och identitet
+# (profil "dhi-identitet") för verifierbara intyg:
+#   docker compose -f compose.dhi.yml --profile dhi-fcf --profile dhi-identitet \
+#     --profile dhi-edc up -d
+#
+# Registreringen av distributionerna hos providern är ett engångsjobb i egen
+# profil (idempotent):
+#   docker compose -f compose.dhi.yml --profile edc-bootstrap \
+#     run --rm registrera-edc
+#
+# Resurstak (bindande resursstrategi): mem_limit på varje tjänst; mongo körs med
+#   --wiredTigerCacheSizeGB ${MONGO_WT_CACHE_GB}.
+# =====================================================================
+
+name: ${SVADA_PREFIX:-svada}-dhi
+
+services:
+
+  # -------------------------------------------------------------------
+  # fcf-sim – "Future City Flow". Läser brunn 4526:s mätvärden ur CSV-filerna,
+  # modellerar brädd för alla 91 brunnar ur gpkg:n och exponerar dataprodukten
+  # "Modellerad bräddata" i två distributioner på :8050 – det dataplans-API
+  # som EDC-providern pekar sin asset på.
+  #
+  # OBS nätverk: fcf-sim ligger ENDAST på dhi-internal. Distribution A får
+  # aldrig nå ut annat än via EDC:ns kontrakt: distribution A går inte att läsa
+  # utan ett gällande avtal, och ingen komponent flyttar data förbi kontraktet.
+  # -------------------------------------------------------------------
+  fcf-sim:
+    build:
+      context: ./services/fcf-sim
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE}
+        FASTAPI_VERSION: ${FASTAPI_VERSION}
+        UVICORN_VERSION: ${UVICORN_VERSION}
+    image: ${SVADA_PREFIX:-svada}/fcf-sim:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-fcf-sim
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["dhi-fcf", "etapp3"]
+    environment:
+      # Svada-mini: FCF är datakällan och bygger på brunn 4526:s riktiga värden,
+      # som läses direkt ur CSV-filerna (inget sensorled, ingen orion-dhi).
+      CSV_TOTAL: /data/Weir_4526-Discharge_0_5_000.csv
+      CSV_SPILL: /data/Weir_4526-Spill, Transport_0_5_000.csv
+      FCF_ENTITY_ID: ${IOTA_ENTITY_ID}
+      FCF_WEIR_ID: SSO1_01-4526
+      GPKG: /data/dbsvadaexample.gpkg
+      FCF_POLL_INTERVAL_S: ${FCF_POLL_INTERVAL_S}
+      FCF_BATCH_INTERVAL_S: ${FCF_BATCH_INTERVAL_S}
+      FCF_BATCH_HOUR: ${FCF_BATCH_HOUR}
+      FCF_BATCH_RETENTION: ${FCF_BATCH_RETENTION}
+      FCF_WARMUP_S: ${FCF_WARMUP_S}
+      FCF_START_DAY: ${FCF_START_DAY}
+      # Felinjektion: av som default, kan även slås på i drift via API:t.
+      FCF_FAULT_SCHEMA_DRIFT: ${FCF_FAULT_SCHEMA_DRIFT}
+      FCF_FAULT_MISSING_FIELDS: ${FCF_FAULT_MISSING_FIELDS}
+      FCF_FAULT_GIS_IN_B: ${FCF_FAULT_GIS_IN_B}
+      TZ: ${TZ}
+    volumes:
+      # Brunnsgeometrin läses direkt ur gpkg:n (samma källa som stadens datalager).
+      - ./data:/data:ro
+    networks: [dhi-internal]
+    ports:
+      # Portkartan: 8050 = FCF-simulatorns dataplans-API.
+      - "${VARD_BIND_IP:-0.0.0.0}:${FCF_SIM_PORT}:8050"
+    mem_limit: 384m
+    healthcheck:
+      # python:3.12-slim saknar curl – sondera med Python i stället.
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8050/health', timeout=5).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: ${SVADA_RESTART:-unless-stopped}
+
+  # -------------------------------------------------------------------
+  # edc-provider – DHI:s KONTROLLPLAN (komponent 6). Eclipse EDC
+  # med in-memory stores (resursstrategin). Annonserar dataprodukten i DSP-katalogen,
+  # förhandlar kontrakt och koordinerar transfer.
+  #
+  # Nätverk: BÅDA. dhi-internal för att nå dataplanet fcf-sim:8050,
+  # dsp-public för att stadens consumer ska nå DSP-endpointen. Det är den
+  # enda vägen ut för dataprodukten (data, inte bara metadata, går ut via EDC) – fcf-sim självt ligger
+  # aldrig på dsp-public.
+  #
+  # Identitet: verifierbar DCP-identitet via IdentityHub – ingen mock-IAM kvar. Management-API:t
+  # kräver en delad nyckel (WEB_HTTP_MANAGEMENT_AUTH_KEY
+  # nedan), och KoV-godkännande kräver dessutom ett
+  # kryptografiskt verifierat SvadaRoleCredential.
+  # -------------------------------------------------------------------
+  edc-provider:
+    build:
+      context: ./edc
+      args:
+        EDC_GRADLE_IMAGE: ${EDC_GRADLE_IMAGE}
+        EDC_BASE_IMAGE: ${EDC_BASE_IMAGE}
+        EDC_VERSION: ${EDC_VERSION}
+    image: ${SVADA_PREFIX:-svada}/edc-connector:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-edc-provider
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["dhi-edc", "etapp4"]
+    depends_on:
+      fcf-sim:
+        condition: service_healthy
+      # Verifierbar DCP-identitet: edc-provider MÅSTE autentisera mot sin egen
+      # IdentityHub-instans STS vid uppstart (self-issued token för
+      # utgående DSP-anrop) - identity-hub-dhi:s profil ("dhi-identitet")
+      # skiljer sig från denna tjänstens ("dhi-edc"/"etapp4"), men Docker
+      # Compose startar ändå det beroendet automatiskt när MAN startar
+      # edc-provider, oavsett vilken profil som är aktiv för DIG (samma
+      # fil, samma projekt - profildisjunkta depends_on inkluderas alltid).
+      identity-hub-dhi:
+        condition: service_healthy
+    environment:
+      # JVM-heaptak enligt resursstrategin (bindande). JAVA_TOOL_OPTIONS respekteras
+      # alltid av JVM:en, till skillnad från JAVA_OPTS (jfr mintaka).
+      JAVA_TOOL_OPTIONS: ${EDC_JVM_XMX}
+      # Nyckelskyddade management-API:er (docs/koncept/C1-identitet.md): delad nyckel som stänger
+      # anonym åtkomst till management-API:t, plus det KoV-rollnamn som
+      # loggas med varje godkänn/avslå-beslut.
+      WEB_HTTP_MANAGEMENT_AUTH_KEY: ${EDC_PROVIDER_MGMT_KEY}
+      # Avtalsstatus för mottagaren: egen, skrivskyddad nyckel (inte management-nyckeln).
+      WEB_HTTP_AVTALSSTATUS_AUTH_KEY: ${EDC_PROVIDER_STATUS_KEY}
+      SVADA_KOV_ROLLINNEHAVARE: ${SVADA_KOV_ROLLINNEHAVARE}
+      # Ett avslag häver tidigare avtal (PoC-regel). Av i en delad demo, där en besökares avslag annars häver andras avtal. Standard: på.
+      SVADA_KOV_AVSLAG_HAVARTIDIGARE: ${SVADA_KOV_AVSLAG_HAVARTIDIGARE:-true}
+      # Verifierbar DCP-identitet: seedas av se.goteborg.svada.edc.dcp.
+      # SvadaDcpIdentityExtension i EDC-connectorns EGEN vault (config-
+      # nyckel svada.sts.client.secret) - samma literala värde som
+      # identity-hub-dhi sätter i sin egen, separata vault via
+      # StsAccountService#updateSecret (se .env för ursprunget).
+      SVADA_STS_CLIENT_SECRET: ${SVADA_STS_CLIENT_SECRET_DHI}
+      TZ: ${TZ}
+    volumes:
+      # Rollen bestäms enbart av konfigfilen – samma image som consumern.
+      - ./edc/konfig/provider.properties:/config/connector.properties:ro
+    networks:
+      dhi-internal:
+      dsp-public:
+        aliases:
+          # Explicit alias: consumern (annat Compose-projekt) slår upp
+          # providern på det delade nätet med exakt detta namn, och det är
+          # namnet som står i edc.dsp.callback.address.
+          - edc-provider
+    ports:
+      # Portkartan: 19191 default/observability, 19192 control,
+      # 19193 management (KoV-godkännande), 19194 DSP.
+      - "${VARD_BIND_IP:-0.0.0.0}:${EDC_PROVIDER_DEFAULT_PORT}:19191"
+      - "${VARD_BIND_IP:-0.0.0.0}:${EDC_PROVIDER_CONTROL_PORT}:19192"
+      - "${VARD_BIND_IP:-0.0.0.0}:${EDC_PROVIDER_MGMT_PORT}:19193"
+      - "${VARD_BIND_IP:-0.0.0.0}:${EDC_PROVIDER_DSP_PORT}:19194"
+      # 19291 (dataplanets publika kontext) publiceras MEDVETET inte –
+      # den används enbart container-till-container vid överföringen.
+    mem_limit: 768m
+    healthcheck:
+      # api-observability-modulen ur controlplane-base-bom. Temurin-imagen
+      # har curl (till skillnad från python:3.12-slim i FCF-simulatorn).
+      test: ["CMD-SHELL", "curl -sf http://localhost:19191/api/check/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # registrera-edc – ENGÅNGSJOBB (egen profil). Registrerar policy, asset
+  # och kontraktsdefinition för Distribution B hos providern. Idempotent
+  # (PUT om objektet redan finns). Se edc/bootstrap/.
+  # -------------------------------------------------------------------
+  registrera-edc:
+    # python:3.12-slim och inte alpine/curl: JSON-mallarna bär svenska
+    # "_kommentar"-nycklar (regeln om svenska kommentarer) som måste rensas bort före POST,
+    # och alpine/curl saknar jq. Python har json i standardbiblioteket.
+    image: ${PYTHON_IMAGE}
+    container_name: ${SVADA_PREFIX:-svada}-registrera-edc
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["edc-bootstrap"]
+    entrypoint: ["python", "/bootstrap/registrera.py"]
+    environment:
+      EDC_MGMT_URL: http://edc-provider:19193/management
+      EDC_HEALTH_URL: http://edc-provider:19191/api/check/health
+      EDC_ASSET_B_ID: ${EDC_ASSET_B_ID}
+      EDC_ASSET_B_URL: ${EDC_ASSET_B_URL}
+      # Distribution A registreras med egen policy/kontraktsdefinition.
+      EDC_ASSET_A_ID: ${EDC_ASSET_A_ID}
+      EDC_ASSET_A_URL: ${EDC_ASSET_A_URL}
+      # Verifierbar DCP-identitet: Stadens DID, in i policy-distribution-a.json:s
+      # __STAD_DID__-platshållare (se den filens kommentar och
+      # registrera.py). Samma värde som SVADA_PARTICIPANT_DID_STAD/
+      # EDC_CONSUMER_ID - en enda sanningskälla i .env.
+      EDC_STAD_DID: ${SVADA_PARTICIPANT_DID_STAD}
+      # Nyckelskyddade management-API:er: samma delade nyckel som providern kräver på sitt
+      # management-API (se edc-provider ovan).
+      EDC_PROVIDER_MGMT_KEY: ${EDC_PROVIDER_MGMT_KEY}
+      # Avtalets giltighetstid för Distribution A (policy-distribution-a.json). Standard 30d.
+      AVTAL_GILTIGHET: ${AVTAL_GILTIGHET:-30d}
+      TZ: ${TZ}
+    volumes:
+      - ./edc/bootstrap:/bootstrap:ro
+    networks: [dhi-internal]
+    mem_limit: 128m
+    restart: "no"
+
+  # -------------------------------------------------------------------
+  # identity-hub-dhi – DHI:s IdentityHub (verifierbar identitet,
+  # docs/koncept/C1-identitet.md). Eclipse EDC
+  # IdentityHub, "basic launcher", in-memory. Ger DHI en verifierbar
+  # dataspace-identitet (did:web + utfärdade attest) i stället för den
+  # delade nyckel som management-API:erna annars skyddas av. edc-provider
+  # beror på identity-hub-dhi och autentiserar mot dess STS; nyckeln ligger
+  # kvar som försvar på djupet. Egen profil.
+  #
+  #   docker compose -f compose.dhi.yml --profile dhi-identitet up -d
+  #
+  # Nätverk: BÅDA, av samma skäl som edc-provider. dhi-internal: den egna
+  # partens edc-provider ska nå den inbäddade STS:en (edc-provider autentiserar mot den). dsp-public: motpartens (stadens) connector måste kunna slå upp
+  # DHI:s did:web-dokument över nätet för att verifiera DHI:s identitet –
+  # se DidWebParser/DidWebController. DID:et blir
+  # did:web:identity-hub-dhi%3A19197 (värdnamn:port på dsp-public, colon
+  # procent-kodad).
+  #
+  # Portar (se .env, "verifierbar DCP-identitet"): fyra publicerade (hälsa, identity-API,
+  # did:web, DCP-credentials) enligt samma numeriska mönster som
+  # edc-provider (interna EDC-portar = de "kanoniska" portkarte-talen,
+  # inte omskrivna av host-mappningen). STS (19199) är MEDVETET opublicerad
+  # – enbart container-till-container, exakt som edc-providerns 19291.
+  # (verifierbar DCP-identitet: identity-hub-stads motsvarande STS-port ÄR numera
+  # publicerad, av ett annat skäl som inte gäller DHI – se compose.stad.yml
+  # och .env. DHI:s STS behövs bara internt av edc-provider självt.)
+  #
+  # VERIFIERAT 2026-09-01 (riktig uppstart): web.http.
+  # credentials.*-namnen (källkodens IdentityHubApiContext.CREDENTIALS,
+  # INTE READMEs äldre WEB_HTTP_PRESENTATION_PORT-exempel) band korrekt.
+  # Bekräftat med tre HTTP-anrop mot den nystartade containern:
+  #   GET http://localhost:19197/                         -> 204 (did-
+  #     kontexten svarar, inget DID publicerat ännu - väntat, se steg 3)
+  #   GET http://localhost:19196/api/identity/v1alpha/participants -> 401
+  #     (identity-API:t finns, kräver auth - väntat)
+  #   GET http://localhost:19198/api/credentials/          -> 404 (Jetty-
+  #     kontexten svarar på /api/credentials, bara fel underväg - om
+  #     kontexten INTE funnits hade anropet fått "Connection refused")
+  # Alla tre är "servern svarade" snarare än "porten är stängd" - det är
+  # beviset. Samma verifiering gjord bara på DHI; Stad speglar exakt.
+  # -------------------------------------------------------------------
+  identity-hub-dhi:
+    build:
+      context: ./identity-hub
+      args:
+        EDC_GRADLE_IMAGE: ${EDC_GRADLE_IMAGE}
+        EDC_BASE_IMAGE: ${EDC_BASE_IMAGE}
+        IDENTITY_HUB_VERSION: ${IDENTITY_HUB_VERSION}
+    image: ${SVADA_PREFIX:-svada}/identity-hub:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-identity-hub-dhi
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["dhi-identitet"]
+    environment:
+      JAVA_TOOL_OPTIONS: ${IDENTITY_HUB_JVM_XMX}
+      # Default/hälsokontexten (api-check-health-modulen, samma som EDC).
+      WEB_HTTP_PORT: "19195"
+      WEB_HTTP_PATH: "/api"
+      # Identity-API:t (participant-context/DID/keypair-hantering) – ADMIN-
+      # yta, används av bootstrap-jobbet i kommande steg 3.
+      WEB_HTTP_IDENTITY_PORT: "19196"
+      WEB_HTTP_IDENTITY_PATH: "/api/identity"
+      # DID-publiceringskontexten: did:web-dokumentet DHI publicerar sig
+      # själv med (se not ovan om DID-strängen).
+      WEB_HTTP_DID_PORT: "19197"
+      WEB_HTTP_DID_PATH: "/"
+      # DCP-protokollets presentations-/lagrings-API (verifiable
+      # presentations vid en faktisk kontraktsförhandling, kommande steg).
+      WEB_HTTP_CREDENTIALS_PORT: "19198"
+      WEB_HTTP_CREDENTIALS_PATH: "/api/credentials"
+      # STS: enbart nådd av edc-provider, internt på dhi-internal.
+      WEB_HTTP_STS_PORT: "19199"
+      WEB_HTTP_STS_PATH: "/api/sts"
+      # Verifierbar DCP-identitet: SvadaParticipantBootstrapExtension läser dessa vid
+      # uppstart och skapar DHI:s participant context + did:web (se
+      # identity-hub/src/.../SvadaParticipantBootstrapExtension.java och
+      # .env för varifrån DID-strängen kommer).
+      SVADA_PARTICIPANT_ID: ${SVADA_PARTICIPANT_ID_DHI}
+      SVADA_PARTICIPANT_DID: ${SVADA_PARTICIPANT_DID_DHI}
+      # Verifierbar DCP-identitet (upptäckt efter första verify_ap4a.sh-körningen,
+      # se .env för hela motiveringen): CredentialService-tjänsteposten i
+      # det egna DID-dokumentet.
+      SVADA_CREDENTIAL_SERVICE_URL: ${SVADA_CREDENTIAL_SERVICE_URL_DHI}
+      # Se identity-hub/src/.../SvadaParticipantBootstrapExtension.java:
+      # krävs för att AES-krypteringen (ParticipantContextConfigService)
+      # ska fungera vid participant-skapandet.
+      EDC_ENCRYPTION_AES_KEY_ALIAS: ${IDENTITY_HUB_AES_KEY_ALIAS}
+      TZ: ${TZ}
+      # Utfärdare med rätt mandat: DHI utfärdar INTE längre åt andra. Medlems- och
+      # deltagarintygen kommer från Svadas utfärdare (compose.dsga.yml,
+      # DSGA 0.1) via utbytesvolymen nedan (ro); DHI importerar dem vid
+      # uppstart och väntar på dem. DHI mintar bara sitt EGET rollintyg
+      # (SVADA_ROLLINNEHAVARE). Startordning: svada -> dhi -> stad.
+      SVADA_ISSUER_DID: ${SVADA_PARTICIPANT_DID_SVADA}
+      SVADA_DATASPACE_ID: ${SVADA_DATASPACE_ID}
+      SVADA_ROLLINNEHAVARE: ${SVADA_ROLLINNEHAVARE_DHI}
+      SVADA_VC_UTBYTE_DIR: ${SVADA_VC_UTBYTE_DIR}
+      # Verifierbar DCP-identitet (config-nyckel svada.sts.client.secret, se
+      # SvadaParticipantBootstrapExtension.java "STS-KLIENTHEMLIGHET"):
+      # skriver över den slumpmässigt genererade STS-klienthemligheten med
+      # detta deterministiska värde, så edc-provider (samma värde ur samma
+      # .env-variabel) kan autentisera mot den inbäddade STS:en.
+      SVADA_STS_CLIENT_SECRET: ${SVADA_STS_CLIENT_SECRET_DHI}
+      # Verifierbar DCP-identitet (felsökning: 'Unsupported or unrecognized SSL
+      # message' vid presentation-query-verifiering): IdentityHubs EGEN did:web-upplösning (samma
+      # identity-did-web-modul som edc-connectorn, men en separat JVM/
+      # konfiguration) behöver SAMMA https=false-flagga som redan sattes
+      # i edc/konfig/*.properties - annars försöker den nå motpartens
+      # DID-dokument via HTTPS mot vårt rena HTTP-nät vid verifiering av
+      # inkommande presentation queries.
+      EDC_IAM_DID_WEB_USE_HTTPS: "false"
+    networks:
+      dhi-internal:
+      dsp-public:
+        aliases:
+          - identity-hub-dhi
+    ports:
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_DHI_DEFAULT_PORT}:19195"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_DHI_IDENTITY_PORT}:19196"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_DHI_DID_PORT}:19197"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_DHI_CREDENTIALS_PORT}:19198"
+      # 19199 (STS) publiceras MEDVETET inte, se ovan.
+    volumes:
+      # Delad namngiven volym för attest-utbyte. Utfärdare med rätt mandat: Svadas utfärdare
+      # (compose.dsga.yml) skriver; DHI och Stad läser read-only (:ro) och
+      # myntar bara sitt eget rollintyg lokalt. Skapas EN gång manuellt:
+      # docker volume create svada-vc-utbyte (starta-demo.sh gör det, inklusive
+      # chmod-fixet för uid 10002).
+      - vc-utbyte:${SVADA_VC_UTBYTE_DIR}:ro
+    mem_limit: 384m
+    healthcheck:
+      # Samma api-observability-modul/endpoint som edc-provider.
+      test: ["CMD-SHELL", "curl -sf http://localhost:19195/api/check/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: ${SVADA_RESTART:-unless-stopped}
+volumes:
+  # Extern, delad Docker-volym för attest-utbyte (verifierbar DCP-identitet) -
+  # samma external:true/name-mönster som dsp-public-nätverket nedan.
+  # Skapas en gång manuellt, se not vid identity-hub-dhi ovan.
+  vc-utbyte:
+    external: true
+    name: ${SVADA_PREFIX:-svada}-vc-utbyte
+
+networks:
+  # Internt DHI-nät – råmätvärden, IoT, FCF (korsar INTE org-gränsen).
+  dhi-internal:
+    driver: bridge
+  # Delat kontrollplans-/publikt nät – ENDAST EDC-DSP och publika
+  # endpoints ligger här. Skapas en gång med:
+  #   docker network create svada-dsp-public
+  dsp-public:
+    external: true
+    name: ${SVADA_PREFIX:-svada}-dsp-public

@@ -1,0 +1,14 @@
+{
+  "name": "svada-mini-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hj\u00e4lpskript f\u00f6r SVADA PoC \u2013 bl.a. HTML\u2192PNG-rendering av konceptdokument.",
+  "scripts": {
+    "html2png": "node html2png.mjs"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0",
+    "playwright-core": "^1.48.0"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "_kommentar": [
+    "SVADA PoC / katalog och förhandling – asset för dataprodukten Modellerad bräddata,",
+    "Distribution B (GIS-reducerad, K0R1T1, öppna data).",
+    "dataAddress pekar på fcf-sim:s dataplans-API inne på DHI:s interna nät",
+    "(fcf-sim). Adressen är containerintern och exponeras aldrig utanför",
+    "DHI – enda vägen till datat går via EDC:ns kontrakt (hård regel 8).",
+    "Placeholders __ASSET_ID__/__ASSET_URL__ fylls i av registrera.sh ur .env."
+  ],
+  "@context": {
+    "@vocab": "https://w3id.org/edc/v0.0.1/ns/",
+    "_kommentar_odrl": "GOTCHA: prefixet odrl MÅSTE deklareras här. EDC expanderar JSON-LD:n innan validering och avvisar annars hela anropet med HTTP 400 'contains a prefix odrl which was not expended correctly'.",
+    "odrl": "http://www.w3.org/ns/odrl/2/",
+    "dct": "http://purl.org/dc/terms/",
+    "dcat": "http://www.w3.org/ns/dcat#",
+    "dqv": "http://www.w3.org/ns/dqv#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "svada": "https://svada.goteborg.se/ns/",
+    "_kommentar_deklaration": "Produktdeklarationen (förstudie-nasta-steg §1): DCAT/DQV-egenskaper som EDC släpper igenom till DSP-katalogen, så att mottagaren ser vad produkten är och hur bra den är INNAN avtalet. Den läsbara specifikationen är docs/14-dataprodukten.md. Kvalitetsmåtten är PÅSTÅENDEN från DHI; ingen part kontrollerar dem."
+  },
+  "@id": "__ASSET_ID__",
+  "properties": {
+    "name": "Modellerad bräddata – Distribution B",
+    "description": "Modellerade bräddhändelser för Göteborgs bräddbrunnar, dygnsbatch. Distribution B: brunnarnas GIS (location, sourceSrs) är borttagen; utsläppspunkt och recipient finns kvar.",
+    "contenttype": "application/json",
+    "version": "1.0.0",
+    "_kommentar_metadata": "Egenskaperna nedan SPEGLAR kuvertet som fcf-sim levererar – de hittar inte på ny metadata. Samma fält beskriver dataprodukten i DCAT i DSP-katalogen.",
+    "dataset": "Modellerad bräddata",
+    "distribution": "B",
+    "accessRights": "public",
+    "informationClass": "K0R1T1",
+    "license": "CC BY 4.0",
+    "odrl:terms": "use, distribute, publish; duty: attribution (Göteborgs Stad / DHI)",
+    "dataRightsHolder": "Kretslopp och Vatten, Göteborgs Stad",
+    "dataProvider": "DHI (Future City Flow)",
+    "dct:conformsTo": {
+      "@id": "urn:svada:dataprodukt:modellerad-bradddata:1.0.0"
+    },
+    "dct:accrualPeriodicity": "Ett modellerat dygn per batch (i demon var tionde minut)",
+    "dct:temporal": "Dygnsaggregat; indata i fem minuters upplösning",
+    "svada:modellensBegransning": "Förenklad överfallsberäkning per brunn (Future City Flow är en hydrodynamisk MIKE+/MOUSE-modell); bräddtiden är lika för alla brunnar som bräddar och bär ingen information",
+    "dqv:hasQualityMeasurement": [
+      {
+        "@type": "dqv:QualityMeasurement",
+        "dqv:isMeasurementOf": {
+          "@id": "svada:matt/serierMedRiktigaMatvarden"
+        },
+        "dqv:value": {
+          "@type": "xsd:integer",
+          "@value": "1"
+        },
+        "svada:av": {
+          "@type": "xsd:integer",
+          "@value": "91"
+        }
+      },
+      {
+        "@type": "dqv:QualityMeasurement",
+        "dqv:isMeasurementOf": {
+          "@id": "svada:matt/syntetiskAndel"
+        },
+        "dqv:value": {
+          "@type": "xsd:decimal",
+          "@value": "0.989"
+        }
+      },
+      {
+        "@type": "dqv:QualityMeasurement",
+        "dqv:isMeasurementOf": {
+          "@id": "svada:matt/tidsupplosningMinuter"
+        },
+        "dqv:value": {
+          "@type": "xsd:integer",
+          "@value": "1440"
+        }
+      }
+    ],
+    "svada:kvalitetsdeklaration": "Endast brunn SSO1_01-4526 bygger på riktiga mätvärden; övriga 90 av 91 serier är syntetiska och redovisas som sådana i varje post (dataSource, syntheticScale). Inte avsedd för skarpa beslut. Se specifikationen.",
+    "svada:kvalitetsregler": "Sex kvalitetsdimensioner (fullständighet, unikhet, aktualitet, validitet, korrekthet, konsistens). Mäts inte ännu i PoC:en. Korrekthet kan jämföras mot uppmätta värden för 1 av 91 brunnar."
+  },
+  "dataAddress": {
+    "type": "HttpData",
+    "name": "fcf-sim Distribution B (senaste batchen)",
+    "baseUrl": "__ASSET_URL__",
+    "method": "GET",
+    "proxyPath": "false",
+    "proxyQueryParams": "false"
+  }
+}

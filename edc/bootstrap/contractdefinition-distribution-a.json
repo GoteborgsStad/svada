@@ -1,0 +1,25 @@
+{
+  "_kommentar": [
+    "SVADA PoC / KoV-gaten – EGEN kontraktsdefinition för Distribution A.",
+    "Återanvänder MEDVETET INTE kontrakt-distribution-b: den definitionens",
+    "assetsSelector matchar exakt B:s asset-id. Hade A lagts",
+    "under samma definition – eller under samples' tomma selector – hade",
+    "den ÖPPNA B-policyn tyst kommit att gälla även för A. Det är precis",
+    "det felet hård regel 7/8 finns för att förhindra.",
+    "Placeholder __ASSET_A_ID__ fylls i av registrera.py ur .env."
+  ],
+  "@context": {
+    "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+  },
+  "@id": "kontrakt-distribution-a",
+  "accessPolicyId": "policy-distribution-a",
+  "contractPolicyId": "policy-distribution-a",
+  "assetsSelector": [
+    {
+      "@type": "Criterion",
+      "operandLeft": "https://w3id.org/edc/v0.0.1/ns/id",
+      "operator": "=",
+      "operandRight": "__ASSET_A_ID__"
+    }
+  ]
+}

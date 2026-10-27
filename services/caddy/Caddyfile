@@ -1,0 +1,321 @@
+# =====================================================================
+# SVADA PoC – publik ingång (publik demo, gren publik-demo)
+# =====================================================================
+# Caddys egna korta felsvar (403/404/405) är tvåspråkiga i en rad: proxyn vet inte besökarens valda språk, och
+# katalogen i meddelanden.py gäller bara dashboardens svar (del e, E13: ett dokumenterat undantag från katalogregeln).
+#
+# Caddy är den ENDA väg en extern besökare når kedjan. Ett värdnamn per
+# publik roll; allt annat (EDC:s management-API, IdentityHub, Orion-DHI,
+# IoT Agent, MQTT, fcf-sim, ingest) saknar värdnamn här och går därför
+# inte att nå utifrån.
+#
+# Caddy når tjänsterna precis som kontrollrummet: över VÄRDENS publicerade
+# portar (host.docker.internal), aldrig över organisationernas interna
+# nät. Nätisoleringen mellan DHI och staden är därmed orörd.
+#
+# Miljövariabler (från .env via compose.kontrollrum.yml):
+#   DEMO_DOMAN           t.ex. svada-demo.localhost / svada-demo.example.org
+#   CADDY_ADRESS_PREFIX  "http://" lokalt (inget certifikat), tomt på
+#                        servern (Caddy hämtar TLS-certifikat automatiskt)
+#   *_PORT               värdportarna ur portkartan
+#   DEMO_ANVANDARE, DEMO_LOSENORD_HASH, DEMO_TILLTRADE_TOKEN,
+#   DEMO_KAKA_*, RATE_INLOGG_*   lösenordsgrinden, se snippet (inloggning)
+#
+# Hela demon ligger bakom ett gemensamt lösenord tills projektet är redo
+# att kommunicera den – alla värdnamn, utom /robots.txt.
+# =====================================================================
+{
+	# Ingen ACME-e-post: Let's Encrypt skickar inte längre påminnelser om
+	# utgående certifikat (sedan 2025), Caddy förnyar själv, och ett konto
+	# utan kontaktadress är tillåtet. "admin@localhost" avvisades dessutom
+	# som ogiltig kontakt. Lokalt (http://) används ingen ACME alls.
+	# ratelimit-tillägget (services/caddy/Dockerfile) är inte med i Caddys
+	# standardordning – registrera det som ett handler-direktiv.
+	order rate_limit before basicauth
+	# Lösenordsgrinden (snippet "inloggning") ligger i ett route-block. Det
+	# ska köras före rate_limit och före varje handle-block – annars skulle
+	# t.ex. kontrollrummets handle-block svara innan lösenordet prövats.
+	order route before rate_limit
+	servers {
+		# En långsam eller utebliven begäran ska inte hålla en anslutning
+		# öppen i onödan (säkerhetsfynd K3/K4). Skrivtimeouten är
+		# generös så att Mintakas temporala svar hinner klart.
+		timeouts {
+			read_header 10s
+			# Kroppen får inte hållas öppen: en klient som skickar rubriken men dröjer med kroppen
+			# (Slowloris-varianten) ska släppas efter 15 s i stället för att binda en anslutning.
+			read_body 15s
+			idle 1m
+		}
+		max_header_size 32KB
+	}
+}
+
+(gemensamt) {
+	encode gzip
+	header {
+		# Demon ska inte bäddas in eller indexeras (även bakom lösenordet).
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+	# Testläge för statistiken: ?test=1 sätter kakan svada-test för hela domänen (alla underdomäner), ?test=0 tar bort den. Med kakan räknas
+	# varken besöket (loggen bär bara fältet "test", kakan själv tas bort ur loggen) eller händelserna (kontrollrummet) i statistiken.
+	@testpa query test=1
+	@testav query test=0
+	header @testpa +Set-Cookie "svada-test=1; Domain={$DEMO_DOMAN}; Path=/; Max-Age=31536000; SameSite=Lax{$DEMO_KAKA_SECURE}"
+	header @testav +Set-Cookie "svada-test=; Domain={$DEMO_DOMAN}; Path=/; Max-Age=0; SameSite=Lax{$DEMO_KAKA_SECURE}"
+	log_append test {http.request.cookie.svada-test}
+	# Ingen legitim publik begäran är stor (kontrollrummets knappar skickar
+	# små JSON-kroppar; transfern går internt, inte via Caddy).
+	request_body {
+		max_size 1MB
+	}
+	log {
+		output stdout
+		format console
+	}
+	# Statistik: en JSON-åtkomstlogg i en egen katalog (./statistik/logg, utanför
+	# nollställningen och utanför volymerna), som kontrollrummets /statistik och tools/statistik-rapport.py räknar på. Rålogg sparas
+	# bara 7 dygn (roll_keep_for); de dagliga summorna sparas för sig (statistik/data) och är bara siffror. Loggen får aldrig bära hemligheter eller
+	# fullständiga IP-adresser: tillträdeskakan och lösenordet tas bort (request- och svarshuvudena), IP-adressen kapas till /24 (IPv4)
+	# och /48 (IPv6) och porten tas bort. Då är en unik besökare "kapad adress + webbläsare", ett minimum vid gemensam adress (NAT).
+	log statistik {
+		output file /statistik/access.log {
+			roll_size 20MiB
+			roll_keep 60
+			roll_keep_for 168h
+			mode 0644
+		}
+		format filter {
+			wrap json
+			fields {
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>headers>X-Forwarded-For delete
+				request>headers>Forwarded delete
+				request>headers>X-Real-Ip delete
+				request>headers>True-Client-Ip delete
+				request>headers>Client-Ip delete
+				request>headers>Cf-Connecting-Ip delete
+				request>headers>X-Client-Ip delete
+				request>headers>Via delete
+				user_id delete
+				resp_headers>Set-Cookie delete
+				request>remote_port delete
+				request>remote_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
+				request>client_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
+			}
+		}
+	}
+	# Underhållssida: medan demon nollställs (aterstall-demo.sh låter Caddy
+	# stå kvar) svarar uppströmstjänsterna inte. Besökaren får då en tydlig
+	# tvåspråkig sida som laddar om sig själv i stället för ett kryptiskt 502.
+	handle_errors {
+		@uppehall expression {http.error.status_code} in [502, 503, 504]
+		handle @uppehall {
+			header Cache-Control "no-store"
+			header Retry-After "60"
+			header Content-Type "text/html; charset=utf-8"
+			respond <<HTML
+				<!doctype html><html lang="sv"><head><meta charset="utf-8">
+				<meta name="viewport" content="width=device-width,initial-scale=1">
+				<meta http-equiv="refresh" content="20"><title>Nollställs / Resetting</title>
+				<style>body{font:16px/1.5 system-ui,sans-serif;max-width:34rem;margin:15vh auto;padding:0 16px;color:#1b2733}</style>
+				</head><body><h1>Demon nollställs</h1>
+				<p>Det tar några minuter. Sidan laddas om av sig själv.</p>
+				<h1>The demo is resetting</h1>
+				<p>This takes a few minutes. The page reloads by itself.</p></body></html>
+				HTML 503
+		}
+		handle {
+			respond "{http.error.status_code} {http.error.status_text}" {http.error.status_code}
+		}
+	}
+}
+
+# Lösenordsgrinden (publik demo före lansering): demon ska inte indexeras
+# eller spridas innan projektet är redo att kommunicera den. Ett gemensamt
+# lösenord, men besökaren ska bara behöva ange det EN gång – trots flera
+# värdnamn. Därför:
+#   1. En begäran utan giltig tillträdeskaka får Basic Auth (401). Det ger
+#      webbläsarens inloggningsruta och ett tydligt 401 för API-klienter.
+#   2. Rätt lösenord => Caddy sätter kakan svada_tilltrade för HELA domänen
+#      (Domain=DEMO_DOMAN), så att alla underdomäner släpper igenom den.
+#   3. Kakans värde är en lång slumpad token (DEMO_TILLTRADE_TOKEN). Byts
+#      lösenordet byts även token – alla utloggas.
+# Hemligheterna (hash + token) ligger i .demo-inloggning.env, som git
+# ignorerar och tools/nytt-demo-losenord.sh skapar. Saknas de vägrar Caddy
+# starta (compose.kontrollrum.yml) – grinden kan aldrig falla bort tyst.
+# Ingen omdirigering till en inloggningssida: besökaren hamnar där den bad
+# om, och det finns ingen "till="-parameter som kan missbrukas.
+(inloggning) {
+	# robots.txt är fri, så att en sökrobot ser att inget ska indexeras.
+	handle /robots.txt {
+		respond <<ROBOTS
+			User-agent: *
+			Disallow: /
+			ROBOTS 200
+	}
+	# Brytaren DEMO_GATE: "off" = demon är öppen för alla; alla andra värden (också "on", tomt, felstavat) = lösenordsgrinden gäller. Den som inte anger något får grinden,
+	# så den kan inte falla bort av misstag. Matcharen nedan träffar bara när grinden är på och kakan saknas.
+	@utan_kaka {
+		expression "'{$DEMO_GATE:on}' != 'off'"
+		not vars {http.request.cookie.svada_tilltrade} {$DEMO_TILLTRADE_TOKEN}
+		not path /robots.txt
+	}
+	route @utan_kaka {
+		# Lösenordsgissning begränsas per klient-IP. Gränsen är generös nog
+		# för ett mötesrum bakom en gemensam IP-adress (NAT).
+		rate_limit {
+			# En zon PER värdnamn ({args[0]}): caddy-ratelimit v0.1.0 räknar
+			# fel när samma zonnamn delas av flera site-block – vid go-live
+			# släpptes bara ~9 oinloggade anrop/min igenom över de
+			# värdnamnen mot 30 mot ett enda. Gissning: 30/min per värdnamn.
+			zone inloggning_{args[0]} {
+				key {http.request.remote_host}
+				events {$RATE_INLOGG_ANTAL}
+				window {$RATE_INLOGG_FONSTER}
+			}
+		}
+		# Realm = texten i webbläsarens inloggningsruta.
+		basic_auth bcrypt "SVADA PoC - demo" {
+			{$DEMO_ANVANDARE} {$DEMO_LOSENORD_HASH}
+		}
+		# Hit kommer bara den som angett rätt lösenord (basic_auth svarar
+		# annars 401 och avbryter).
+		# +Set-Cookie: lägg till, ersätt inte (annars försvinner t.ex. testlägeskakan svada-test och sessionskakan ur samma svar)
+		header +Set-Cookie "svada_tilltrade={$DEMO_TILLTRADE_TOKEN}; Domain={$DEMO_DOMAN}; Path=/; Max-Age={$DEMO_KAKA_MAXALDER}; HttpOnly; SameSite=Lax{$DEMO_KAKA_SECURE}"
+	}
+}
+
+# Kontrollrummet – besökarens startsida. Knapparna driver kedjan via
+# kontrollrummets egna API (som i sin tur bara använder kontrakten).
+# Läsning (statuspollning) är fri; POST-knapparna (förhandling, KoV-beslut,
+# avvikelse, felinjektion) hastighetsbegränsas per klient-IP (K4).
+{$CADDY_ADRESS_PREFIX}{$DEMO_DOMAN} {
+	import gemensamt
+	import inloggning kontrollrum
+	# Statistikhändelserna har en egen hastighetsgräns: sidan skickar en liten POST per steg och flik,
+	# och de ska inte räknas mot knapparnas gräns (och inte tvärtom).
+	@handelser path /api/handelse
+	handle @handelser {
+		rate_limit {
+			zone kontrollrum_handelser {
+				key {http.request.remote_host}
+				events {$RATE_HANDELSE_ANTAL:240}
+				window {$RATE_HANDELSE_FONSTER:1m}
+			}
+		}
+		reverse_proxy host.docker.internal:{$DASHBOARD_PORT}
+	}
+	@knappar method POST
+	handle @knappar {
+		rate_limit {
+			zone kontrollrum_knappar {
+				key {http.request.remote_host}
+				events {$RATE_SKRIV_ANTAL}
+				window {$RATE_SKRIV_FONSTER}
+			}
+		}
+		reverse_proxy host.docker.internal:{$DASHBOARD_PORT}
+	}
+	handle {
+		reverse_proxy host.docker.internal:{$DASHBOARD_PORT}
+	}
+}
+
+# Stadens CIP utåt = stad-gateway (G22): A kräver token, avslag förklaras.
+{$CADDY_ADRESS_PREFIX}cip.{$DEMO_DOMAN} {
+	import gemensamt
+	import inloggning cip
+	# Bara läsning utifrån. En besökare ska aldrig kunna skriva i stadens plattform (utan lösenord är
+	# adressen öppen); data kommer in via kedjan, inte via det publika API:t.
+	@skriv not method GET HEAD OPTIONS
+	handle @skriv {
+		respond "Bara läsning är tillåten här. / Only reading is allowed here." 405
+	}
+	handle {
+		reverse_proxy host.docker.internal:{$ORION_STAD_PORT}
+	}
+}
+
+(mintaka_proxy) {
+	reverse_proxy host.docker.internal:{$MINTAKA_PORT} {
+		# Besökarens Link-header (JSON-LD-kontext) skickas inte vidare: Mintaka 0.7 hämtar annars kontexten från den adressen,
+		# och en besökare kunde då få Mintaka att göra ett anrop till en valfri adress.
+		header_up -Link
+		# En enskild temporal fråga får inte hänga hur länge som helst
+		# (K3). Räcker gott för hela historiken i den återställda demon.
+		transport http {
+			response_header_timeout 30s
+		}
+	}
+}
+
+# Distribution B som API (NGSI-LD temporal, Mintaka). Tunga temporala
+# frågor hastighetsbegränsas per klient-IP (K3) utöver svarstimeouten.
+{$CADDY_ADRESS_PREFIX}tidsserie.{$DEMO_DOMAN} {
+	import gemensamt
+	import inloggning tidsserie
+	rate_limit {
+		zone tidsserie {
+			key {http.request.remote_host}
+			events {$RATE_TIDSSERIE_ANTAL}
+			window {$RATE_TIDSSERIE_FONSTER}
+		}
+	}
+	# Bara den ÖPPNA distributionen (B) går att fråga utifrån: A:s tidsserier ligger på en egen entitetstyp
+	# (SewerOverflowModelA) och släpps aldrig igenom. Mintaka kan inte begränsa per typ själv; en riktig plattform
+	# skulle ha åtkomststyrning i brokern.
+	#
+	# POSITIV ALLOWLIST på den RÅA frågesträngen (rättning efter Codex del d, fynd D4): att leta efter förbjudna
+	# strängar ("ModelA") räckte inte, eftersom `type=B&type=SewerOverflowModel%41` är kodat och Mintaka avkodar
+	# och tar emot FLERA type-värden. Nu släpps en fråga igenom bara om den består av
+	#   * exakt EN parameter `type` med värdet SewerOverflowModelB, och
+	#   * i övrigt enbart kända, ofarliga parametrar med tecken som inte kan dölja en ny parameter
+	#     (inga & ; # eller blanksteg i värdet; kodade parameternamn som `typ%65` stämmer inte mot namnlistan).
+	# `id`, `idPattern` och `q` är inte med: de kan peka ut andra entiteter än B-brunnarna.
+	# Som sista skyddslinje skriver `uri query` om frågan så att uppströms alltid ser ETT type-värde, B.
+	@modellB {
+		method GET
+		path /temporal/entities
+		expression `{http.request.uri.query}.matches('^((attrs|timerel|timeAt|endTimeAt|timeproperty|lastN|limit|offset|options|aggrMethods|aggrPeriodDuration)=[A-Za-z0-9._~:,+%-]*&)*type=SewerOverflowModelB(&(attrs|timerel|timeAt|endTimeAt|timeproperty|lastN|limit|offset|options|aggrMethods|aggrPeriodDuration)=[A-Za-z0-9._~:,+%-]*)*$')`
+	}
+	@enskildB {
+		method GET
+		path_regexp ^/temporal/entities/urn:ngsi-ld:SewerOverflowModelB:[A-Za-z0-9._-]+$
+		expression `{http.request.uri.query}.matches('^((attrs|timerel|timeAt|endTimeAt|timeproperty|lastN|limit|offset|options|aggrMethods|aggrPeriodDuration)=[A-Za-z0-9._~:,+%-]*(&(attrs|timerel|timeAt|endTimeAt|timeproperty|lastN|limit|offset|options|aggrMethods|aggrPeriodDuration)=[A-Za-z0-9._~:,+%-]*)*)?$')`
+	}
+	handle @modellB {
+		uri query type SewerOverflowModelB
+		import mintaka_proxy
+	}
+	handle @enskildB {
+		import mintaka_proxy
+	}
+	handle {
+		respond "Bara den öppna distributionen (B) är åtkomlig här. / Only the open distribution (B) is accessible here." 403
+	}
+}
+
+# Distribution B som läsbar webbvy.
+{$CADDY_ADRESS_PREFIX}brunnar.{$DEMO_DOMAN} {
+	import gemensamt
+	import inloggning brunnar
+	reverse_proxy host.docker.internal:{$PUBLIK_VY_PORT}
+}
+
+# Allt annat: ett tydligt 404 i stället för ett tomt svar. Här hamnar bl.a.
+# försök att nå interna tjänster via påhittade värdnamn (edc., identity. …).
+http:// {
+	respond "Okänd adress – se kontrollrummet för de publika ingångarna. / Unknown address – see the control room for the public entry points." 404
+}

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connectorn i tre nivåer – SVADA PoC</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a1a1a; --mut: #666; --linje: #cbd2d9;
+    --box: #f4f6f8; --boxlinje: #b7c0ca;
+    --ctrl: #1b5e9c;     /* kontrollplan – blå */
+    --ctrlbg: #e6f0fa;
+    --data: #7a5100;     /* dataplan – ockra */
+    --databg: #f6edda;
+    --intern: #2e7d32;   /* internt – grön */
+    --cross: #b3261e;    /* korsar org-gräns – röd */
+    --mock: #8a6d00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --fg: #e6e8ea; --mut: #9aa4ae; --linje: #333b44;
+      --box: #1d2226; --boxlinje: #3a444e;
+      --ctrl: #6db3f2; --ctrlbg: #16283a;
+      --data: #d9b25a; --databg: #2c2413;
+      --intern: #6bbf6f; --cross: #f0857d; --mock: #d9b25a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --fg: #e6e8ea; --mut: #9aa4ae; --linje: #333b44;
+    --box: #1d2226; --boxlinje: #3a444e;
+    --ctrl: #6db3f2; --ctrlbg: #16283a; --data: #d9b25a; --databg: #2c2413;
+    --intern: #6bbf6f; --cross: #f0857d; --mock: #d9b25a;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #1a1a1a; --mut: #666; --linje: #cbd2d9;
+    --box: #f4f6f8; --boxlinje: #b7c0ca; --ctrl: #1b5e9c; --ctrlbg: #e6f0fa;
+    --data: #7a5100; --databg: #f6edda; --intern: #2e7d32; --cross: #b3261e;
+    --mock: #8a6d00;
+  }
+  body { background: var(--bg); color: var(--fg);
+         font-family: system-ui, -apple-system, sans-serif; line-height: 1.5;
+         margin: 0 auto; max-width: 60rem; padding: 1.5rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .2rem; }
+  p.under { color: var(--mut); margin: 0 0 1rem; }
+  .fig { width: 100%; overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; min-width: 640px; }
+  .legend { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin: 1rem 0 0;
+            font-size: .85rem; color: var(--fg); }
+  .legend span { display: inline-flex; align-items: center; gap: .4rem; }
+  .sw { width: .9rem; height: .9rem; border-radius: 3px; display: inline-block; }
+  .note { border: 1px solid var(--linje); border-radius: 6px; padding: .7rem 1rem;
+          margin-top: 1.1rem; font-size: .9rem; }
+  .note b { color: var(--fg); }
+  code { font-family: ui-monospace, monospace; font-size: .85em; }
+  footer { color: var(--mut); font-size: .8rem; margin-top: 1.4rem; }
+</style>
+</head>
+<body>
+  <h1>Connectorn i tre nivåer</h1>
+  <p class="under">Samma komponent, tre zoomnivåer: dataområdet (vem talar med
+    vem), funktionerna (vad connectorn gör) och anatomin (vilka portar som
+    öppnas åt vilket håll). Full förklaring i
+    <a href="C4-connector.md">C4-connector.md</a>.</p>
+
+  <!-- ============ NIVÅ 1: DATAOMRÅDET ============ -->
+  <h2>Nivå 1 · Dataområdet – federation utan gemensam plattform</h2>
+  <p class="under">Varje deltagare kör sin egen connector. Datat ligger kvar hos
+    källan tills ett avtal auktoriserar en överföring direkt mellan parterna.</p>
+
+  <div class="fig">
+  <svg viewBox="0 0 760 250" role="img"
+       aria-label="Dataområdet: tre deltagare med varsin connector, förbundna av Dataspace Protocol. Ingen gemensam plattform.">
+    <!-- DHI -->
+    <rect x="20" y="30" width="220" height="130" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="36" y="54" fill="var(--fg)" font-size="13" font-weight="700">DHI · provider</text>
+    <text x="36" y="72" fill="var(--mut)" font-size="10">Future City Flow (dataplan)</text>
+    <rect x="36" y="86" width="188" height="56" rx="6" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="48" y="108" fill="var(--ctrl)" font-size="11.5" font-weight="700">connector (edc-provider)</text>
+    <text x="48" y="124" fill="var(--mut)" font-size="9.5">datat stannar här tills avtal finns</text>
+
+    <!-- Staden -->
+    <rect x="280" y="30" width="220" height="130" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="296" y="54" fill="var(--fg)" font-size="13" font-weight="700">Staden · consumer</text>
+    <text x="296" y="72" fill="var(--mut)" font-size="10">CIP, katalog, portaler (dataplan)</text>
+    <rect x="296" y="86" width="188" height="56" rx="6" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="308" y="108" fill="var(--ctrl)" font-size="11.5" font-weight="700">connector (edc-consumer)</text>
+    <text x="308" y="124" fill="var(--mut)" font-size="9.5">begär, förhandlar, tar emot</text>
+
+    <!-- Framtida deltagare -->
+    <rect x="540" y="30" width="200" height="130" rx="8" fill="none" stroke="var(--boxlinje)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="556" y="54" fill="var(--mut)" font-size="13" font-weight="700">Framtida deltagare</text>
+    <text x="556" y="72" fill="var(--mut)" font-size="10">SMHI, Tjörn, forskning …</text>
+    <rect x="556" y="86" width="168" height="56" rx="6" fill="none" stroke="var(--ctrl)" stroke-width="2" stroke-dasharray="5 4"/>
+    <text x="568" y="108" fill="var(--ctrl)" font-size="11.5" font-weight="700">valfri DSP-connector</text>
+    <text x="568" y="124" fill="var(--mut)" font-size="9.5">protokollet räcker för att delta</text>
+
+    <!-- DSP-länkar -->
+    <line x1="224" y1="114" x2="296" y2="114" stroke="var(--cross)" stroke-width="2.5" marker-start="url(#pilA)" marker-end="url(#pilA)"/>
+    <text x="260" y="104" fill="var(--cross)" font-size="10" font-weight="700" text-anchor="middle">DSP</text>
+    <line x1="484" y1="114" x2="556" y2="114" stroke="var(--cross)" stroke-width="2" stroke-dasharray="5 4" marker-start="url(#pilA)" marker-end="url(#pilA)"/>
+    <text x="520" y="104" fill="var(--cross)" font-size="10" font-weight="700" text-anchor="middle">DSP</text>
+
+    <!-- Golvtext -->
+    <text x="380" y="205" fill="var(--fg)" font-size="12" font-weight="600" text-anchor="middle">Federationen är protokollet och tillitsramverket. Gemensam lagringsplats saknas – med avsikt.</text>
+    <text x="380" y="226" fill="var(--mut)" font-size="10.5" text-anchor="middle">DSP 2025-1 förvaltas av Eclipse Dataspace Working Group och standardiseras hos ISO/IEC (DIS 26450).</text>
+
+    <defs>
+      <marker id="pilA" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--cross)" stroke-width="1.5"/>
+      </marker>
+    </defs>
+  </svg>
+  </div>
+
+  <!-- ============ NIVÅ 2: FYRA FUNKTIONER ============ -->
+  <h2>Nivå 2 · Connectorns fyra funktioner</h2>
+  <p class="under">Kontrollplanet hanterar rättigheter i fyra steg; dataplanet
+    bär nyttolasten först när steg fyra gett klartecken (Målarkitektur v1.9 §6.1).</p>
+
+  <div class="fig">
+  <svg viewBox="0 0 760 300" role="img"
+       aria-label="Connectorns fyra funktioner i kontrollplanet: katalog, kontraktsförhandling, policyverkställighet och överföringskoordinering. Dataplanet nedanför bär datat.">
+    <!-- Kontrollplan -->
+    <rect x="10" y="20" width="740" height="150" rx="10" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="1"/>
+    <text x="24" y="42" fill="var(--ctrl)" font-size="13" font-weight="700">KONTROLLPLAN — domänoberoende, samma i alla sektorer</text>
+
+    <rect x="30" y="58" width="165" height="86" rx="6" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="42" y="80" fill="var(--fg)" font-size="11.5" font-weight="700">1 · Katalog</text>
+    <text x="42" y="97" fill="var(--mut)" font-size="9.5">annonserar dataprodukter</text>
+    <text x="42" y="110" fill="var(--mut)" font-size="9.5">med ODRL-erbjudanden</text>
+    <text x="42" y="127" fill="var(--mut)" font-size="9.5">standard: DCAT</text>
+
+    <rect x="215" y="58" width="165" height="86" rx="6" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="227" y="80" fill="var(--fg)" font-size="11.5" font-weight="700">2 · Förhandling</text>
+    <text x="227" y="97" fill="var(--mut)" font-size="9.5">tillståndsmaskin</text>
+    <text x="227" y="110" fill="var(--mut)" font-size="9.5">REQUESTED → FINALIZED</text>
+    <text x="227" y="127" fill="var(--mut)" font-size="9.5">resultat: avtal</text>
+
+    <rect x="400" y="58" width="165" height="86" rx="6" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="412" y="80" fill="var(--fg)" font-size="11.5" font-weight="700">3 · Policyverkställighet</text>
+    <text x="412" y="97" fill="var(--mut)" font-size="9.5">prövar ODRL-villkor vid</text>
+    <text x="412" y="110" fill="var(--mut)" font-size="9.5">varje transaktion; här</text>
+    <text x="412" y="127" fill="var(--mut)" font-size="9.5">sitter KoV-gaten (provider)</text>
+
+    <rect x="585" y="58" width="150" height="86" rx="6" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="597" y="80" fill="var(--fg)" font-size="11.5" font-weight="700">4 · Överföring</text>
+    <text x="597" y="97" fill="var(--mut)" font-size="9.5">koordinerar och</text>
+    <text x="597" y="110" fill="var(--mut)" font-size="9.5">auktoriserar dataplanets</text>
+    <text x="597" y="127" fill="var(--mut)" font-size="9.5">transfer</text>
+
+    <line x1="195" y1="101" x2="215" y2="101" stroke="var(--ctrl)" stroke-width="2" marker-end="url(#pilB)"/>
+    <line x1="380" y1="101" x2="400" y2="101" stroke="var(--ctrl)" stroke-width="2" marker-end="url(#pilB)"/>
+    <line x1="565" y1="101" x2="585" y2="101" stroke="var(--ctrl)" stroke-width="2" marker-end="url(#pilB)"/>
+
+    <!-- Dataplan -->
+    <rect x="10" y="200" width="740" height="70" rx="10" fill="var(--databg)" stroke="var(--data)" stroke-width="1"/>
+    <text x="24" y="222" fill="var(--data)" font-size="13" font-weight="700">DATAPLAN — domänspecifikt: FCF hos DHI, CIP hos staden</text>
+    <text x="24" y="244" fill="var(--mut)" font-size="10">Nyttolasten går här, direkt mellan parternas system (HttpData-PUSH i PoC:en). Kontrollplanet bär aldrig datat.</text>
+
+    <line x1="660" y1="144" x2="660" y2="200" stroke="var(--data)" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#pilC)"/>
+    <text x="672" y="180" fill="var(--data)" font-size="9.5">auktoriserar</text>
+
+    <defs>
+      <marker id="pilB" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--ctrl)" stroke-width="1.5"/>
+      </marker>
+      <marker id="pilC" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--data)" stroke-width="1.5"/>
+      </marker>
+    </defs>
+  </svg>
+  </div>
+
+  <!-- ============ NIVÅ 3: ANATOMIN ============ -->
+  <h2>Nivå 3 · Anatomin – fyra API-ytor och ett dataplan</h2>
+  <p class="under">Två connectorer (samma EDC-image, olika roll). Färgen på varje
+    port säger vem som får knacka.</p>
+
+  <div class="fig">
+  <svg viewBox="0 0 760 430" role="img"
+       aria-label="Anatomidiagram: providerns och consumerns connector med fyra API-ytor, kontrollplan över DSP och separat dataplan.">
+    <!-- KONTROLLPLANS-BAND -->
+    <rect x="10" y="24" width="740" height="196" rx="10"
+          fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="1"/>
+    <text x="24" y="46" fill="var(--ctrl)" font-size="13" font-weight="700">KONTROLLPLAN — förhandlar, verkställer policy, bär aldrig datat</text>
+
+    <!-- Provider-box -->
+    <rect x="30" y="62" width="320" height="140" rx="8"
+          fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="46" y="84" fill="var(--fg)" font-size="13" font-weight="700">edc-provider · DHI (provider)</text>
+
+    <!-- Provider ytor -->
+    <rect x="46" y="98" width="150" height="30" rx="5" fill="none" stroke="var(--intern)" stroke-width="2"/>
+    <text x="54" y="112" fill="var(--fg)" font-size="11" font-weight="600">Management :19193</text>
+    <text x="54" y="124" fill="var(--mut)" font-size="9.5">assets, policy, KoV-godkännande</text>
+    <rect x="206" y="98" width="128" height="30" rx="5" fill="none" stroke="var(--intern)" stroke-width="2"/>
+    <text x="214" y="112" fill="var(--fg)" font-size="11" font-weight="600">Control :19192</text>
+    <text x="214" y="124" fill="var(--mut)" font-size="9.5">kontroll ↔ dataplan</text>
+    <rect x="46" y="136" width="150" height="30" rx="5" fill="none" stroke="var(--intern)" stroke-width="2"/>
+    <text x="54" y="150" fill="var(--fg)" font-size="11" font-weight="600">Observability :19191</text>
+    <text x="54" y="162" fill="var(--mut)" font-size="9.5">health, drift</text>
+    <rect x="206" y="136" width="128" height="30" rx="5" fill="none" stroke="var(--cross)" stroke-width="2.5"/>
+    <text x="214" y="150" fill="var(--fg)" font-size="11" font-weight="700">DSP :19194</text>
+    <text x="214" y="162" fill="var(--mut)" font-size="9.5">/protocol</text>
+
+    <!-- Consumer-box -->
+    <rect x="410" y="62" width="320" height="140" rx="8"
+          fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="426" y="84" fill="var(--fg)" font-size="13" font-weight="700">edc-consumer · Staden (consumer)</text>
+    <rect x="426" y="136" width="128" height="30" rx="5" fill="none" stroke="var(--cross)" stroke-width="2.5"/>
+    <text x="434" y="150" fill="var(--fg)" font-size="11" font-weight="700">DSP :29194</text>
+    <text x="434" y="162" fill="var(--mut)" font-size="9.5">/protocol</text>
+    <rect x="564" y="98" width="150" height="30" rx="5" fill="none" stroke="var(--intern)" stroke-width="2"/>
+    <text x="572" y="112" fill="var(--fg)" font-size="11" font-weight="600">Management :29193</text>
+    <text x="572" y="124" fill="var(--mut)" font-size="9.5">ingen KoV-gate (404)</text>
+    <rect x="426" y="98" width="128" height="30" rx="5" fill="none" stroke="var(--intern)" stroke-width="2"/>
+    <text x="434" y="112" fill="var(--fg)" font-size="11" font-weight="600">Control :29192</text>
+    <rect x="564" y="136" width="150" height="30" rx="5" fill="none" stroke="var(--intern)" stroke-width="2"/>
+    <text x="572" y="150" fill="var(--fg)" font-size="11" font-weight="600">Observability :29191</text>
+
+    <!-- DSP-handskakning -->
+    <line x1="334" y1="151" x2="426" y2="151" stroke="var(--cross)" stroke-width="2.5"
+          marker-start="url(#pil)" marker-end="url(#pil)"/>
+    <text x="380" y="145" fill="var(--cross)" font-size="10" font-weight="700" text-anchor="middle">DSP 2025-1</text>
+    <text x="380" y="182" fill="var(--mut)" font-size="9.5" text-anchor="middle">katalog · ODRL · förhandling</text>
+
+    <!-- DATAPLANS-BAND -->
+    <rect x="10" y="238" width="740" height="120" rx="10"
+          fill="var(--databg)" stroke="var(--data)" stroke-width="1"/>
+    <text x="24" y="260" fill="var(--data)" font-size="13" font-weight="700">DATAPLAN — bär datat, separat väg</text>
+
+    <rect x="46" y="276" width="180" height="58" rx="6" fill="none" stroke="var(--data)" stroke-width="2"/>
+    <text x="56" y="298" fill="var(--fg)" font-size="11" font-weight="700">Public :19291</text>
+    <text x="56" y="313" fill="var(--mut)" font-size="9.5">providerns dataplan</text>
+    <text x="56" y="326" fill="var(--mut)" font-size="9.5">HttpData-PUSH</text>
+
+    <rect x="300" y="276" width="200" height="58" rx="6" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="312" y="299" fill="var(--fg)" font-size="11" font-weight="700">ingest-service (staden)</text>
+    <text x="312" y="314" fill="var(--mut)" font-size="9.5">validerar mot avtalet,</text>
+    <text x="312" y="326" fill="var(--mut)" font-size="9.5">skriver till CIP</text>
+
+    <rect x="558" y="276" width="156" height="58" rx="6" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="570" y="299" fill="var(--fg)" font-size="11" font-weight="700">CIP / Mintaka</text>
+    <text x="570" y="314" fill="var(--mut)" font-size="9.5">accessURL pekar hit</text>
+    <text x="570" y="326" fill="var(--mut)" font-size="9.5">(hård regel 8)</text>
+
+    <line x1="226" y1="305" x2="300" y2="305" stroke="var(--data)" stroke-width="2" marker-end="url(#pild)"/>
+    <line x1="500" y1="305" x2="558" y2="305" stroke="var(--data)" stroke-width="2" marker-end="url(#pild)"/>
+
+    <!-- avtalet kopplar planen -->
+    <line x1="290" y1="167" x2="136" y2="276" stroke="var(--mut)" stroke-width="1.2" stroke-dasharray="4 4"/>
+    <text x="150" y="238" fill="var(--mut)" font-size="9.5" transform="rotate(-33 150 238)">avtal ⇒ transfer</text>
+
+    <defs>
+      <marker id="pil" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--cross)" stroke-width="1.5"/>
+      </marker>
+      <marker id="pild" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--data)" stroke-width="1.5"/>
+      </marker>
+    </defs>
+
+    <!-- Golvtext -->
+    <text x="380" y="392" fill="var(--fg)" font-size="12" font-weight="600" text-anchor="middle">Det enda som korsar organisationsgränsen: DSP-porten och dataplanet. Management-ytan hålls alltid stängd utåt.</text>
+    <text x="380" y="412" fill="var(--mut)" font-size="10.5" text-anchor="middle">Provider och consumer kör samma EDC-image. Skillnaden är konfigurationen (edc/konfig/*.properties).</text>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw" style="background:var(--intern)"></i> Intern yta – deltagarens egna appar/operatörer</span>
+    <span><i class="sw" style="background:var(--cross)"></i> Korsar org-gränsen – motpartens connector / datat</span>
+    <span><i class="sw" style="background:var(--ctrl)"></i> Kontrollplan</span>
+    <span><i class="sw" style="background:var(--data)"></i> Dataplan</span>
+  </div>
+
+  <div class="note">
+    <b>Fem missförstånd, fem svar.</b>
+    (1) Connectorn är en roll definierad av Dataspace Protocol; produkter som
+    EDC implementerar rollen. (2) Datat går på dataplanet – förhandlingen
+    utbyter bara metadata, villkor och tillstånd. (3) Dataområdet saknar
+    gemensam lagringsplats; data ligger kvar hos källan tills avtalet finns.
+    (4) Connectorn koordinerar – lagring och förädling sker i dataplanet (CIP,
+    FCF). (5) En connector öppnar flera API-ytor: endast <b>DSP</b> och
+    <b>Public</b> vetter utåt.
+  </div>
+
+  <div class="note">
+    <b>Läs så här.</b> KoV-gaten finns bara på providerns management-yta
+    (<code>:19193</code> svarar 200, consumerns <code>:29193</code> svarar 404)
+    – suveräniteten sitter hos den som tillhandahåller datat, och consumern kan
+    aldrig godkänna sin egen åtkomst. Att
+    öppna <code>Management</code> utåt vore att ge vem som helst rätten att
+    godkänna Distribution A. Full förklaring i
+    <a href="C4-connector.md">C4-connector.md</a>.
+  </div>
+
+  <footer>SVADA PoC · anatomibild till konceptet C4 · portar enligt
+    portkartan (<code>.env</code> / komponentplan §4) · DSP 2025-1
+    (ISO/IEC DIS 26450 pågår).</footer>
+</body>
+</html>

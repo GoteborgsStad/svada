@@ -1,0 +1,107 @@
+# =====================================================================
+# compose.dsga.yml – Svadas utfärdare (samordningsrollen, DSGA 0.1)
+# =====================================================================
+# Svadas utfärdare – samordningsrollen (DSGA 0.1). Driftas i målbilden av
+# Intraservice på DSGA:s uppdrag, skild från stadens egen IdentityHub.
+#
+# Utfärdare med rätt mandat (docs/koncept/C1-identitet.md, "Utfärdarmodellen"): den som
+# intygar något ska ha mandat att intyga just det.
+#   * Svada intygar MEDLEMSKAP och DELTAGARE (SvadaMembershipCredential,
+#     SvadaParticipantCredential) åt DHI och Staden. Medlemskap är något
+#     samordnaren ger, inte någon enskild deltagare.
+#   * Svada utfärdar INGA rollintyg. Stadens rollfördelning (Kretslopp och
+#     Vatten är rättighetsinnehavare) intygar staden själv i sin egen hub;
+#     DHI intygar sin egen roll i sin.
+#   * Den som verifierar godtar varje intygstyp bara från rätt utfärdare
+#     (edc.iam.trustedissuer.*.supportedtypes i edc/konfig/*.properties).
+#
+# MEDVETEN FÖRENKLING – simulerar DSGA 0.1:s tillitstjänst. Inga intyg är
+# förankrade i eIDAS (organisationsnummer eller liknande). Återkallelse finns
+# (Bitstring Status List, StatusListController) men listan ligger i minnet. In-memory-lagring enligt resursstrategin. Utfärdaren körs här som en container bredvid de andra; i målbilden
+# är det en egen tjänst med egen styrning.
+#
+# Startordning: svada -> dhi -> stad (DHI och Staden importerar sina intyg
+# från utfärdaren via den delade volymen och väntar på dem vid uppstart):
+#   docker compose -f compose.dsga.yml --profile dsga-utfardare up -d
+# =====================================================================
+services:
+  identity-hub-svada:
+    build:
+      context: ./identity-hub
+      args:
+        EDC_GRADLE_IMAGE: ${EDC_GRADLE_IMAGE}
+        EDC_BASE_IMAGE: ${EDC_BASE_IMAGE}
+        IDENTITY_HUB_VERSION: ${IDENTITY_HUB_VERSION}
+    image: ${SVADA_PREFIX:-svada}/identity-hub:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-identity-hub-svada
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["dsga-utfardare"]
+    environment:
+      JAVA_TOOL_OPTIONS: ${IDENTITY_HUB_JVM_XMX}
+      WEB_HTTP_PORT: "49195"
+      WEB_HTTP_PATH: "/api"
+      WEB_HTTP_IDENTITY_PORT: "49196"
+      WEB_HTTP_IDENTITY_PATH: "/api/identity"
+      # did:web-dokumentet (utfärdarens publika nyckel): hämtas av DHI, Staden
+      # och båda connectorerna för att kontrollera signaturer.
+      WEB_HTTP_DID_PORT: "49197"
+      WEB_HTTP_DID_PATH: "/"
+      WEB_HTTP_CREDENTIALS_PORT: "49198"
+      WEB_HTTP_CREDENTIALS_PATH: "/api/credentials"
+      WEB_HTTP_STS_PORT: "49199"
+      WEB_HTTP_STS_PATH: "/api/sts"
+      SVADA_PARTICIPANT_ID: ${SVADA_PARTICIPANT_ID_SVADA}
+      SVADA_PARTICIPANT_DID: ${SVADA_PARTICIPANT_DID_SVADA}
+      EDC_ENCRYPTION_AES_KEY_ALIAS: ${IDENTITY_HUB_AES_KEY_ALIAS}
+      TZ: ${TZ}
+      # Återkallelse (StatusListController): listans publika adress, så som connectorerna når den,
+      # och samordningsrollens nyckel för /svada-status (återkalla/återinsätt medlems- och deltagarintyg).
+      SVADA_STATUS_LIST_URL: http://identity-hub-svada:49197/status/revocation/1
+      SVADA_STATUS_ADMIN_KEY: ${SVADA_STATUS_ADMIN_KEY}
+      # Utfärdarläge: mintar Participant- och MembershipCredential åt varje
+      # mottagare nedan och exporterar dem till utbytesvolymen (en undermapp
+      # per mottagare). Mintar inga rollintyg.
+      SVADA_CREDENTIAL_ISSUER: "true"
+      SVADA_ISSUER_MOTTAGARE: "${SVADA_PARTICIPANT_ID_DHI}=${SVADA_PARTICIPANT_DID_DHI},${SVADA_PARTICIPANT_ID_STAD}=${SVADA_PARTICIPANT_DID_STAD}"
+      SVADA_DATASPACE_ID: ${SVADA_DATASPACE_ID}
+      SVADA_VC_UTBYTE_DIR: ${SVADA_VC_UTBYTE_DIR}
+      # Används ENDAST av testläget svada-roll (rollstextens lydelse i det felaktiga
+      # rollintyget). Utfärdaren utfärdar inga rollintyg i normal drift.
+      SVADA_ROLLINNEHAVARE: ${SVADA_KOV_ROLLINNEHAVARE}
+      # Bara för verify_ap8_fas3.sh (negativa testerna). Tomt = av. Se
+      # SvadaParticipantBootstrapExtension, "TESTLÄGE".
+      SVADA_TEST_NEGATIV: ${SVADA_TEST_NEGATIV:-}
+      EDC_IAM_DID_WEB_USE_HTTPS: "false"
+    networks:
+      dsp-public:
+        aliases:
+          - identity-hub-svada
+    ports:
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_SVADA_DEFAULT_PORT}:49195"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_SVADA_IDENTITY_PORT}:49196"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_SVADA_DID_PORT}:49197"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_SVADA_CREDENTIALS_PORT}:49198"
+      # 49199 (STS) publiceras medvetet inte: utfärdaren är ingen deltagare.
+    volumes:
+      # Utfärdaren ÄGER utbytesvolymen: rw här, ro hos DHI och Staden.
+      - vc-utbyte:${SVADA_VC_UTBYTE_DIR}
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:49195/api/check/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: ${SVADA_RESTART:-unless-stopped}
+
+volumes:
+  # Extern, delad Docker-volym (skapas en gång, se starta-demo.sh).
+  vc-utbyte:
+    external: true
+    name: ${SVADA_PREFIX:-svada}-vc-utbyte
+
+networks:
+  dsp-public:
+    external: true
+    name: ${SVADA_PREFIX:-svada}-dsp-public

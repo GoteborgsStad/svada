@@ -1,0 +1,229 @@
+# =====================================================================
+# compose.kontrollrum.yml – kontrollrummet och den publika ingången
+# =====================================================================
+# Svada-mini: skördarna (portalerna) och FAIR-lagret ingår inte längre i
+# kedjan. Kvar är kontrollrummet (profil "dashboard") och Caddy (profil
+# "publik-ingang").
+#   docker compose -f compose.kontrollrum.yml --profile dashboard up -d
+#
+# Kontrollrummet läser och utlöser stegen över värdens publicerade portar
+# och flyttar aldrig data förbi kontraktet.
+# =====================================================================
+
+name: ${SVADA_PREFIX:-svada}-kontrollrum
+
+services:
+
+  # -------------------------------------------------------------------
+  # dashboard – kontrollrummet (komponent 14).
+  #
+  # NÄTVERK: dashboarden ligger på ett EGET nät och når varje komponent
+  # över VÄRDENS publicerade portar (extra_hosts nedan), inte över
+  # org-näten. Skälet är att distribution A inte får läsas förbi kontraktet: fcf-sim ligger enbart på
+  # dhi-internal, och ett kontrollrum som låg där hade kunnat läsa
+  # Distribution A förbi kontraktet. Se services/dashboard/kallor.py.
+  #
+  # Inga monteringar: kontrollrummet läser komponenterna över deras API:er.
+  # -------------------------------------------------------------------
+  dashboard:
+    build:
+      # Kontexten är ./services: paketet gemensam/ delas (se Dockerfile).
+      context: ./services
+      dockerfile: dashboard/Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE}
+        FASTAPI_VERSION: ${FASTAPI_VERSION}
+        UVICORN_VERSION: ${UVICORN_VERSION}
+    image: ${SVADA_PREFIX:-svada}/dashboard:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-dashboard
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["dashboard", "etapp6b"]
+    environment:
+      SVADA_VERSION: ${SVADA_VERSION:-okänd}
+      # Statistik: loggen läses, dagssummor och händelseräknare skrivs i data/ (git-ignorerad, utanför nollställningen).
+      STATISTIK_KATALOG: /statistik
+      # Egna adresser som inte ska räknas (kapade adresser, CIDR, kommaseparerade); tom = alla räknas.
+      STATISTIK_UTESLUT: ${STATISTIK_UTESLUT:-}
+      # Värden och portkartan – dashboarden hårdkodar inga adresser.
+      DASH_VARD: ${DASH_VARD}
+      DASH_HALSA_INTERVALL_S: ${DASH_HALSA_INTERVALL_S}
+      DASH_TIMEOUT_S: ${DASH_TIMEOUT_S}
+      DASH_BRUNN_ID: ${DASH_BRUNN_ID}
+      DASH_AUDIT_RETENTION: ${DASH_AUDIT_RETENTION}
+      FCF_SIM_PORT: ${FCF_SIM_PORT}
+      EDC_PROVIDER_DEFAULT_PORT: ${EDC_PROVIDER_DEFAULT_PORT}
+      EDC_PROVIDER_MGMT_PORT: ${EDC_PROVIDER_MGMT_PORT}
+      EDC_CONSUMER_DEFAULT_PORT: ${EDC_CONSUMER_DEFAULT_PORT}
+      EDC_CONSUMER_MGMT_PORT: ${EDC_CONSUMER_MGMT_PORT}
+      # Nyckelskyddade management-API:er: dashboarden läser KoV-förhandlingar/transfers och
+      # behöver därför båda anläggningarnas management-nycklar.
+      EDC_PROVIDER_MGMT_KEY: ${EDC_PROVIDER_MGMT_KEY}
+      EDC_CONSUMER_MGMT_KEY: ${EDC_CONSUMER_MGMT_KEY}
+      EDC_PROVIDER_ID: ${EDC_PROVIDER_ID}
+      # Samordningsrollens statuslista (Svadas utfärdare): återkalla/återinsätt medlemsintyg.
+      IDENTITY_HUB_SVADA_DID_PORT: ${IDENTITY_HUB_SVADA_DID_PORT}
+      SVADA_STATUS_ADMIN_KEY: ${SVADA_STATUS_ADMIN_KEY}
+      # Verifierbar DCP-identitet: KoV-knapparna kräver
+      # numera ett verifierat SvadaRoleCredential (KovController),
+      # inte bara management-nyckeln. Dashboarden hämtar därför själv ett
+      # self-issued DCP-token från Stadens STS – samma flöde som
+      # tests/lib.sh:s hamta_kov_token(), fast över host.docker.internal
+      # eftersom dashboarden av design inte får nå org-interna nätverk
+      # (se .env/compose.stad.yml, "STS publiceras HÄR").
+      IDENTITY_HUB_STAD_STS_PORT: ${IDENTITY_HUB_STAD_STS_PORT}
+      SVADA_PARTICIPANT_DID_STAD: ${SVADA_PARTICIPANT_DID_STAD}
+      SVADA_STS_CLIENT_SECRET_STAD: ${SVADA_STS_CLIENT_SECRET_STAD}
+      EDC_DSP_VERSION: ${EDC_DSP_VERSION}
+      EDC_ASSET_A_ID: ${EDC_ASSET_A_ID}
+      EDC_ASSET_B_ID: ${EDC_ASSET_B_ID}
+      EDC_TRANSFER_TYPE: ${EDC_TRANSFER_TYPE}
+      INGEST_PORT: ${INGEST_PORT}
+      INGEST_PUSH_URL: ${INGEST_PUSH_URL}
+      ORION_STAD_PORT: ${ORION_STAD_PORT}
+      # Drifttoken mot stad-gateway (G22): CIP:en kräver token sedan
+      # Distribution A:s non-public-märkning blev verkställd.
+      STAD_GATEWAY_DRIFT_TOKEN: ${STAD_GATEWAY_DRIFT_TOKEN}
+      MINTAKA_PORT: ${MINTAKA_PORT}
+      TZ: ${TZ}
+      # Publik demo: de adresser besökaren ska använda (via Caddy). Tomma
+      # i originalet – då visas värdportarna som förut.
+      DEMO_VARIANT: ${DEMO_VARIANT:-intern}
+      # Samordnarens utestängning: tom = standard (avstängd i extern variant, på i intern); ja eller nej tvingar det ena eller andra.
+      DASH_UTESTANGNING: ${DASH_UTESTANGNING:-}
+      # Egen vy per besökare (sessionskaka) i den externa varianten, bara via Caddy: ja/nej (tom = nej).
+      DASH_SESSIONER: ${DASH_SESSIONER:-}
+      # Klockslaget för den nattliga återställningen (nedräkningen på sidan). Tomt = ingen nedräkning (lokalt).
+      DEMO_ATERSTALL_KL: ${DEMO_ATERSTALL_KL:-}
+      # Skydd i den publika demon (services/dashboard/skydd.py); sekunder.
+      DASH_UTESTANGNING_S: ${DASH_UTESTANGNING_S:-180}
+      DASH_FELINJEKTION_S: ${DASH_FELINJEKTION_S:-300}
+      DASH_PAUS_EFTER_JOBB_S: ${DASH_PAUS_EFTER_JOBB_S:-8}
+      PUBLIK_URL_KONTROLLRUM: ${PUBLIK_URL_KONTROLLRUM:-}
+      PUBLIK_URL_CIP: ${PUBLIK_URL_CIP:-}
+      PUBLIK_URL_TIDSSERIE: ${PUBLIK_URL_TIDSSERIE:-}
+      PUBLIK_URL_BRUNNAR: ${PUBLIK_URL_BRUNNAR:-}
+    extra_hosts:
+      # Värdens gateway – så att containern når de publicerade portarna.
+      - "host.docker.internal:host-gateway"
+    networks: [dashboard-net]
+    ports:
+      # Portkartan: 8800 = kontrollrummet.
+      - "${VARD_BIND_IP:-0.0.0.0}:${DASHBOARD_PORT}:8800"
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8800/health', timeout=5).status==200 else 1)"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    volumes:
+      - ./statistik/logg:/statistik/logg:ro
+      - ./statistik/data:/statistik/data
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # caddy – PUBLIK INGÅNG (publik demo). Den enda porten en extern
+  # besökare når. Ett värdnamn per publik roll, se services/caddy/Caddyfile.
+  # Hela ingången ligger bakom ett gemensamt lösenord (lösenordsgrinden).
+  # Når tjänsterna över värdens portar, precis som kontrollrummet – ligger
+  # därför bara på sitt eget nät, inte på något org-nät.
+  # -------------------------------------------------------------------
+  caddy:
+    image: ${SVADA_PREFIX:-svada}/caddy:1.0.0
+    build:
+      context: ./services/caddy
+      args:
+        CADDY_BUILDER_IMAGE: ${CADDY_BUILDER_IMAGE}
+        CADDY_RUNTIME_IMAGE: ${CADDY_IMAGE}
+        CADDY_RATELIMIT_VERSION: ${CADDY_RATELIMIT_VERSION}
+    container_name: ${SVADA_PREFIX:-svada}-caddy
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["publik-ingang"]
+    environment:
+      DEMO_DOMAN: ${DEMO_DOMAN}
+      CADDY_ADRESS_PREFIX: ${CADDY_ADRESS_PREFIX}
+      DASHBOARD_PORT: ${DASHBOARD_PORT}
+      ORION_STAD_PORT: ${ORION_STAD_PORT}
+      MINTAKA_PORT: ${MINTAKA_PORT}
+      PUBLIK_VY_PORT: ${PUBLIK_VY_PORT}
+      RATE_SKRIV_FONSTER: ${RATE_SKRIV_FONSTER}
+      RATE_SKRIV_ANTAL: ${RATE_SKRIV_ANTAL}
+      RATE_HANDELSE_FONSTER: ${RATE_HANDELSE_FONSTER:-1m}
+      RATE_HANDELSE_ANTAL: ${RATE_HANDELSE_ANTAL:-240}
+      RATE_TIDSSERIE_FONSTER: ${RATE_TIDSSERIE_FONSTER}
+      RATE_TIDSSERIE_ANTAL: ${RATE_TIDSSERIE_ANTAL}
+      # Lösenordsgrinden (Caddyfile, snippet "inloggning"). Kakans
+      # egenskaper är inte hemliga och ligger i .env.
+      DEMO_KAKA_MAXALDER: ${DEMO_KAKA_MAXALDER}
+      DEMO_KAKA_SECURE: ${DEMO_KAKA_SECURE:-}
+      # on (standard) = lösenordsgrinden gäller; off = demon är öppen för alla (se Caddyfilen, snippet inloggning)
+      DEMO_GATE: ${DEMO_GATE:-on}
+      RATE_INLOGG_FONSTER: ${RATE_INLOGG_FONSTER}
+      RATE_INLOGG_ANTAL: ${RATE_INLOGG_ANTAL}
+    # Användarnamnet och hemligheterna (DEMO_ANVANDARE, DEMO_LOSENORD_HASH,
+    # DEMO_TILLTRADE_TOKEN) ligger i en fil som git ignorerar, skapad av
+    # tools/nytt-demo-losenord.sh (användarnamnet kan väljas där).
+    # "required: false" så att övriga tjänster i filen kan köras utan den;
+    # Caddy själv vägrar starta utan värdena (command nedan).
+    env_file:
+      - path: ./.demo-inloggning.env
+        required: false
+    # Fail-closed: utan lösenordshash och token startar INTE den publika
+    # ingången – grinden kan aldrig falla bort tyst. Sedan Caddys vanliga
+    # startkommando (bildens CMD).
+    command:
+      - sh
+      - -c
+      - |
+        if [ -z "$${DEMO_ANVANDARE:-}" ] || [ -z "$${DEMO_LOSENORD_HASH:-}" ] \
+           || [ "$${#DEMO_TILLTRADE_TOKEN}" -lt 32 ]; then
+          echo "VÄGRAR STARTA: lösenordsgrinden saknas (.demo-inloggning.env)." >&2
+          echo "Kör: bash tools/nytt-demo-losenord.sh" >&2
+          exit 1
+        fi
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./services/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      # Åtkomstloggen för statistiken (kapade IP-adresser, inga hemligheter; se Caddyfile). Ligger i repot som en vanlig katalog,
+      # git-ignorerad, så att nollställningen och volymerna inte rör den.
+      - ./statistik/logg:/statistik
+      - caddy-config:/config
+    networks: [ingang-net]
+    ports:
+      # På servern alla adresser (den publika ingången); lokalt 127.0.0.1
+      # så att inte ens Caddy syns utanför Macen (CADDY_BIND_IP i .env).
+      - "${CADDY_BIND_IP:-0.0.0.0}:${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_BIND_IP:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:443"
+      # IPv6 separat: en uttrycklig IPv4-adress ovan binder BARA IPv4, och
+      # AAAA-posterna skulle då leda IPv6-besökare (och Let's Encrypts
+      # validering) till en stängd port. Servern "::", lokalt "::1".
+      - "[${CADDY_BIND_IP6:-::1}]:${CADDY_HTTP_PORT:-80}:80"
+      - "[${CADDY_BIND_IP6:-::1}]:${CADDY_HTTPS_PORT:-443}:443"
+    mem_limit: 128m
+    restart: ${SVADA_RESTART:-unless-stopped}
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  # Den publika ingångens eget nät (Caddy).
+  # IPv6 på servern (INGANG_IPV6=true): utan IPv6 på nätet skickar Docker
+  # IPv6-besökare genom docker-proxy, som byter avsändaren mot nätets
+  # gateway – alla IPv6-besökare delar då EN hastighetsgräns, och en enda
+  # skanner stänger ute dem. Med IPv6 på nätet
+  # vidarebefordras de med ip6tables och behåller sin riktiga adress.
+  # Subnätet (ULA) tilldelas automatiskt. Lokalt av (Docker Desktop).
+  ingang-net:
+    driver: bridge
+    enable_ipv6: ${INGANG_IPV6:-false}
+  # Kontrollrummets eget nät: det behöver INGET org-nät (se dashboard ovan).
+  dashboard-net:
+    driver: bridge
+  dsp-public:
+    external: true
+    name: ${SVADA_PREFIX:-svada}-dsp-public

@@ -1,0 +1,91 @@
+{
+  "_kommentar": [
+    "KONCEPT: docs/koncept/06-kov-gate.md",
+    "SVADA PoC / KoV-gaten – policydefinition för Distribution A",
+    "(K1R1T1, non-public, full GIS). Den restriktiva motsatsen till B.",
+    "",
+    "A: use, förbud mot distribute/publish, kräver godkännande.",
+    "Delarna, i tur och ordning nedan (giltighetstiden och revisionsskyldigheten tillkom senare):",
+    "",
+    "1. permission odrl:use MED constraint svada:deltagare eq Stadens DID.",
+    "   Bara Göteborgs Stad får ingå avtal om Distribution A. Constrainten",
+    "   utvärderas av DeltagareFunktion i contract.negotiation-scope, dvs.",
+    "   när consumern skickar sin ContractRequestMessage – faller den blir",
+    "   förhandlingen TERMINATED direkt. Det är verkställd ODRL. Sedan den verifierbara",
+    "   DCP-identiteten: rightOperand är Stadens VERIFIERADE DID (__STAD_DID__,",
+    "   ersatt av registrera.py ur SVADA_PARTICIPANT_DID_STAD), inte",
+    "   kortnamnet 'stad' - ett kortnamn går inte",
+    "   där: EDC:s eget kontrollplan (bl.a.",
+    "   ContractNegotiationProtocolServiceImpl) återanvänder",
+    "   ParticipantAgent.getIdentity() som förhandlingens counterPartyId,",
+    "   som i sin tur blir mål-audience i STS-tokens för DSP-anropen TILLBAKA",
+    "   till motparten - det värdet MÅSTE alltså vara en riktig DID.",
+    "",
+    "2. prohibition odrl:distribute + odrl:publish. Datat får inte spridas",
+    "   vidare eller publiceras. Förbuden bärs med in i avtalet och är det",
+    "   som gör att Distribution A aldrig får spridas vidare eller publiceras",
+    "   (A går inte att läsa utan gällande avtal). Förbuden är avsiktligt utan constraints:",
+    "   de gäller ovillkorligt. En ovillkorlig prohibition får en policy att",
+    "   passera utvärderingen (regel utan constraints är sann) men blockerar",
+    "   den som FÖRSÖKER utföra actionen – vilket sker i dashboardets",
+    "   ODRL-blockeringsdemo.",
+    "",
+    "3. obligation svada:kovGodkannande. SVADA:s egen ODRL-term som säger",
+    "   att avtalet kräver beslut av Data Rights Holder (Kretslopp och",
+    "   Vatten). Den DEKLARERAR kravet; KovGate i providern VERKSTÄLLER det",
+    "   genom att pausa förhandlingen (hård regel 7 – policyverkställighet",
+    "   ägs av providern enligt DSP). Gaten letar efter exakt den här",
+    "   obligationen, inte efter ett hårdkodat asset-id.",
+    "",
+    "Policyn används både som accessPolicy och contractPolicy. Att den",
+    "syns i katalogen är MENINGEN: consumern ska kunna se att produkten",
+    "finns och på vilka villkor – men aldrig få datat utan KoV-beslut."
+  ],
+  "@context": {
+    "@vocab": "https://w3id.org/edc/v0.0.1/ns/",
+    "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "policy-distribution-a",
+  "policy": {
+    "@context": [
+      "http://www.w3.org/ns/odrl.jsonld",
+      { "svada": "https://svada.goteborg.se/ns/", "edc": "https://w3id.org/edc/v0.0.1/ns/" }
+    ],
+    "@type": "Set",
+    "permission": [
+      {
+        "action": "odrl:use",
+        "constraint": [
+          {
+            "_kommentar": "Left operand och operator är @type:@vocab i ODRL-kontexten – prefixade termer expanderas alltså till fulla IRI:er (svada:deltagare -> https://svada.goteborg.se/ns/deltagare, odrl:eq -> http://www.w3.org/ns/odrl/2/eq). Det är de IRI:erna som SvadaOdrlExtension binder och registrerar funktion för.",
+            "leftOperand": "svada:deltagare",
+            "operator": "odrl:eq",
+            "rightOperand": "__STAD_DID__"
+          },
+          {
+            "_kommentar": "Avtalets giltighetstid (förstudie-nasta-steg §2, alt 3): avtalet gäller från ingåendet och i __AVTAL_GILTIGHET__. EDC:s inForceDate stöder en relativ gräns mot avtalets ingående (contractAgreement+<tid>). Providern verkställer den vid överföring; stadens avtalsregister läser samma villkor och sätter UTGANGET.",
+            "leftOperand": "edc:inForceDate",
+            "operator": "odrl:gteq",
+            "rightOperand": "contractAgreement+0s"
+          },
+          {
+            "leftOperand": "edc:inForceDate",
+            "operator": "odrl:lteq",
+            "rightOperand": "contractAgreement+__AVTAL_GILTIGHET__"
+          }
+        ]
+      }
+    ],
+    "prohibition": [
+      { "action": "odrl:distribute" },
+      { "action": "odrl:publish" }
+    ],
+    "obligation": [
+      { "action": "svada:kovGodkannande" },
+      {
+        "_kommentar": "DEKLARATION, inte verkställd: mottagaren medger granskning (revision) av hur datat används. Ingen connector kan kontrollera användningen efter överföringen; den juridiska delen står i datadelningsavtalet (forstudie-nasta-steg §6).",
+        "action": "svada:medgerGranskning"
+      }
+    ]
+  }
+}

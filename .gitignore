@@ -1,0 +1,59 @@
+# ---- Körtidsdata / volymer ----
+verify_all_resultat.txt
+
+**/data-volumes/
+volumes/
+*.log
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# ---- EDC / Java-bygge ----
+edc/build/
+edc/**/build/
+edc/.gradle/
+*.class
+
+# ---- IDE / editor ----
+.idea/
+.vscode/
+.claude/
+*.swp
+*~
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Hemligheter ----
+# .env ÄR spårad (byggkontrakt: portar och låsta taggar).
+# Riktiga hemligheter läggs i .env.local som ignoreras:
+.env.local
+*.secret
+*.key
+# Publik demo: lösenordsgrinden (tools/nytt-demo-losenord.sh). Klartext-
+# lösenordet resp. Caddys hash + kak-token – får ALDRIG in i git.
+.demo-losenord
+.demo-inloggning.env
+# fas2-spik/ är en lokal scratch-klon av uppströms IdentityHub/
+# Connector-källkod (använd för att läsa/verifiera API-kontrakt under
+# utredningen - inte SVADA-kod, ska inte in i
+# repot.
+fas2-spik/
+tools/node_modules
+
+# Råa testspår (anteckningar, skärmdumpar): ligger utanför git
+/testresultat-ra/
+
+# ---- Statistik: loggar och rapporter är körtidsdata ----
+statistik/logg/*
+!statistik/logg/.gitkeep
+statistik/rapport/*
+!statistik/rapport/.gitkeep
+statistik/data/*
+!statistik/data/.gitkeep

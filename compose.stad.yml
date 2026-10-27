@@ -1,0 +1,582 @@
+# =====================================================================
+# compose.stad.yml – Organisation "Göteborgs Stad" (consumer-sidan)
+# =====================================================================
+# Fylls steg för steg, styrs med Compose-PROFILER.
+# Stadens dataplan (CIP + tidsserier):
+#   docker compose -f compose.stad.yml --profile stad-dataplan up -d
+#   (profilen "etapp1" är ett synonymt alias – båda är satta per tjänst)
+#
+# Engångsjobbet som laddar de 91 bräddbrunnarna ligger i egen profil så att
+# det aldrig startar tillsammans med dataplanet:
+#   docker compose -f compose.stad.yml --profile laddning run --rm ladda-brunnar
+#
+# Stadens kontrollplan (profil "stad-edc"):
+#   docker compose -f compose.stad.yml --profile stad-edc up -d
+#
+# Stadens mottagning av transfern (profil "stad-ingest"):
+#   docker compose -f compose.stad.yml --profile stad-edc --profile stad-ingest up -d
+#
+# Katalogen: dataprodukten beskrivs i DCAT i DSP-katalogen hos DHI:s
+# connector; CKAN och skördarna ingår inte i Svada-mini.
+#
+# Resurstak (bindande resursstrategi): mongo --wiredTigerCacheSizeGB ${MONGO_WT_CACHE_GB},
+#   mem_limit på varje tjänst, JVM-tak för Mintaka via JAVA_TOOL_OPTIONS.
+# =====================================================================
+
+name: ${SVADA_PREFIX:-svada}-stad
+
+services:
+
+  # -------------------------------------------------------------------
+  # mongo-stad – Orion-LD:s tillståndslager (aktuellt läge per brunn).
+  # Egen Mongo-instans (inte delad med DHI) eftersom organisationsgränsen
+  # är pedagogiskt viktig – därav cache-taket enligt resursstrategin.
+  # -------------------------------------------------------------------
+  mongo-stad:
+    image: ${MONGO_IMAGE}
+    container_name: ${SVADA_PREFIX:-svada}-mongo-stad
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-dataplan", "etapp1"]
+    command: --wiredTigerCacheSizeGB ${MONGO_WT_CACHE_GB} --bind_ip_all
+    networks: [stad-internal]
+    volumes:
+      - mongo-stad-data:/data/db
+    mem_limit: 1g
+    healthcheck:
+      # MongoDB 7 har klienten "mongosh" (4.4 hade "mongo").
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # timescale-stad – TRoE-lagret. Orion-LD skriver varje attributändring
+  # hit; Mintaka läser härifrån och exponerar NGSI-LD temporal API.
+  # OBS: PostGIS krävs (Orion-LD kör CREATE EXTENSION postgis) – se .env.
+  # -------------------------------------------------------------------
+  timescale-stad:
+    image: ${TIMESCALE_IMAGE}
+    container_name: ${SVADA_PREFIX:-svada}-timescale-stad
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-dataplan", "etapp1"]
+    # -oss-imagen har bara Apache-delarna av TimescaleDB: licensen måste sättas till apache på serverns kommandorad.
+    command: postgres -c max_connections=100 -c timescaledb.license=apache -c timescaledb.telemetry_level=off
+    environment:
+      POSTGRES_USER: ${TROE_DB_USER}
+      POSTGRES_DB: ${TROE_DB_NAME}
+      POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: password
+      TZ: ${TZ}
+    networks: [stad-internal]
+    volumes:
+      # timescaledb-ha-imagen lägger databasen i /home/postgres/pgdata/data (PGDATA i imagen) och kör som användaren postgres.
+      - timescale-stad-data:/home/postgres/pgdata
+      - ./services/timescale/01-timescaledb.sql:/docker-entrypoint-initdb.d/01-timescaledb.sql:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TROE_DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # orion-stad – CIP: stadens NGSI-LD-kontextbroker (komponent 9).
+  # Startas med -troe så att all historik hamnar i timescale-stad.
+  # -------------------------------------------------------------------
+  orion-stad:
+    image: ${ORION_LD_IMAGE}
+    container_name: ${SVADA_PREFIX:-svada}-orion-stad
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-dataplan", "etapp1"]
+    command: >
+      -dbhost mongo-stad
+      -mongocOnly
+      -logLevel WARN
+      -troe
+      -troeHost timescale-stad
+      -troePort 5432
+      -troeUser ${TROE_DB_USER}
+      -troePwd ${TIMESCALE_PASSWORD}
+      -troePoolSize 4
+    depends_on:
+      mongo-stad:
+        condition: service_healthy
+      timescale-stad:
+        condition: service_healthy
+    # ÅTGÄRD G22: orion-stad ligger BARA på stad-internal och publicerar
+    # INGEN port. Enda vägen in utifrån är stad-gateway, som gör
+    # åtkomstbeslutet. Tidigare låg brokern på dsp-public och publicerade
+    # 2026 rakt ut – då var `access-right/NON_PUBLIC` på Distribution A bara
+    # en etikett i katalogen, utan verkställighet. Dess klienter
+    # (ingest-service, ladda-brunnar, stad-gateway) ligger alla på
+    # stad-internal, så dsp-public behövdes aldrig.
+    networks: [stad-internal]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:1026/ngsi-ld/ex/v1/version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # stad-gateway – åtkomstkontroll framför CIP:en (åtgärd av gapanalysens
+  # G22). Enda vägen in till orion-stad utifrån. Liveness är öppen; all
+  # läsning och skrivning kräver token. Token får den som har ett
+  # kontraktsavtal för Distribution A hos STADENS EGEN connector – vilket
+  # bara finns om providerns KoV-gate släppte igenom förhandlingen.
+  #
+  # Hård regel 7 är intakt: providern äger fortfarande beslutet OM ett avtal
+  # får ingås. Det här är stadens egen konsumtionskontroll över data den
+  # redan tagit emot, precis som ingest-service kontrollerar mottagningen.
+  # -------------------------------------------------------------------
+  stad-gateway:
+    build:
+      context: ./services/stad-gateway
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE}
+        FASTAPI_VERSION: ${FASTAPI_VERSION}
+        UVICORN_VERSION: ${UVICORN_VERSION}
+    image: ${SVADA_PREFIX:-svada}/stad-gateway:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-stad-gateway
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-dataplan", "etapp1"]
+    environment:
+      ORION_URL: http://orion-stad:1026
+      EDC_MGMT_URL: http://edc-consumer:29193/management
+      # Nyckelskyddade management-API:er (docs/koncept/C1-identitet.md): delad nyckel mot
+      # edc-consumers management-API.
+      EDC_CONSUMER_MGMT_KEY: ${EDC_CONSUMER_MGMT_KEY}
+      EDC_ASSET_A_ID: ${EDC_ASSET_A_ID}
+      STAD_GATEWAY_DRIFT_TOKEN: ${STAD_GATEWAY_DRIFT_TOKEN}
+      # Avtalsstatus vid varje åtkomst (avtal gäller tills de hävs).
+      INGEST_URL: http://ingest-service:8060
+      DEMO_VARIANT: ${DEMO_VARIANT:-intern}
+      STAD_GATEWAY_TOKEN_TTL_S: ${STAD_GATEWAY_TOKEN_TTL_S}
+      STAD_GATEWAY_TIMEOUT_S: ${STAD_GATEWAY_TIMEOUT_S}
+      # Adresser som VISAS för användaren i avslagssvaret – värdens portar,
+      # inte containernamnen (portkartan).
+      STAD_GATEWAY_PUBLIK_URL: ${PUBLIK_URL_CIP:-http://localhost:${ORION_STAD_PORT}}
+      PUBLIK_VY_PUBLIK_URL: ${PUBLIK_URL_BRUNNAR:-http://localhost:${PUBLIK_VY_PORT}}
+      MINTAKA_PUBLIK_URL: ${PUBLIK_URL_TIDSSERIE:-http://localhost:${MINTAKA_PORT}}
+      TZ: ${TZ}
+    depends_on:
+      orion-stad:
+        condition: service_healthy
+    # Bara stad-internal: gatewayen behöver orion-stad och edc-consumer, som
+    # båda ligger där. Utifrån nås den via den publicerade porten.
+    networks: [stad-internal]
+    ports:
+      # Portkartan: 2026 = stadens CIP utåt. Internt lyssnar gatewayen
+      # på 8086; orion-stad publicerar inget alls.
+      - "${VARD_BIND_IP:-0.0.0.0}:${ORION_STAD_PORT}:8086"
+    mem_limit: 192m
+    healthcheck:
+      # python:3.12-slim saknar curl – sondera med Python (som ingest).
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8086/health', timeout=5).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # mintaka – NGSI-LD temporal API (komponent 10). Läser TRoE-tabellerna
+  # i timescale-stad; skriver aldrig själv. JVM-tak enligt resursstrategin.
+  # -------------------------------------------------------------------
+  mintaka:
+    image: ${MINTAKA_IMAGE}
+    container_name: ${SVADA_PREFIX:-svada}-mintaka
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-dataplan", "etapp1"]
+    environment:
+      # Mintaka är en Micronaut-app: konfigen heter datasources.default.*
+      # och mappas till miljövariabler enligt DATASOURCES_DEFAULT_*.
+      # (DATASOURCE_URL, som florerar i äldre exempel, ignoreras tyst –
+      # appen föll då tillbaka på localhost:5432.)
+      DATASOURCES_DEFAULT_HOST: timescale-stad
+      DATASOURCES_DEFAULT_PORT: "5432"
+      DATASOURCES_DEFAULT_DATABASE: ${TROE_DB_NAME}
+      DATASOURCES_DEFAULT_USERNAME: ${TROE_DB_USER}
+      DATASOURCES_DEFAULT_PASSWORD: ${TIMESCALE_PASSWORD}
+      # JAVA_TOOL_OPTIONS respekteras alltid av JVM:en (till skillnad från
+      # JAVA_OPTS, som kräver stöd i imagens entrypoint) – resurstak enligt resursstrategin.
+      #
+      # RESURSJUSTERING INFÖR CKAN och Solr (2026-07-22): heapen är MEDVETET kvar som
+      # ett FAST tal. -XX:MaxRAMPercentage provades först (heaptaket följer
+      # då containerns mem_limit i stället för att vara ett andra,
+      # oberoende tal) och VERIFIERADES – med nedslående resultat:
+      #
+      #   $ docker exec svada-mintaka java -XX:+PrintFlagsFinal -version
+      #     MaxHeapSize = 5247074304          <- 25 % av VÄRDENS 20 GiB,
+      #     UseContainerSupport = true           inte av containerns 1 GiB
+      #
+      # JVM:en i den här imagen (OpenJDK 17.0.3) läser alltså inte cgroup
+      # v2-gränsen under WSL2 (containern ser sig själv som "0::/") trots
+      # att UseContainerSupport är på – samma familj av fel som gör att
+      # Micronauts cgroup-mätare kraschar, se MICRONAUT_METRICS_ENABLED
+      # nedan. Med procentsatsen hade heapen fått växa till 5 GiB inuti en
+      # container med 1 GiB-tak = OOM-kill. Lärdomen: "container-medveten
+      # JVM" är inget man antar, det är något man mäter.
+      JAVA_TOOL_OPTIONS: -Xmx256m
+      # Micronauts Prometheus-mätare kraschar i uppstarten på den här
+      # JDK-versionen under cgroup v2 (NPE i CgroupInfo.getMountPoint).
+      # Mätvärdena behövs inte i PoC:en – stäng av dem.
+      MICRONAUT_METRICS_ENABLED: "false"
+      TZ: ${TZ}
+    depends_on:
+      timescale-stad:
+        condition: service_healthy
+      # Mintaka fail-fastar om TRoE-databasen inte finns – och det är
+      # orion-stad som skapar den vid uppstart. Därav beroendet.
+      orion-stad:
+        condition: service_healthy
+    networks: [stad-internal, dsp-public]
+    ports:
+      # Portkartan: 8083 = Mintaka temporal API (internt 8080).
+      - "${VARD_BIND_IP:-0.0.0.0}:${MINTAKA_PORT}:8080"
+    # RESURSJUSTERING INFÖR CKAN och Solr (2026-07-22): 512m -> 1g. Mintaka låg på
+    # 412 av 512 MiB efter tidsseriehistoriken från transferen – den minsta
+    # marginalen i PoC:en, och CKAN + Solr ska läggas på senare. WSL har
+    # ~16 GiB oanvänt, så utrymmet kostar ingenting. Heapen är OFÖRÄNDRAD
+    # (-Xmx256m ovan): det som växte var JVM:ens off-heap (metaspace,
+    # Netty-direktbuffertar, trådstackar) och den sidcache cgroupen räknar
+    # in. Dokumenterad avvikelse från resursstrategin.
+    mem_limit: 1g
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # publik-vy – stadens PUBLIKA representation av Distribution B.
+  #
+  # Finns för att dcat:accessURL ska gå att FÖLJA (gapanalys G9): Mintakas
+  # temporala API svarar 400 på en webbläsares Accept-huvud, och DCAT-AP
+  # vill ha en distribution per representation. Tjänsten är text/html-
+  # representationen; Mintaka är application/json-representationen.
+  #
+  # Ligger i profilen stad-dataplan eftersom den är en dataplans-yta – den
+  # läser Mintaka och lagrar ingenting (ingen datakopia; data går bara ut via kontraktet).
+  # -------------------------------------------------------------------
+  publik-vy:
+    build:
+      context: ./services/publik-vy
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE}
+        FASTAPI_VERSION: ${FASTAPI_VERSION}
+        UVICORN_VERSION: ${UVICORN_VERSION}
+    image: ${SVADA_PREFIX:-svada}/publik-vy:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-publik-vy
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-dataplan", "etapp1", "etapp5"]
+    environment:
+      SVADA_VERSION: ${SVADA_VERSION:-okänd}
+      MINTAKA_URL: http://mintaka:8080
+      # Adresser som VISAS för användaren – värdens portar, inte
+      # containernamnen (portkartan).
+      MINTAKA_PUBLIK_URL: ${PUBLIK_URL_TIDSSERIE:-http://localhost:${MINTAKA_PORT}}
+      PUBLIK_VY_PUBLIK_URL: ${PUBLIK_URL_BRUNNAR:-http://localhost:${PUBLIK_VY_PORT}}
+      PUBLIK_VY_TIMEAT: ${PUBLIK_VY_TIMEAT}
+      # Klockslaget för den nattliga återställningen (nedräkningen på sidan); tomt = ingen nedräkning.
+      DEMO_ATERSTALL_KL: ${DEMO_ATERSTALL_KL:-}
+      TZ: ${TZ}
+    # Enkel depends_on (service_started): mintaka har ingen healthcheck, och
+    # vyn tål att den saknas – den svarar 502 med orsak i stället för att dö.
+    depends_on: [mintaka]
+    # Både internt (för Mintaka) och publikt: den här vyn ÄR en publik
+    # endpoint, precis som katalogen.
+    networks: [stad-internal, dsp-public]
+    ports:
+      # Portkartan: 8085 = stadens publika vy av Distribution B.
+      - "${VARD_BIND_IP:-0.0.0.0}:${PUBLIK_VY_PORT}:8085"
+    mem_limit: 192m
+    healthcheck:
+      # python:3.12-slim saknar curl – sondera med Python (som ingest).
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8085/health', timeout=5).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # ladda-brunnar – ENGÅNGSJOBB (egen profil, startar aldrig med stacken).
+  # Läser data/dbsvadaexample.gpkg och skapar/uppdaterar de 91
+  # SewerOverflowWeir-entiteterna i orion-stad. Idempotent.
+  # -------------------------------------------------------------------
+  ladda-brunnar:
+    build:
+      context: ./services/ladda_brunnar
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE}
+    image: ${SVADA_PREFIX:-svada}/ladda-brunnar:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-ladda-brunnar
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["laddning"]
+    environment:
+      ORION_URL: http://orion-stad:1026
+      GPKG: /data/dbsvadaexample.gpkg
+      TZ: ${TZ}
+    volumes:
+      - ./data:/data:ro
+    networks: [stad-internal]
+    mem_limit: 256m
+    restart: "no"
+
+  # -------------------------------------------------------------------
+  # edc-consumer – stadens KONTROLLPLAN (komponent 7). SAMMA
+  # image som DHI:s edc-provider (svada/edc-connector:1.0.0) – rollen
+  # ligger enbart i konfigfilen som monteras in. Byggkontexten ./edc
+  # delas därför mellan compose.dhi.yml och compose.stad.yml.
+  #
+  # Nätverk: stad-internal (för ingest-service vid mottagningen) + dsp-public (för
+  # att nå providerns DSP-endpoint edc-provider:19194).
+  #
+  # Identitet: verifierbar DCP-identitet via IdentityHub – ingen mock-IAM kvar. Management-API:t
+  # kräver en delad nyckel (WEB_HTTP_MANAGEMENT_AUTH_KEY
+  # nedan). Se edc/konfig/consumer.properties.
+  # -------------------------------------------------------------------
+  edc-consumer:
+    build:
+      context: ./edc
+      args:
+        EDC_GRADLE_IMAGE: ${EDC_GRADLE_IMAGE}
+        EDC_BASE_IMAGE: ${EDC_BASE_IMAGE}
+        EDC_VERSION: ${EDC_VERSION}
+    image: ${SVADA_PREFIX:-svada}/edc-connector:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-edc-consumer
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-edc", "etapp4"]
+    depends_on:
+      # Verifierbar DCP-identitet: se motsvarande depends_on på edc-provider i
+      # compose.dhi.yml för hela motiveringen (edc-consumer måste kunna
+      # autentisera mot sin egen IdentityHub-instans STS vid uppstart).
+      identity-hub-stad:
+        condition: service_healthy
+    environment:
+      # JVM-heaptak enligt resursstrategin (bindande).
+      JAVA_TOOL_OPTIONS: ${EDC_JVM_XMX}
+      # Nyckelskyddade management-API:er (docs/koncept/C1-identitet.md): delad nyckel som stänger
+      # anonym åtkomst till management-API:t.
+      WEB_HTTP_MANAGEMENT_AUTH_KEY: ${EDC_CONSUMER_MGMT_KEY}
+      # Verifierbar DCP-identitet: se edc-provider i compose.dhi.yml för
+      # motiveringen (samma mekanism, Stadens egen deterministiska värde).
+      SVADA_STS_CLIENT_SECRET: ${SVADA_STS_CLIENT_SECRET_STAD}
+      TZ: ${TZ}
+    volumes:
+      - ./edc/konfig/consumer.properties:/config/connector.properties:ro
+    networks:
+      stad-internal:
+      dsp-public:
+        aliases:
+          - edc-consumer
+    ports:
+      # Portkartan: 29191 default/observability, 29192 control,
+      # 29193 management, 29194 DSP.
+      - "${VARD_BIND_IP:-0.0.0.0}:${EDC_CONSUMER_DEFAULT_PORT}:29191"
+      - "${VARD_BIND_IP:-0.0.0.0}:${EDC_CONSUMER_CONTROL_PORT}:29192"
+      - "${VARD_BIND_IP:-0.0.0.0}:${EDC_CONSUMER_MGMT_PORT}:29193"
+      - "${VARD_BIND_IP:-0.0.0.0}:${EDC_CONSUMER_DSP_PORT}:29194"
+      # 29291 (dataplanets publika kontext) publiceras medvetet inte.
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:29191/api/check/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: ${SVADA_RESTART:-unless-stopped}
+  # -------------------------------------------------------------------
+  # ingest-service – stadens MOTTAGNING av EDC-transfern (komponent 8,
+  # tidsserietransferen). Tar emot providerdataplanets HTTP-push, validerar mot
+  # dataproduktavtalet, transformerar till NGSI-LD SewerOverflowWeir med
+  # proveniens och skriver till orion-stad (CIP).
+  #
+  #   docker compose -f compose.stad.yml --profile stad-ingest up -d
+  #
+  # Nätverk: stad-internal (orion-stad + edc-consumer) OCH dsp-public.
+  # dsp-public behövs eftersom det är DHI:s providerdataplan som gör
+  # pushen – ingest är stadens publika mottagningsendpoint, precis som
+  # DSP-endpointerna. Att den ligger där bryter INTE regeln att data inte får förbi kontraktet:
+  # dataprodukten går fortfarande bara att hämta via kontrakt, och
+  # ingest tar bara emot det som bär en engångsauktorisation kopplad
+  # till ett kontraktsavtal staden faktiskt har (testfall 4c.3).
+  # -------------------------------------------------------------------
+  ingest-service:
+    build:
+      context: ./services/ingest-service
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE}
+        FASTAPI_VERSION: ${FASTAPI_VERSION}
+        UVICORN_VERSION: ${UVICORN_VERSION}
+    image: ${SVADA_PREFIX:-svada}/ingest-service:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-ingest-service
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-ingest", "etapp4"]
+    environment:
+      ORION_URL: http://orion-stad:1026
+      # Stadens EGEN connector – avtalsuppslaget görs aldrig hos DHI:s.
+      EDC_MGMT_URL: http://edc-consumer:29193/management
+      EDC_ASSET_A_ID: ${EDC_ASSET_A_ID}
+      EDC_ASSET_B_ID: ${EDC_ASSET_B_ID}
+      # Nyckelskyddade management-API:er: samma delade nyckel som stad-gateway använder mot
+      # edc-consumers management-API.
+      EDC_CONSUMER_MGMT_KEY: ${EDC_CONSUMER_MGMT_KEY}
+      # Avtalsregistret synkar status från providerns KoV-grind (PoC-
+      # förenkling, se services/ingest-service/avtalsregister.py).
+      # Smal, skrivskyddad avtalsstatus hos DHI (inte management-API:t).
+      EDC_PROVIDER_STATUS_URL: http://edc-provider:${EDC_PROVIDER_STATUS_PORT}/status
+      EDC_PROVIDER_STATUS_KEY: ${EDC_PROVIDER_STATUS_KEY}
+      # Avtalets löstbara adress (dashboardens sida /avtal/{id}).
+      AVTAL_BAS_URL: ${PUBLIK_URL_KONTROLLRUM:-http://localhost:${DASHBOARD_PORT}}
+      INGEST_TOKEN_TTL_S: ${INGEST_TOKEN_TTL_S}
+      INGEST_LOG_RETENTION: ${INGEST_LOG_RETENTION}
+      TZ: ${TZ}
+    networks:
+      stad-internal:
+      dsp-public:
+        aliases:
+          # Explicit alias: providerns dataplan (annat Compose-projekt)
+          # pushar till exakt det här namnet på det delade nätet.
+          - ingest-service
+    ports:
+      # Portkartan: 8060 = ingest-service.
+      - "${VARD_BIND_IP:-0.0.0.0}:${INGEST_PORT}:8060"
+    mem_limit: 384m
+    healthcheck:
+      # python:3.12-slim saknar curl – sondera med Python (som fcf-sim).
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8060/health', timeout=5).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: ${SVADA_RESTART:-unless-stopped}
+
+  # -------------------------------------------------------------------
+  # identity-hub-stad – Stadens IdentityHub (verifierbar identitet,
+  # docs/koncept/C1-identitet.md).
+  # Speglar identity-hub-dhi i compose.dhi.yml exakt (samma image, samma
+  # kontexter) – enda skillnaden är portserien (29xxx i stället för 19xxx,
+  # samma princip som edc-consumer/edc-provider) och att DID:et blir
+  # did:web:identity-hub-stad%3A29197.
+  #
+  #   docker compose -f compose.stad.yml --profile stad-identitet up -d
+  #
+  # Se identity-hub-dhi i compose.dhi.yml för den fullständiga
+  # motiveringen (nätverk, portval, STS-undantaget, OBS:et om
+  # web.http.credentials.*-namnen som ska verifieras i uppstartsloggen).
+  # -------------------------------------------------------------------
+  identity-hub-stad:
+    build:
+      context: ./identity-hub
+      args:
+        EDC_GRADLE_IMAGE: ${EDC_GRADLE_IMAGE}
+        EDC_BASE_IMAGE: ${EDC_BASE_IMAGE}
+        IDENTITY_HUB_VERSION: ${IDENTITY_HUB_VERSION}
+    image: ${SVADA_PREFIX:-svada}/identity-hub:1.0.0
+    container_name: ${SVADA_PREFIX:-svada}-identity-hub-stad
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["stad-identitet"]
+    environment:
+      JAVA_TOOL_OPTIONS: ${IDENTITY_HUB_JVM_XMX}
+      WEB_HTTP_PORT: "29195"
+      WEB_HTTP_PATH: "/api"
+      WEB_HTTP_IDENTITY_PORT: "29196"
+      WEB_HTTP_IDENTITY_PATH: "/api/identity"
+      WEB_HTTP_DID_PORT: "29197"
+      WEB_HTTP_DID_PATH: "/"
+      WEB_HTTP_CREDENTIALS_PORT: "29198"
+      WEB_HTTP_CREDENTIALS_PATH: "/api/credentials"
+      WEB_HTTP_STS_PORT: "29199"
+      WEB_HTTP_STS_PATH: "/api/sts"
+      # Verifierbar DCP-identitet: se identity-hub-dhi i compose.dhi.yml för motiveringen.
+      SVADA_PARTICIPANT_ID: ${SVADA_PARTICIPANT_ID_STAD}
+      SVADA_PARTICIPANT_DID: ${SVADA_PARTICIPANT_DID_STAD}
+      # Verifierbar DCP-identitet: se identity-hub-dhi i compose.dhi.yml för
+      # motiveringen.
+      SVADA_CREDENTIAL_SERVICE_URL: ${SVADA_CREDENTIAL_SERVICE_URL_STAD}
+      # Se identity-hub/src/.../SvadaParticipantBootstrapExtension.java:
+      # krävs för att AES-krypteringen (ParticipantContextConfigService)
+      # ska fungera vid participant-skapandet.
+      EDC_ENCRYPTION_AES_KEY_ALIAS: ${IDENTITY_HUB_AES_KEY_ALIAS}
+      TZ: ${TZ}
+      # Verifierbar DCP-identitet (attest-utfärdande) - se identity-hub-dhi i
+      # compose.dsga.yml för motiveringen. Utfärdare med rätt mandat: Stad myntar bara sitt
+      # EGET rollintyg. Medlems- och deltagarintygen pollas fram ur den
+      # delade volymen, där Svadas utfärdare (identity-hub-svada) skrivit
+      # dem. VIKTIGT: identity-hub-svada (annan compose-fil, depends_on kan
+      # inte korsa filgränsen) MÅSTE startas och vara frisk INNAN
+      # identity-hub-stad startas.
+      SVADA_DATASPACE_ID: ${SVADA_DATASPACE_ID}
+      # Utfärdare med rätt mandat: Staden intygar SJÄLV sin rollfördelning (KoV är
+      # rättighetsinnehavare, SvadaRoleCredential med staden som utfärdare och
+      # innehavare). Medlems- och deltagarintygen importeras från Svadas
+      # utfärdare (compose.dsga.yml) via utbytesvolymen (ro).
+      SVADA_ROLLINNEHAVARE: ${SVADA_KOV_ROLLINNEHAVARE}
+      SVADA_ISSUER_DID: ${SVADA_PARTICIPANT_DID_SVADA}
+      SVADA_VC_UTBYTE_DIR: ${SVADA_VC_UTBYTE_DIR}
+      # Bara för verify_ap8_fas3.sh (negativa testerna). Tomt = av.
+      SVADA_TEST_NEGATIV: ${SVADA_TEST_NEGATIV:-}
+      # Verifierbar DCP-identitet: se identity-hub-dhi i compose.dhi.yml för
+      # motiveringen (samma mekanism, Stadens egen deterministiska värde).
+      SVADA_STS_CLIENT_SECRET: ${SVADA_STS_CLIENT_SECRET_STAD}
+      # Verifierbar DCP-identitet: se identity-hub-dhi i compose.dhi.yml för
+      # motiveringen.
+      EDC_IAM_DID_WEB_USE_HTTPS: "false"
+    networks:
+      stad-internal:
+      dsp-public:
+        aliases:
+          - identity-hub-stad
+    ports:
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_STAD_DEFAULT_PORT}:29195"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_STAD_IDENTITY_PORT}:29196"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_STAD_DID_PORT}:29197"
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_STAD_CREDENTIALS_PORT}:29198"
+      # 29199 (STS) publiceras HÄR (till skillnad från identity-hub-dhi,
+      # där den fortfarande medvetet är opublicerad) – verifierbar DCP-identitet,
+      # projektägarens beslut. Se .env (samma IDENTITY_HUB_STAD_STS_PORT-rad) för
+      # den fulla motiveringen: dashboarden (compose.kontrollrum.yml) kan av
+      # design inte nå org-interna nätverk, så det är enda vägen för dess
+      # KoV-knappar att hämta ett self-issued DCP-token.
+      - "${VARD_BIND_IP:-0.0.0.0}:${IDENTITY_HUB_STAD_STS_PORT}:29199"
+    volumes:
+      # Read-only här - Stad importerar bara, skriver aldrig till den
+      # delade volymen. Se compose.dhi.yml för skapande/motivering.
+      - vc-utbyte:${SVADA_VC_UTBYTE_DIR}:ro
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:29195/api/check/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: ${SVADA_RESTART:-unless-stopped}
+volumes:
+  mongo-stad-data:
+  timescale-stad-data:
+  # Extern, delad Docker-volym för attest-utbyte (verifierbar DCP-identitet) -
+  # samma volym som DHI skriver till i compose.dhi.yml, monteras här
+  # read-only ovan. Skapas en gång manuellt, se compose.dhi.yml.
+  vc-utbyte:
+    external: true
+    name: ${SVADA_PREFIX:-svada}-vc-utbyte
+
+networks:
+  # Internt stadsnät (CIP, tidsserier, katalog).
+  stad-internal:
+    driver: bridge
+  # Delat kontrollplans-/publikt nät (samma externa nät som DHI).
+  dsp-public:
+    external: true
+    name: ${SVADA_PREFIX:-svada}-dsp-public

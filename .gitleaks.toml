@@ -1,0 +1,23 @@
+# gitleaks-konfiguration (publik demo, åtgärd A5)
+# =====================================================================
+# Tystar KÄNDA falsklarm så att en ren körning verkligen betyder "inget
+# oväntat". Tystar INTE .env: den bär medvetna dev-hemligheter (build-
+# kontraktet) som ska bytas på servern med tools/nya-hemligheter.sh – att
+# de flaggas är en nyttig påminnelse, inte ett fel.
+[extend]
+useDefault = true
+
+# Negativa testfall använder token som uppenbart inte är riktiga
+# hemligheter ("inte-en-giltig-token", "pahittad-token").
+[allowlist]
+description = "Påhittade token i negativa testfall och ett egenskapsnamn"
+regexTarget = "line"
+regexes = [
+  '''inte-en-giltig-token''',
+  '''pahittad-token''',
+  '''edc\.iam\.credential\.revocation\.mimetype''',      # egenskapsnamn, ingen hemlighet
+]
+paths = [
+  '''tests/verify_ap1\.sh''',
+  '''tests/verify_ap4c\.sh''',
+]

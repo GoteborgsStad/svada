@@ -1,0 +1,8 @@
+# Enhetliga radslut (repot skrivs delvis från Windows i etapp 0).
+* text=auto eol=lf
+
+# Binärfiler – ingen radsluts-/diff-hantering.
+*.gpkg binary
+*.png binary
+*.jpg binary
+*.zip binary

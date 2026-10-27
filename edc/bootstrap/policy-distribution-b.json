@@ -1,0 +1,54 @@
+{
+  "_kommentar": [
+    "SVADA PoC / policydefinition för Distribution B (K0R1T1,",
+    "öppna data). Ersätter det tidigare tomma Set:et: nu är villkoren VERKSTÄLLDA",
+    "ODRL-regler, inte bara metadata i assetets odrl:terms.",
+    "",
+    "B: use/distribute/publish med attribueringsplikt (duty attribute).",
+    "Alltså tre permissions och en attribueringsplikt. B har ingen",
+    "KoV-obligation och passerar utan godkännandesteg.",
+    "",
+    "VARFÖR DET FUNGERAR FÖRST NU: EDC:s policymotor kör ett scope-filter",
+    "före utvärderingen och kastar bort varje regel vars action inte är",
+    "bunden i RuleBindingRegistry. Bindningarna ligger i vår egen",
+    "SvadaOdrlExtension (edc/src/.../odrl/) – utan den hade reglerna nedan",
+    "sett korrekta ut i katalogen men inte verkställt något (se",
+    "katalog- och förhandlingsprovet).",
+    "",
+    "Policyn används både som accessPolicy (vem SER datasetet i katalogen)",
+    "och contractPolicy (vad man får GÖRA med datat). För B är de lika –",
+    "produkten är öppna data och förhandlingen ska gå igenom automatiskt."
+  ],
+  "@context": {
+    "@vocab": "https://w3id.org/edc/v0.0.1/ns/",
+    "odrl": "http://www.w3.org/ns/odrl/2/"
+  },
+  "@id": "policy-distribution-b",
+  "policy": {
+    "_kommentar_context": "Den lokalt cachade ODRL-kontexten (EDC:s CachedDocumentRegistry) plus SVADA:s egen profilnamnrymd. Actions skrivs med odrl-prefix eftersom 'publish' INTE finns som term i odrl.jsonld – med prefixet blir det ändå http://www.w3.org/ns/odrl/2/publish.",
+    "@context": [
+      "http://www.w3.org/ns/odrl.jsonld",
+      { "svada": "https://svada.goteborg.se/ns/" }
+    ],
+    "@type": "Set",
+    "permission": [
+      {
+        "_kommentar": "Grundrätten att använda datat. Attribueringsplikten (CC BY 4.0) hänger som ODRL-duty på just denna permission.",
+        "action": "odrl:use",
+        "duty": [
+          { "action": "odrl:attribute" }
+        ]
+      },
+      {
+        "_kommentar": "K0 = får spridas vidare. Datat får alltså spridas vidare; öppna data utan krav på godkännande.",
+        "action": "odrl:distribute"
+      },
+      {
+        "_kommentar": "... och publiceras som öppna data.",
+        "action": "odrl:publish"
+      }
+    ],
+    "prohibition": [],
+    "obligation": []
+  }
+}

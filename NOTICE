@@ -1,0 +1,17 @@
+Svada-mini
+
+Copyright 2026 Göteborgs Stad (Vattendatalabbet, SVADA)
+
+Skapad av Björn Hagström och Niklas Fjellman inom Vattendatalabbet (SVADA, Göteborgs Stad, i samarbete med RISE).
+SVADA finansieras av Energimyndigheten, Formas, Vinnova och Water Wise Societies.
+Projektsida: https://vattendatalabbet.se
+
+Created by Björn Hagström and Niklas Fjellman within the Swedish Water Data Lab (SVADA, City of Gothenburg, in cooperation with RISE).
+SVADA is funded by the Swedish Energy Agency (Energimyndigheten), Formas, Vinnova and Water Wise Societies.
+
+Koden i det här repot är licensierad under Apache License 2.0 (se LICENSE). Den som vidaredistribuerar ska behålla den här filen.
+This code is licensed under the Apache License, Version 2.0 (see LICENSE). Redistributions must keep this NOTICE file.
+
+Tredjepartskomponenter som hämtas som images eller byggs från deras källkod har egna licenser: se TREDJEPART.md.
+Third-party components that are pulled as images or built from their source have their own licences: see TREDJEPART.md.
+Filen services/dashboard/statiskt/leaflet/ innehåller Leaflet med dess egen licens (LICENSE.txt i den katalogen).

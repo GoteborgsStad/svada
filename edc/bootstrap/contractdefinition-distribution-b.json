@@ -1,0 +1,25 @@
+{
+  "_kommentar": [
+    "SVADA PoC / katalog och förhandling – kontraktsdefinition som binder ihop assetet",
+    "Distribution B med den öppna policyn.",
+    "assetsSelector är AVSIKTLIGT smal: den matchar EXAKT assetets id, inte",
+    "'alla assets'. När Distribution A registreras (registrera.py via providerns management-API) får den en egen",
+    "kontraktsdefinition med sin egen (restriktiva) policy – annars hade den",
+    "öppna B-policyn tyst kommit att gälla även för A.",
+    "Placeholder __ASSET_ID__ fylls i av registrera.sh ur .env."
+  ],
+  "@context": {
+    "@vocab": "https://w3id.org/edc/v0.0.1/ns/"
+  },
+  "@id": "kontrakt-distribution-b",
+  "accessPolicyId": "policy-distribution-b",
+  "contractPolicyId": "policy-distribution-b",
+  "assetsSelector": [
+    {
+      "@type": "Criterion",
+      "operandLeft": "https://w3id.org/edc/v0.0.1/ns/id",
+      "operator": "=",
+      "operandRight": "__ASSET_ID__"
+    }
+  ]
+}

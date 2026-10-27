@@ -1,0 +1,4 @@
+se.goteborg.svada.edc.dcp.SvadaDcpIdentityExtension
+se.goteborg.svada.edc.dcp.SvadaTransferProxyNyckelExtension
+se.goteborg.svada.edc.odrl.SvadaOdrlExtension
+se.goteborg.svada.edc.kov.KovGateExtension

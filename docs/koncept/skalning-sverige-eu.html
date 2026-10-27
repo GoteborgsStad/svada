@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skalningen i tre ringar – SVADA → Sverige → EU</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff; --fg: #1a1a1a; --mut: #666; --linje: #cbd2d9;
+    --box: #f4f6f8; --boxlinje: #b7c0ca;
+    --ctrl: #1b5e9c;     /* kontrollplan – blå */
+    --ctrlbg: #e6f0fa;
+    --data: #7a5100;     /* metadataskörd – ockra */
+    --databg: #f6edda;
+    --tillit: #2e7d32;   /* tillit/attest – grön */
+    --tillitbg: #e8f3e9;
+    --cross: #b3261e;    /* bilateral DSP – röd */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --fg: #e6e8ea; --mut: #9aa4ae; --linje: #333b44;
+      --box: #1d2226; --boxlinje: #3a444e;
+      --ctrl: #6db3f2; --ctrlbg: #16283a;
+      --data: #d9b25a; --databg: #2c2413;
+      --tillit: #6bbf6f; --tillitbg: #14251a; --cross: #f0857d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --fg: #e6e8ea; --mut: #9aa4ae; --linje: #333b44;
+    --box: #1d2226; --boxlinje: #3a444e;
+    --ctrl: #6db3f2; --ctrlbg: #16283a; --data: #d9b25a; --databg: #2c2413;
+    --tillit: #6bbf6f; --tillitbg: #14251a; --cross: #f0857d;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #1a1a1a; --mut: #666; --linje: #cbd2d9;
+    --box: #f4f6f8; --boxlinje: #b7c0ca; --ctrl: #1b5e9c; --ctrlbg: #e6f0fa;
+    --data: #7a5100; --databg: #f6edda; --tillit: #2e7d32; --tillitbg: #e8f3e9;
+    --cross: #b3261e;
+  }
+  body { background: var(--bg); color: var(--fg);
+         font-family: system-ui, -apple-system, sans-serif; line-height: 1.5;
+         margin: 0 auto; max-width: 60rem; padding: 1.5rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .2rem; }
+  p.under { color: var(--mut); margin: 0 0 1rem; }
+  .fig { width: 100%; overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; min-width: 640px; }
+  .legend { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; margin: 1rem 0 0;
+            font-size: .85rem; color: var(--fg); }
+  .legend span { display: inline-flex; align-items: center; gap: .4rem; }
+  .sw { width: .9rem; height: .9rem; border-radius: 3px; display: inline-block; }
+  .note { border: 1px solid var(--linje); border-radius: 6px; padding: .7rem 1rem;
+          margin-top: 1.1rem; font-size: .9rem; }
+  .note b { color: var(--fg); }
+  code { font-family: ui-monospace, monospace; font-size: .85em; }
+  footer { color: var(--mut); font-size: .8rem; margin-top: 1.4rem; }
+</style>
+</head>
+<body>
+  <h1>Skalningen i tre ringar</h1>
+  <p class="under">Samma mekanik som i PoC, i växande federation. Röda linjer
+    är alltid bilaterala: förhandling och data går direkt mellan två parter,
+    på alla nivåer. Full förklaring i
+    <a href="C5-skalning.md">C5-skalning.md</a>.</p>
+
+  <!-- ============ RING 1 ============ -->
+  <h2>Ring 1 · SVADA i produktion (cirka 2027)</h2>
+  <p class="under">Kedjan från PoC i stadens drift: verifierad identitet,
+    TLS, persistenta stores. Få, namngivna deltagare med ömsesidigt
+    konfigurerad tillit.</p>
+
+  <div class="fig">
+  <svg viewBox="0 0 760 210" role="img"
+       aria-label="Ring 1: DHI och staden med varsin connector i drift, bilateral DSP, samt Tjörn, SOLTAK och SMHI som tillkommande deltagare.">
+    <rect x="20" y="26" width="230" height="110" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="36" y="50" fill="var(--fg)" font-size="13" font-weight="700">DHI · provider</text>
+    <text x="36" y="68" fill="var(--mut)" font-size="10">Future City Flow · KoV-gate i providern</text>
+    <rect x="36" y="80" width="198" height="40" rx="6" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="48" y="104" fill="var(--ctrl)" font-size="11.5" font-weight="700">connector · attest via DCP</text>
+
+    <rect x="330" y="26" width="230" height="110" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="346" y="50" fill="var(--fg)" font-size="13" font-weight="700">Staden · consumer</text>
+    <text x="346" y="68" fill="var(--mut)" font-size="10">Intraservice driftar · CIP tar emot</text>
+    <rect x="346" y="80" width="198" height="40" rx="6" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="358" y="104" fill="var(--ctrl)" font-size="11.5" font-weight="700">connector · attest via DCP</text>
+
+    <line x1="250" y1="100" x2="330" y2="100" stroke="var(--cross)" stroke-width="2.5" marker-start="url(#r1p)" marker-end="url(#r1p)"/>
+    <text x="290" y="90" fill="var(--cross)" font-size="10" font-weight="700" text-anchor="middle">DSP + TLS</text>
+
+    <rect x="600" y="26" width="140" height="110" rx="8" fill="none" stroke="var(--boxlinje)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="614" y="50" fill="var(--mut)" font-size="12" font-weight="700">Ansluter härnäst</text>
+    <text x="614" y="70" fill="var(--mut)" font-size="10.5">Tjörn</text>
+    <text x="614" y="88" fill="var(--mut)" font-size="10.5">SOLTAK-kommunerna</text>
+    <text x="614" y="106" fill="var(--mut)" font-size="10.5">SMHI</text>
+
+    <text x="380" y="172" fill="var(--fg)" font-size="12" font-weight="600" text-anchor="middle">Gapanalysens G1 och G16 är arbetsordern: riktig identitet och riktig organisationsgräns.</text>
+    <text x="380" y="192" fill="var(--mut)" font-size="10.5" text-anchor="middle">Tilliten är ömsesidigt konfigurerad mellan kända parter (Målarkitektur v1.9 §6.5, etableringsskedet).</text>
+
+    <defs>
+      <marker id="r1p" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--cross)" stroke-width="1.5"/>
+      </marker>
+    </defs>
+  </svg>
+  </div>
+
+  <!-- ============ RING 2 ============ -->
+  <h2>Ring 2 · Svenskt vattendataområde (cirka 2028–2030)</h2>
+  <p class="under">Tilliten formaliseras: regelbok, dataområdesförvaltare,
+    tillitsankare. Förhandlingen går fortfarande direkt mellan parterna.</p>
+
+  <div class="fig">
+  <svg viewBox="0 0 760 330" role="img"
+       aria-label="Ring 2: dataområdesförvaltare och tillitsankare överst, deltagare med connectorer i mitten som förhandlar bilateralt, Sveriges dataportal som skördar metadata till höger.">
+    <!-- Federationstjänster -->
+    <rect x="20" y="20" width="480" height="70" rx="8" fill="var(--tillitbg)" stroke="var(--tillit)" stroke-width="1.5"/>
+    <text x="34" y="42" fill="var(--tillit)" font-size="12" font-weight="700">FEDERATIONSTJÄNSTER — styr och intygar, förhandlar aldrig</text>
+    <text x="34" y="60" fill="var(--fg)" font-size="10.5">Dataområdesförvaltare: regelbok, antagning av deltagare</text>
+    <text x="34" y="76" fill="var(--fg)" font-size="10.5">Tillitsankare: attest för identitet, medlemskap, policyefterlevnad (DCP)</text>
+
+    <!-- Sveriges dataportal -->
+    <rect x="540" y="20" width="200" height="70" rx="8" fill="var(--databg)" stroke="var(--data)" stroke-width="1.5"/>
+    <text x="554" y="42" fill="var(--data)" font-size="12" font-weight="700">Sveriges dataportal</text>
+    <text x="554" y="60" fill="var(--mut)" font-size="10">skördar öppna metadata</text>
+    <text x="554" y="76" fill="var(--mut)" font-size="10">accessURL pekar på källan</text>
+
+    <!-- Deltagare -->
+    <rect x="20" y="140" width="170" height="90" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="34" y="162" fill="var(--fg)" font-size="12" font-weight="700">Göteborg + DHI</text>
+    <text x="34" y="178" fill="var(--mut)" font-size="9.5">ur ring 1</text>
+    <rect x="34" y="188" width="142" height="30" rx="5" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="44" y="207" fill="var(--ctrl)" font-size="10.5" font-weight="700">connectorer</text>
+
+    <rect x="230" y="140" width="170" height="90" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="244" y="162" fill="var(--fg)" font-size="12" font-weight="700">VA-org, region</text>
+    <text x="244" y="178" fill="var(--mut)" font-size="9.5">egen drift</text>
+    <rect x="244" y="188" width="142" height="30" rx="5" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="254" y="207" fill="var(--ctrl)" font-size="10.5" font-weight="700">connector</text>
+
+    <rect x="440" y="140" width="190" height="90" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="454" y="162" fill="var(--fg)" font-size="12" font-weight="700">Små kommuner</text>
+    <text x="454" y="178" fill="var(--mut)" font-size="9.5">via operatör/förmedlingstjänst (DGA)</text>
+    <rect x="454" y="188" width="162" height="30" rx="5" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="464" y="207" fill="var(--ctrl)" font-size="10.5" font-weight="700">driftad connector</text>
+
+    <!-- attestlinjer -->
+    <line x1="120" y1="90" x2="110" y2="140" stroke="var(--tillit)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <line x1="280" y1="90" x2="310" y2="140" stroke="var(--tillit)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <line x1="420" y1="90" x2="520" y2="140" stroke="var(--tillit)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <text x="330" y="120" fill="var(--tillit)" font-size="9.5">attest utfärdas · kontrolleras maskinellt vid varje förhandling</text>
+
+    <!-- bilaterala förhandlingar -->
+    <line x1="190" y1="203" x2="230" y2="203" stroke="var(--cross)" stroke-width="2.5" marker-start="url(#r2p)" marker-end="url(#r2p)"/>
+    <line x1="400" y1="203" x2="440" y2="203" stroke="var(--cross)" stroke-width="2.5" marker-start="url(#r2p)" marker-end="url(#r2p)"/>
+    <path d="M 100 230 Q 320 285 530 230" fill="none" stroke="var(--cross)" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="320" y="272" fill="var(--cross)" font-size="9.5" text-anchor="middle">varje par kan förhandla direkt – ingen går via mitten</text>
+
+    <!-- skörd -->
+    <line x1="630" y1="140" x2="640" y2="90" stroke="var(--data)" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#r2d)"/>
+    <text x="648" y="122" fill="var(--data)" font-size="9.5">metadata</text>
+
+    <text x="380" y="312" fill="var(--fg)" font-size="12" font-weight="600" text-anchor="middle">Federationstjänsterna intygar och styr. Affären görs alltid mellan två connectorer.</text>
+
+    <defs>
+      <marker id="r2p" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--cross)" stroke-width="1.5"/>
+      </marker>
+      <marker id="r2d" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--data)" stroke-width="1.5"/>
+      </marker>
+    </defs>
+  </svg>
+  </div>
+
+  <!-- ============ RING 3 ============ -->
+  <h2>Ring 3 · EU-federationen (2030 och framåt)</h2>
+  <p class="under">Dataområden federerar med varandra: regelböcker erkänner
+    varandras attest, kataloger skördar varandras metadata. Simpl är EU:s
+    gemensamma programvara för federationstjänsterna.</p>
+
+  <div class="fig">
+  <svg viewBox="0 0 760 320" role="img"
+       aria-label="Ring 3: Green Deal Data Space med Simpl överst, det svenska vattendataområdet och andra dataområden under, data.europa.eu som skördar metadata, samt en bilateral förhandling Göteborg till Rotterdam.">
+    <rect x="20" y="20" width="480" height="66" rx="8" fill="var(--tillitbg)" stroke="var(--tillit)" stroke-width="1.5"/>
+    <text x="34" y="42" fill="var(--tillit)" font-size="12" font-weight="700">GREEN DEAL DATA SPACE — regelbok och tillit för den gröna givens data</text>
+    <text x="34" y="60" fill="var(--fg)" font-size="10.5">federationstjänster på Simpl-Open · miljö- och vattendata · uppbyggnad via SAGE/AD4GD</text>
+    <text x="34" y="76" fill="var(--mut)" font-size="9.5">EHDS (förordning 2025/327) visar slutläget: sektorsdataområde med egen EU-förordning</text>
+
+    <rect x="540" y="20" width="200" height="66" rx="8" fill="var(--databg)" stroke="var(--data)" stroke-width="1.5"/>
+    <text x="554" y="42" fill="var(--data)" font-size="12" font-weight="700">data.europa.eu</text>
+    <text x="554" y="60" fill="var(--mut)" font-size="10">skördar nationella portaler</text>
+    <text x="554" y="76" fill="var(--mut)" font-size="10">transitiv metadatakedja</text>
+
+    <rect x="20" y="136" width="220" height="100" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="34" y="158" fill="var(--fg)" font-size="12" font-weight="700">Svenskt vattendataområde</text>
+    <text x="34" y="174" fill="var(--mut)" font-size="9.5">ring 2 · medlem i federationen</text>
+    <rect x="34" y="186" width="90" height="36" rx="5" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="44" y="202" fill="var(--ctrl)" font-size="10" font-weight="700">Göteborg</text>
+    <text x="44" y="215" fill="var(--mut)" font-size="8.5">provider</text>
+    <text x="136" y="208" fill="var(--mut)" font-size="9.5">+ övriga deltagare</text>
+
+    <rect x="280" y="136" width="220" height="100" rx="8" fill="var(--box)" stroke="var(--boxlinje)" stroke-width="1.5"/>
+    <text x="294" y="158" fill="var(--fg)" font-size="12" font-weight="700">Nederländskt vattendataområde</text>
+    <text x="294" y="174" fill="var(--mut)" font-size="9.5">exempel på systerfederation</text>
+    <rect x="294" y="186" width="96" height="36" rx="5" fill="var(--ctrlbg)" stroke="var(--ctrl)" stroke-width="2"/>
+    <text x="304" y="202" fill="var(--ctrl)" font-size="10" font-weight="700">Rotterdam</text>
+    <text x="304" y="215" fill="var(--mut)" font-size="8.5">consumer</text>
+
+    <rect x="540" y="136" width="200" height="100" rx="8" fill="none" stroke="var(--boxlinje)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <text x="554" y="158" fill="var(--mut)" font-size="12" font-weight="700">Fler sektorer</text>
+    <text x="554" y="178" fill="var(--mut)" font-size="10">energi, mobilitet, jordbruk …</text>
+    <text x="554" y="196" fill="var(--mut)" font-size="10">samma protokoll (DSP),</text>
+    <text x="554" y="212" fill="var(--mut)" font-size="10">egna regelböcker</text>
+
+    <!-- tillit -->
+    <line x1="130" y1="86" x2="130" y2="136" stroke="var(--tillit)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <line x1="390" y1="86" x2="390" y2="136" stroke="var(--tillit)" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <text x="205" y="114" fill="var(--tillit)" font-size="9.5">ömsesidigt erkända attest</text>
+
+    <!-- bilateral över landsgräns -->
+    <line x1="124" y1="204" x2="294" y2="204" stroke="var(--cross)" stroke-width="2.5" marker-start="url(#r3p)" marker-end="url(#r3p)"/>
+    <text x="209" y="196" fill="var(--cross)" font-size="10" font-weight="700" text-anchor="middle">DSP</text>
+
+    <!-- skörd -->
+    <line x1="620" y1="136" x2="636" y2="86" stroke="var(--data)" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#r3d)"/>
+    <text x="644" y="120" fill="var(--data)" font-size="9.5">metadata</text>
+
+    <text x="380" y="278" fill="var(--fg)" font-size="12" font-weight="600" text-anchor="middle">En connector i Göteborg förhandlar direkt med en consumer i Rotterdam.</text>
+    <text x="380" y="300" fill="var(--mut)" font-size="10.5" text-anchor="middle">Federationen tillför tillit och sökbarhet. Transaktionen är samma två-parts-mekanik som i PoC.</text>
+
+    <defs>
+      <marker id="r3p" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--cross)" stroke-width="1.5"/>
+      </marker>
+      <marker id="r3d" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+        <path d="M1,1 L7,4 L1,7" fill="none" stroke="var(--data)" stroke-width="1.5"/>
+      </marker>
+    </defs>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw" style="background:var(--cross)"></i> Bilateral DSP-förhandling + dataplan – alltid direkt mellan två parter</span>
+    <span><i class="sw" style="background:var(--tillit)"></i> Tillit – attest utfärdas och kontrolleras</span>
+    <span><i class="sw" style="background:var(--data)"></i> Metadataskörd – accessURL pekar på källan</span>
+    <span><i class="sw" style="background:var(--ctrl)"></i> Connector (kontrollplan)</span>
+  </div>
+
+  <div class="note">
+    <b>Läs så här.</b> Frågan "vem sköter förhandlingen på Sverige- och
+    EU-nivå?" har ett kontraintuitivt svar: ingen. Förhandlingen är bilateral
+    på alla nivåer, precis som i PoC. Den betrodda part läsaren letar efter
+    finns i de gröna rutorna: dataområdesförvaltare (regelbok),
+    tillitsankare (attest) och federerad katalog (sökbarhet). En registrerad
+    dataförmedlingstjänst enligt DGA kan driva connectorer <i>på uppdrag av</i>
+    en deltagare – rådigheten ligger kvar hos respektive Data Rights Holder.
+  </div>
+
+  <footer>SVADA PoC · skalningsbild till konceptet C5 (scenariodokument) ·
+    fakta per juli 2026: DSP 2025-1 / ISO/IEC DIS 26450, Simpl-Open,
+    Green Deal Data Space under uppbyggnad, EHDS-förordningen i kraft.</footer>
+</body>
+</html>
