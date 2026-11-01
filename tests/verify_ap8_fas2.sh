@@ -97,6 +97,11 @@ if vanta_health "$PROV_API" 1; then
 else
   echo "  (startar dhi-fcf + dhi-edc ...)"
   $DHI --profile dhi-fcf --profile dhi-edc up -d >/dev/null 2>&1
+  # En provider som inte blir frisk (t.ex. efter 4a.5b:s omstart) får en omstart innan vi dömer.
+  if ! vanta_health "$PROV_API" 90; then
+    echo "  (edc-provider inte frisk – startar om en gång ...)"
+    docker restart "${SVADA_PREFIX:-svada}-edc-provider" >/dev/null 2>&1
+  fi
   if vanta_health "$PROV_API" 90; then ok "edc-provider uppe"; else no "edc-provider startade inte"; fi
 fi
 if vanta_health "$CONS_API" 1; then
@@ -295,6 +300,10 @@ for _ in $(seq 1 90); do
 done
 [ "${FRISKA}" = "1" ] && ok "8f2.7 alla fem friska efter samtidig omstart" \
   || no "8f2.7 alla fem blev inte friska efter samtidig omstart"
+# Frisk hälsokontroll räcker inte: en connector kan starta utan en route (edc-consumer utan förhandlingslistan, 405) och då faller
+# avtalsflödet i de skript som körs efter det här. Hjälparen prövar vägarna kedjan använder och startar om den som saknar en.
+SVADA_PREFIX="${P}" bash tools/vanta-friska.sh edc-provider edc-consumer identity-hub-dhi identity-hub-stad \
+  || no "8f2.7 en connector eller identitetstjänst saknar en väg efter omstarten (se tools/vanta-friska.sh)"
 $DHI --profile edc-bootstrap run --rm registrera-edc >/tmp/svada_ap8fas2_bootstrap2.log 2>&1 \
   || no "8f2.7 registrera-edc misslyckades efter omstarten (se /tmp/svada_ap8fas2_bootstrap2.log)"
 

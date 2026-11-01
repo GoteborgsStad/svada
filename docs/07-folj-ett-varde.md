@@ -41,7 +41,7 @@ produkten redovisar öppet att just den brunnen har en syntetisk serie:
   "overflowVolumeM3": 0, "overflowDurationMin": 0, "waterLevelMaxM": 0,
   "inflowMeanM3S": 0.045565, "inflowPeakM3S": 0.776258, "inflowVolumeM3": 3936.79,
   "unitCodes": { "overflowVolumeM3": "MTQ", "inflowMeanM3S": "MQS", "waterLevelMaxM": "MTR" },
-  "dataSource": "modelled-synthetic", "modelVersion": "fcf-sim 1.0.0 / enkel-overfallsmodell",
+  "dataSource": "modelled-synthetic", "modelVersion": "FCF-simulator 1.0.0 / enkel överfallsmodell",
   "syntheticScale": 0.6409
 }
 ```
@@ -128,7 +128,10 @@ Tidsseriehistoriken nås via Mintaka – notera de två obligatoriska
 delarna, `Accept`-headern och en tidsrelation:
 
 ```bash
+# Direkt mot Mintaka lokalt måste anropet bära datamodellens kontext (Link-huvudet; adressen är den interna i den lokala installationen),
+# annars kommer attributen inte med. Genom den publika tidsserieadressen och gatewayen läggs kontexten på åt dig.
 curl -s -H 'Accept: application/json' \
+  -H 'Link: <http://publik-vy:8085/modell/utkast/0.1/context.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' \
   'localhost:38083/temporal/entities/urn:ngsi-ld:SewerOverflowModelB:SSO1_01-4526?attrs=overflowVolumeM3&timerel=after&timeAt=2026-01-01T00:00:00Z'
 ```
 

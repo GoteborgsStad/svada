@@ -474,9 +474,18 @@ for _sp, _ord in (("sv", ("Arbetet sker inom Vattendatalabbet", "https://vattend
         _h = rendera(_sp, _var)
         _om = _h[_h.find('<section id="om"'):_h.find('<section id="ordlista"')]
         kolla(all(o in _om for o in _ord) and "Björn Hagström" in _om and "Niklas Fjellman" in _om
+              and ("AI-assistenter" if _sp == "sv" else "AI assistants") in _om
               and 'href="https://dssc.eu/"' in _om and "vinnova.se/en/p/the-swedish-water-data-lab-svada" in _om,
               "Om-sidan (%s, %s): projektet SVADA, finansiärer, upphovspersoner, Blueprint 3.0 och länkarna" % (_sp, _var))
         kolla(all(('rel="noopener"' in x) for x in re.findall(r'<a [^>]*target="_blank"[^>]*>', _om)), "Om-sidan (%s, %s): externa länkar har rel=noopener" % (_sp, _var))
+
+print("== MIM-rutor på stegen ==")
+for _sp in ("sv", "en"):
+    for _var in ("intern", "extern"):
+        _h = rendera(_sp, _var)
+        _paneler = re.findall(r'<div class="panel" id="steg-(\d)".*?(?=<div class="panel" id="steg-|</main>)', _h, re.S)
+        kolla(_h.count('class="mimruta"') == 6 and all(('class="mimruta"' in blk) for blk in re.split(r'(?=<div class="panel" id="steg-)', _h)[1:7]),
+              "MIM-rutan finns i vart och ett av stegen 1-6 (%s, %s)" % (_sp, _var))
 
 print("== Avtal gäller tills de hävs (avtal-havning) ==")
 for _sp, _ord in (("sv", ("KoV häver avtalet", "gäller tills det hävs", "Så fungerar PoC:en", "olika")),

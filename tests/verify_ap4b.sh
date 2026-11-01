@@ -118,6 +118,11 @@ if vanta_health "$PROV_API" 1; then
 else
   echo "  (startar dhi-fcf + dhi-edc ...)"
   $DHI --profile dhi-fcf --profile dhi-edc up -d >/dev/null 2>&1
+  # En provider som inte blir frisk (t.ex. efter 4a.5b:s omstart) får en omstart innan vi dömer.
+  if ! vanta_health "$PROV_API" 90; then
+    echo "  (edc-provider inte frisk – startar om en gång ...)"
+    docker restart "${SVADA_PREFIX:-svada}-edc-provider" >/dev/null 2>&1
+  fi
   if vanta_health "$PROV_API" 90; then ok "edc-provider uppe"; else no "edc-provider startade inte"; fi
 fi
 if vanta_health "$CONS_API" 1; then

@@ -1,0 +1,32 @@
+{
+  "id": "urn:ngsi-ld:SewerOverflowModelResult:SSO1_01-4402",
+  "type": "SewerOverflowModelResult",
+  "refWeir": "urn:ngsi-ld:SewerOverflowWeir:SSO1_01-4402",
+  "modelledDay": "2026-06-24",
+  "periodStart": "2026-06-24T00:00:00Z",
+  "periodEnd": "2026-06-25T00:00:00Z",
+  "dataSource": "modelled-synthetic",
+  "modelVersion": "FCF-simulator 1.0.0 / enkel överfallsmodell",
+  "inflowMeanM3S": 0.10273,
+  "inflowPeakM3S": 1.750154,
+  "inflowVolumeM3": 8875.89,
+  "overflowVolumeM3": 716.06,
+  "overflowPeakM3S": 0.270568,
+  "overflowDurationMin": 290.0,
+  "overflowStart": "2026-06-24T11:55:00Z",
+  "overflowEnd": "2026-06-24T16:45:00Z",
+  "waterLevelMaxM": 0.2937,
+  "provenance": {
+    "dataset": "Modellerad bräddata",
+    "distribution": "B",
+    "distributionId": "modellerad-bradddata-b",
+    "batchId": "batch-010-2026-06-24",
+    "producedAt": "2026-10-28T17:03:21Z",
+    "ingestedAt": "2026-10-28T17:03:36Z",
+    "accessRights": "public",
+    "informationClass": "K0R1T1",
+    "license": "CC BY 4.0",
+    "publisher": "DHI – Future City Flow (SVADA PoC)",
+    "receivedVia": "Eclipse EDC transfer (Dataspace Protocol)"
+  }
+}

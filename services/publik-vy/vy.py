@@ -13,7 +13,10 @@ import html
 import os
 import re
 
-STIL = """
+import mim
+import ordlista
+
+STIL = mim.CSS + """
 :root { color-scheme: light dark; }
 body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 62rem;
        padding: 1.5rem; line-height: 1.5; }
@@ -27,7 +30,14 @@ h1 { margin-bottom: 0.2rem; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 /* Smal skärm: tabellen rullar för sig själv, sidan rullar inte i sidled (gränssnittstestet L6). */
 @media (max-width: 700px) { table { display: block; overflow-x: auto; max-width: 100%; } }
-pre, code, h1, h2, p, td { overflow-wrap: anywhere; }
+pre, code, h1, h2, p { overflow-wrap: anywhere; }
+td { overflow-wrap: break-word; }
+/* Termnamn i tabellcellerna bryts aldrig mitt i ordet: "anywhere" ovan låter kolumnen krympa under ordets längd, så i stället rullar tabellen. */
+td code, th code { overflow-wrap: normal; }
+.nedladdning { border: 1px solid #c8d4c8; border-left: 4px solid #2e7d32; background: #2e7d3210; border-radius: 6px; padding: 0.6rem 0.9rem; margin: 1rem 0; font-size: 0.9rem; }
+.nedladdning h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+.nedladdning ul { margin: 0; padding-left: 1.2rem; }
+.nedladdning .lhur { margin: 0.4rem 0 0; font-size: 0.82rem; opacity: 0.85; }
 th, td { text-align: left; vertical-align: top; padding: 0.3rem 0.5rem;
          border-bottom: 1px solid #ddd; }
 td.tal { text-align: right; font-variant-numeric: tabular-nums; }
@@ -35,6 +45,7 @@ code, pre { font-family: ui-monospace, monospace; font-size: 0.85rem; }
 pre { white-space: pre-wrap; word-break: break-word; background: #0001;
       padding: 0.6rem; border-radius: 4px; }
 footer { color: #666; font-size: 0.85rem; margin-top: 2rem; }
+.utkast { border: 2px solid #c98a00; background: #c98a0026; border-radius: 6px; padding: 0.6rem 0.9rem; margin: 0 0 1rem; }
 .aterstall { margin: 0 0 0.8rem; font-size: 0.85rem; text-align: right; opacity: 0.85; }
 .aterstall.snart { border: 1px solid #c98a00; background: #c98a0026; padding: 0.15rem 0.5rem; border-radius: 4px; text-align: left; font-weight: 650; font-size: 0.95rem; opacity: 1; }
 .aterstall.nu { border: 2px solid #8a1c16; background: #b3261e; color: #fff; padding: 0.15rem 0.65rem; border-radius: 6px; text-align: left; font-weight: 750; font-size: 1.2rem; font-variant-numeric: tabular-nums; opacity: 1; }
@@ -62,12 +73,15 @@ def e(text):
 
 
 def _sida(titel, kropp, sprak="sv"):
-    return (
+    if 'id="demoversion"' not in kropp:        # sidor utan full sidfot (felsidor, 404) visar ändå versionen
+        kropp += (f'<p style="font-size:.85rem;opacity:.8;margin-top:2rem">{_s(sprak, "Version ", "Version ")}'
+                  f'<span id="demoversion">{e(DEMO_VERSION)}</span></p>')
+    return ordlista.med_ordlista(
         f"<!doctype html><html lang=\"{sprak}\"><head><meta charset=\"utf-8\">"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
         f"<title>{e(titel)}</title><style>{STIL}</style></head>"
-        f"<body>{_aterstall(sprak)}{kropp}</body></html>"
-    )
+        f"<body>{_aterstall(sprak)}{kropp}</body></html>",
+        sprak, f"/ordlista?lang={sprak}#ordlista-{{id}}")
 
 
 def _aterstall(sprak):
@@ -123,7 +137,21 @@ def _sprakval(sprak, sokvag):
     """Språkbyte som bevarar sidan: ?lang=sv|en."""
     return ("<p class=\"underrubrik\">" + _s(sprak, "Språk: ", "Language: ")
             + ("<a href=\"%s?lang=en\">English</a> · <b>Svenska</b>" % sokvag if sprak == "sv"
-               else "<b>English</b> · <a href=\"%s?lang=sv\">Svenska</a>" % sokvag) + "</p>")
+               else "<b>English</b> · <a href=\"%s?lang=sv\">Svenska</a>" % sokvag)
+            + " · " + mim.menylank(sprak)
+            + " · " + _s(sprak, '<a href="/ordlista?lang=sv">Ordlista</a>', '<a href="/ordlista?lang=en">Glossary</a>') + "</p>")
+
+
+def nedladdningsruta(sprak, filer_):
+    """Rutan "Ladda ned": filer_ är [(adress, titel_sv, titel_en, format)]. Varje svar bär SHA-256 i huvudet X-Content-SHA256."""
+    rader = "".join(
+        f'<li><a href="{e(adr)}" download>{e(_s(sprak, sv, en))} <small>({e(fmt)})</small></a></li>' for adr, sv, en, fmt in filer_)
+    return ('<aside class="nedladdning" aria-label="%s"><h3>%s</h3><ul>%s</ul><p class="lhur">%s</p></aside>' % (
+        e(_s(sprak, "Ladda ned", "Download")), e(_s(sprak, "Ladda ned", "Download")), rader,
+        _s(sprak, "Det är samma data som sidan visar, öppna data under CC BY 4.0. Varje fil bär en kontrollsumma (SHA-256) i svarshuvudet "
+                  "<code>X-Content-SHA256</code>; jämför med <code>sha256sum fil</code>. Enheterna: MTQ = kubikmeter, MQS = kubikmeter per sekund, MTR = meter, MIN = minuter.",
+           "It is the same data the page shows, open data under CC BY 4.0. Each file carries a checksum (SHA-256) in the response header "
+           "<code>X-Content-SHA256</code>; compare with <code>sha256sum file</code>. Units: MTQ = cubic metres, MQS = cubic metres per second, MTR = metres, MIN = minutes.")))
 
 
 DEMO_VERSION = os.environ.get("SVADA_VERSION", "okänd")
@@ -140,9 +168,11 @@ def _sidfot(mintaka_publik, katalog_url, sprak="sv"):
             "the city's own context platform.") + "</p>"
         "<p>" + _s(sprak, "Maskinellt gränssnitt: ", "Machine interface: ")
         + f"<code>{e(mintaka_publik)}</code> "
-        + _s(sprak, "(NGSI-LD Temporal API, kräver <code>Accept: application/json</code>).",
-             "(NGSI-LD Temporal API, requires <code>Accept: application/json</code>).")
-        + "</p><p>" + _s(sprak, "Version ", "Version ") + f'<span id="demoversion">{e(DEMO_VERSION)}</span></p></footer>'
+        + _s(sprak, "(NGSI-LD Temporal API, kräver <code>Accept: application/json</code>, så adressen fungerar inte direkt i en webbläsare; använd till exempel curl).",
+             "(NGSI-LD Temporal API, requires <code>Accept: application/json</code>, so the address does not work directly in a browser; use curl, for example).")
+        + "</p><p>" + _s(sprak, "Datamodell (utkast, ingen beslutad modell): ", "Data model (draft, not a decided model): ")
+        + f'<a href="/modell?lang={sprak}">/modell</a></p>'
+        "<p>" + _s(sprak, "Version ", "Version ") + f'<span id="demoversion">{e(DEMO_VERSION)}</span></p></footer>'
     )
 
 
@@ -235,6 +265,8 @@ def landning(brunnar, mintaka_publik, katalog_url, fonster, egen_url, sprak="sv"
 curl -H 'Accept: application/json' '{e(mintaka_publik)}'</pre>
 <p>{temporal}</p>
 </div>
+{nedladdningsruta(sprak, [("/brunnar?format=csv", "Alla brunnar, senaste dygnet", "All chambers, latest day", "CSV"), ("/brunnar?format=json", "Alla brunnar, senaste dygnet", "All chambers, latest day", "JSON"), ("/modell/utkast/0.1/utkast.zip", "Datamodellen (utkast) med alla filer", "The data model (draft) with all files", "ZIP")])}
+{mim.ruta("brunnsvy", sprak)}
 {_sidfot(mintaka_publik, katalog_url, sprak)}
 """
     return _sida(_s(sprak, "Modellerad bräddata – öppna data (Göteborgs Stad)", "Modelled overflow data – open data (City of Gothenburg)"), kropp, sprak)
@@ -266,6 +298,7 @@ def brunn(brunns_id, serie, mintaka_publik, katalog_url, sprak="sv"):
 <span class="märke">K0R1T1 · PUBLIC</span></p>
 <p><a href="/brunnar?lang={sprak}">&larr; {_s(sprak, 'Alla bräddbrunnar', 'All overflow chambers')}</a></p>
 <table><thead><tr>{thead}</tr></thead><tbody>{''.join(rader)}</tbody></table>
+{nedladdningsruta(sprak, [(f"/brunnar/{brunns_id}?format=csv", "Tidsserien", "The time series", "CSV"), (f"/brunnar/{brunns_id}?format=json", "Tidsserien", "The time series", "JSON")])}
 {_sidfot(mintaka_publik, katalog_url, sprak)}
 """
     return _sida(f"{brunns_id} – " + _s(sprak, "modellerad bräddata", "modelled overflow data"), kropp, sprak)

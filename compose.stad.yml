@@ -149,6 +149,7 @@ services:
     profiles: ["stad-dataplan", "etapp1"]
     environment:
       ORION_URL: http://orion-stad:1026
+      MODELL_KONTEXT_URL: ${MODELL_KONTEXT_URL:-http://publik-vy:8085/modell/utkast/0.1/context.jsonld}
       EDC_MGMT_URL: http://edc-consumer:29193/management
       # Nyckelskyddade management-API:er (docs/koncept/C1-identitet.md): delad nyckel mot
       # edc-consumers management-API.
@@ -284,7 +285,12 @@ services:
       PUBLIK_VY_TIMEAT: ${PUBLIK_VY_TIMEAT}
       # Klockslaget för den nattliga återställningen (nedräkningen på sidan); tomt = ingen nedräkning.
       DEMO_ATERSTALL_KL: ${DEMO_ATERSTALL_KL:-}
+      # Datamodellens UTKAST (docs/modell): filerna monteras skrivskyddat och serveras på /modell.
+      MODELL_KATALOG: /modell
+      MODELL_KONTEXT_URL: ${MODELL_KONTEXT_URL:-http://publik-vy:8085/modell/utkast/0.1/context.jsonld}
       TZ: ${TZ}
+    volumes:
+      - ./datamodell/utkast:/modell:ro
     # Enkel depends_on (service_started): mintaka har ingen healthcheck, och
     # vyn tål att den saknas – den svarar 502 med orsak i stället för att dö.
     depends_on: [mintaka]
@@ -321,6 +327,7 @@ services:
     profiles: ["laddning"]
     environment:
       ORION_URL: http://orion-stad:1026
+      MODELL_KONTEXT_URL: ${MODELL_KONTEXT_URL:-http://publik-vy:8085/modell/utkast/0.1/context.jsonld}
       GPKG: /data/dbsvadaexample.gpkg
       TZ: ${TZ}
     volumes:
@@ -423,6 +430,9 @@ services:
     profiles: ["stad-ingest", "etapp4"]
     environment:
       ORION_URL: http://orion-stad:1026
+      MODELL_KONTEXT_URL: ${MODELL_KONTEXT_URL:-http://publik-vy:8085/modell/utkast/0.1/context.jsonld}
+      # Datamodellens utkast (schemat som leveranserna kontrolleras mot, MIM2 R3.4); skrivskyddat.
+      MODELL_KATALOG: /modell
       # Stadens EGEN connector – avtalsuppslaget görs aldrig hos DHI:s.
       EDC_MGMT_URL: http://edc-consumer:29193/management
       EDC_ASSET_A_ID: ${EDC_ASSET_A_ID}
@@ -440,6 +450,8 @@ services:
       INGEST_TOKEN_TTL_S: ${INGEST_TOKEN_TTL_S}
       INGEST_LOG_RETENTION: ${INGEST_LOG_RETENTION}
       TZ: ${TZ}
+    volumes:
+      - ./datamodell/utkast:/modell:ro
     networks:
       stad-internal:
       dsp-public:

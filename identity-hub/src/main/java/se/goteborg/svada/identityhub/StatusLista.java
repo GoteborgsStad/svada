@@ -97,6 +97,21 @@ public final class StatusLista {
         return s.get();
     }
 
+    /** Mottagarna (id -> DID), en kopia. */
+    public synchronized Map<String, String> mottagare() {
+        return new LinkedHashMap<>(mottagare);
+    }
+
+    /** "valid", "revoked" eller "unknown" (inget sådant intyg utfärdat) för mottagarens intyg av en viss typ. */
+    public synchronized String statusFor(String mottagarId, String typ) {
+        var did = mottagare.get(mottagarId);
+        var i = did == null ? null : index.get(did + "|" + typ);
+        if (i == null) {
+            return "unknown";
+        }
+        return bitar.get(i) ? "revoked" : "valid";
+    }
+
     public synchronized List<Map<String, Object>> poster() {
         var ut = new ArrayList<Map<String, Object>>();
         for (var m : mottagare.entrySet()) {

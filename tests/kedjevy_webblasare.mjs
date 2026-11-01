@@ -32,13 +32,15 @@ const jsfel = [];
 const hamtaEkta = async r => { try { return await (await r.fetch()).json(); } catch (e) { await r.continue().catch(() => {}); return null; } };
 // A är startläge: för att prova bytet till A väljs B först (utan att läsa om), sedan klickas A så att en riktig change utlöses.
 const valjA = async pg => { await pg.evaluate(() => { document.querySelector('input[name="analyslage"][value="b"]').checked = true; }); await pg.click('input[name="analyslage"][value="a"]'); };
-const ny = async (namn, villkor) => { const pg = await b.newPage(villkor); pg.on('pageerror', e => jsfel.push(`${namn}: ${e.message}`)); return pg; };
+const ny = async (namn, villkor) => { const pg = await b.newPage({ locale: 'sv-SE', ...villkor }); pg.on('pageerror', e => jsfel.push(`${namn}: ${e.message}`)); return pg; };
+// Väntar lika länge som förut (så rena animationer inte påverkas) och därefter tills nätverket är tyst, så att en långsam maskin inte ger en tidsrace.
+const stilla = async (sida, ms) => { await sida.waitForTimeout(ms); await sida.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {}); await sida.waitForTimeout(250); };
 // Självprov av testet: PLANTERA_SIDFEL=<blocknamn,…> kastar ett asynkront sidfel i det blocket, och testet måste då underkännas.
 const plantera = async (pg, namn) => { if ((process.env.PLANTERA_SIDFEL || '').split(',').includes(namn)) await pg.evaluate(() => setTimeout(() => { throw new Error('planterat sidfel'); }, 50)); };
 for (const bredd of [1280, 800, 400]) {
-  const p = await b.newPage({ viewport: { width: bredd, height: 900 } });
+  const p = await b.newPage({ locale: 'sv-SE', viewport: { width: bredd, height: 900 } });
   p.on('pageerror', e => jsfel.push(`${bredd}px: ${e.message}`));
-  await p.goto(`${DASH}/?lang=sv#steg-6`); await p.waitForTimeout(2500);
+  await p.goto(`${DASH}/?lang=sv#steg-6`); await stilla(p, 2500);
   kolla(await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
         `${bredd} px: ingen horisontell scroll`);
   const lista = await p.evaluate(() => getComputedStyle(document.querySelector('#bild')).display === 'flex');
@@ -53,7 +55,7 @@ for (const bredd of [1280, 800, 400]) {
   await p.close();
 }
 
-const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
+const p = await b.newPage({ locale: 'sv-SE', viewport: { width: 1280, height: 900 } });
 p.on('pageerror', e => jsfel.push(e.message));
 // Nätverksövervakningen registreras FÖRE första navigeringen, så att automatiska externa anrop vid sidstart syns.
 const externa = [];
@@ -63,14 +65,14 @@ const overvaka = (sida, lista) => sida.on('request', r => {
 });
 overvaka(p, externa);
 { // Övervakningen själv: ett simulerat externt startanrop (blockeras lokalt, ingen verklig kontakt) ska upptäckas.
-  const p2 = await b.newPage(); const ext2 = [];
+  const p2 = await b.newPage({ locale: 'sv-SE' }); const ext2 = [];
   overvaka(p2, ext2);
   await p2.route('**://cdn.invalid.example/**', r => r.abort());
   await p2.setContent('<img src="https://cdn.invalid.example/x.png">'); await p2.waitForTimeout(600);
   kolla(ext2.includes('cdn.invalid.example'), 'övervakningen upptäcker ett externt anrop vid sidstart (simulerat och blockerat lokalt)');
   await p2.close();
 }
-await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(2500);
+await p.goto(`${DASH}/?lang=sv#steg-1`); await stilla(p, 2500);
 kolla(/UTC/.test(await p.textContent('#sammanfattning')), 'sidhuvudets tid anges i UTC');
 await p.keyboard.press('ArrowRight');
 kolla(await p.evaluate(() => location.hash) === '#steg-2', 'pil höger öppnar steg 2');
@@ -100,15 +102,16 @@ kolla(await p.evaluate(() => !!document.querySelector('#analysstatus a[href*="/a
       'steg 6 (B): raden bär sitt ursprung (länk till avtalet)');
 kolla(await p.evaluate(() => !document.querySelector('svg.karta')), 'steg 6 (B): ingen karta, positionerna ingår inte i B');
 await p.evaluate(() => { document.querySelector('#analystopp').value = '3'; });
-await p.dispatchEvent('#analystopp', 'change'); await p.waitForTimeout(1500);
+await p.dispatchEvent('#analystopp', 'change');
+await p.waitForFunction(() => document.querySelectorAll('#analysresultat table.analystabell tr.inspektera').length <= 3, null, { timeout: 15000 }).catch(() => {});
 kolla(await p.evaluate(() => document.querySelectorAll('#analysresultat table.analystabell tr.inspektera').length) <= 3,
       'steg 6: att ändra antalet brunnar ändrar urvalet');
 // F8 (fientliga testet 2026-10-19): 1e9 är ett stort tal och ska bli 91 som ett långt heltal, inte 1 (parseInt läste bara "1").
 await p.evaluate(() => { document.querySelector('#analystopp').value = '1e9'; });
-await p.dispatchEvent('#analystopp', 'change'); await p.waitForTimeout(1500);
+await p.dispatchEvent('#analystopp', 'change'); await stilla(p, 1500);
 kolla(await p.inputValue('#analystopp') === '91', 'steg 6: antalet 1e9 blir 91 (högsta), inte 1');
 await p.evaluate(() => { document.querySelector('#analystopp').value = '3.7'; });
-await p.dispatchEvent('#analystopp', 'change'); await p.waitForTimeout(1500);
+await p.dispatchEvent('#analystopp', 'change'); await stilla(p, 1500);
 kolla(await p.inputValue('#analystopp') === '3', 'steg 6: antalet 3,7 avrundas nedåt till 3');
 // F11: kartetiketterna ska formatera volymen som resten av sidan (decimalkomma på svenska), inte skriva ut det råa talet.
 kolla(!(await p.content()).includes('${r.volymM3} m³'), 'steg 6: kartetiketten formaterar volymen med tal() (decimalkomma), inte rått');
@@ -125,7 +128,7 @@ kolla(externa.length === 0, 'inget externt anrop under första sidladdningarna o
 // Plattorna ersätts här av en stubb så att provet inte behöver nätet; anropen registreras ändå av nätverksövervakningen.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 await p.route('https://*.openstreetmap.org/**', r => r.fulfill({status: 200, contentType: 'image/png', body: PNG}));
-await valjA(p); await p.waitForTimeout(1800);
+await valjA(p); await stilla(p, 1800);
 await p.waitForFunction(() => document.querySelector('svg.karta')?.style.display === 'none', null, { timeout: 12000 }).catch(() => {});
 kolla(externa.length > 0 && externa.every(h => /openstreetmap\.org$/.test(h)),
       'steg 6 (A): kartbakgrunden hämtas automatiskt och anropen går bara till OpenStreetMap (' + [...new Set(externa)].join(', ') + ')');
@@ -135,7 +138,7 @@ kolla(await p.evaluate(() => !document.querySelector('#kartbakgrund')), 'steg 6 
 kolla(await p.evaluate(() => !/Hämtar kartplattor från OpenStreetMap: OpenStreetMap ser då/.test(document.body.textContent)), 'steg 6 (A): ingen infotext om att besökaren behöver välja kartbakgrund');
 // Ett identiskt analyssvar ska rita om kartan (cachen får inte hoppa över den): kartan finns kvar, antingen som plattor eller som schematisk karta.
 kolla(await p.evaluate(() => !document.querySelector('#analysruta button[onclick="laddaAnalys()"]')), 'steg 6: ingen Uppdatera-knapp (analysen uppdateras vid varje ändring)');
-await p.evaluate(() => laddaAnalys()); await p.waitForTimeout(2500);
+await p.evaluate(() => laddaAnalys()); await stilla(p, 2500);
 kolla(await p.evaluate(() => { const s = document.querySelector('svg.karta'); const o = document.querySelector('#osmkarta');
         return (!!o && !o.hidden) || (!!s && s.getBoundingClientRect().width > 0); }),
       'steg 6 (A): Uppdatera med identiskt svar visar kartan igen (plattor eller schematisk)');
@@ -144,7 +147,7 @@ kolla(await p.evaluate(() => { const s = document.querySelector('svg.karta'); co
   const tat = i => ({...mockRad(i, 1000.25 - i * 10), inspektera: i <= 5, position: [11.9918 + (i % 3) * 0.00025, 57.6943 + (i % 2) * 0.0002]});
   await p.unroute('**/api/analys?lage=a*');
   await p.route('**/api/analys?lage=a*', r => r.fulfill({json: {...A, topp: 5, rader: [1, 2, 3, 4, 5, 6].map(tat)}}));
-  await p.evaluate(() => laddaAnalys()); await p.waitForTimeout(1800);
+  await p.evaluate(() => laddaAnalys()); await stilla(p, 1800);
   await p.waitForFunction(() => document.querySelectorAll('.leaflet-tooltip').length >= 5, null, { timeout: 12000 }).catch(() => {});
   await p.waitForTimeout(800);
   const rutor = await p.$$eval('.leaflet-tooltip', ts => ts.map(t => { const b = t.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }));
@@ -164,7 +167,7 @@ kolla(await p.evaluate(() => { const s = document.querySelector('svg.karta'); co
   await p.unroute('**/api/analys?lage=a*');
   await p.route('**/api/analys?lage=a*', r => r.fulfill({json: A}));
   await p.route('**/api/status*', async r => { const j = await hamtaEkta(r); if (!j) return; j.avtalA = {gallande: avtalGaller}; r.fulfill({json: j}); });
-  await p.evaluate(() => { document.querySelector('input[name="analyslage"][value="a"]').checked = true; laddaAnalys(); }); await p.waitForTimeout(1800);
+  await p.evaluate(() => { document.querySelector('input[name="analyslage"][value="a"]').checked = true; laddaAnalys(); }); await stilla(p, 1800);
   kolla(await p.evaluate(() => !!document.querySelector('svg.karta') || !!document.querySelector('#osmkarta:not([hidden])')), 'F1: steg 6 visar positioner ur A medan avtalet gäller');
   avtalGaller = false;
   await p.unroute('**/api/analys?lage=a*');
@@ -178,7 +181,7 @@ kolla(await p.evaluate(() => { const s = document.querySelector('svg.karta'); co
   await p.unroute('**/api/analys?lage=a*');
   let anrop = 0;
   await p.route('**/api/analys?lage=a*', r => r.fulfill({json: (anrop++ === 0) ? A : A_BLOCK}));
-  await p.evaluate(() => laddaAnalys()); await p.waitForTimeout(2500);
+  await p.evaluate(() => laddaAnalys()); await stilla(p, 2500);
   kolla(await p.evaluate(() => !document.querySelector('#osmkarta') || document.querySelector('#osmkarta').hidden) && await p.evaluate(() => /kan inte läsas/.test(document.querySelector('#analysresultat').textContent)),
         'F1: kartan kontrollerar avtalet mot servern först; en hävning gör att kartan inte öppnas');
   await p.unroute('**/api/status*');
@@ -193,7 +196,7 @@ kolla(await p.evaluate(() => { const s = document.querySelector('svg.karta'); co
     A: galler ? {rad: {...mockRad(1, 365.22), distribution: 'A', klass: 'K1R1T1'}, blockerad: null, avtal: null} : {rad: null, blockerad: {orsak: 'avtal-havt'}, avtal: null}});
   await p.route('**/api/analys/brunn*', r => r.fulfill({json: jamfor()}));
   await p.route('**/api/status*', async r => { const j = await hamtaEkta(r); if (!j) return; j.avtalA = {gallande: galler}; r.fulfill({json: j}); });
-  await p.evaluate(() => { document.querySelector('input[name="analyslage"][value="b"]').checked = true; laddaAnalys(); }); await p.waitForTimeout(1800);
+  await p.evaluate(() => { document.querySelector('input[name="analyslage"][value="b"]').checked = true; laddaAnalys(); }); await stilla(p, 1800);
   kolla(await p.evaluate(() => /\d+\.\d{4}/.test(document.querySelector('[data-jamfor="A"]')?.textContent || '')), 'F1: i läge B visar "samma brunn" A:s position medan avtalet gäller');
   galler = false;
   await p.waitForFunction(() => /Nekad/.test(document.querySelector('[data-jamfor="A"]')?.textContent || '') && !/\d+\.\d{4}/.test(document.querySelector('[data-jamfor="A"]')?.textContent || ''), null, {timeout: 12000}).catch(() => {});
@@ -208,7 +211,7 @@ await p.route('https://*.openstreetmap.org/**', r => r.abort());    // aldrig ut
 await p.unroute('**/api/analys?lage=a*');
 await p.route('**/api/analys?lage=a*', r => r.fulfill({json: {lage: 'A', topp: 2, rader: [], perRecipient: [], avtal: null,
   blockerad: {orsak: 'avtal-havt', avtal: 'aaaaaaaa-1', havning: {orsak: 'EXPLICIT', tid: '2026-10-10T13:01:01Z'}}}}));
-await p.dispatchEvent('input[name="analyslage"][value="a"]', 'change'); await p.waitForTimeout(1500);
+await p.dispatchEvent('input[name="analyslage"][value="a"]', 'change'); await stilla(p, 1500);
 const nekad = await p.textContent('#analysresultat');
 kolla(/hävts av KoV/.test(nekad) && /Distribution B är öppen/.test(nekad) && !(await p.evaluate(() => !!document.querySelector('svg.karta'))),
       'steg 6 (A, hävt avtal): nekat i klartext, ingen karta, B pekas ut som fungerande');
@@ -218,7 +221,7 @@ await p.unroute('**/api/analys?lage=a*');
     nivaM: 0.1, tidMin: 155, recipient: 'Göta Älv', utslapp: 'G1', inspektera: true, position: [11.9900 + (i % 4) * 0.00006, 57.6900 + Math.floor(i / 4) * 0.00004]}));
   const A10 = {...A, rader: rader10, topp: 10, sammanfattning: {...A.sammanfattning, brunnar: 10}};
   await p.route('**/api/analys?lage=a*', r => r.fulfill({json: A10}));
-  await p.dispatchEvent('input[name="analyslage"][value="a"]', 'change'); await p.waitForTimeout(1500);
+  await p.dispatchEvent('input[name="analyslage"][value="a"]', 'change'); await stilla(p, 1500);
   const krock = await p.evaluate(() => {
     const t = [...document.querySelectorAll('svg.karta text')].filter(x => /^SSO1_/.test(x.textContent)).map(x => x.getBoundingClientRect());
     let n = 0;
@@ -248,7 +251,8 @@ kolla(await p.evaluate(() => { const u = [...document.querySelectorAll('#svadaru
         return /SvadaMembershipCredential/.test(u) && /"aterkallat": true/.test(u) && /CatalogError/.test(u) && /"code": "401"/.test(u) && /NEKAD av spärren/.test(u); }),
       'steg 3: det inspelade exemplet visar statuslistan, DHI:s 401 och jobbloggens rad');
 kolla(await p.evaluate(() => !!document.querySelector('#svadaprov')), 'steg 3: den läsande katalogförfrågan finns kvar');
-await p.click('#svadaprov'); await p.waitForTimeout(2500);
+await p.click('#svadaprov');
+await p.waitForFunction(() => /Staden når DHI|reaches DHI/.test(document.querySelector('#svadautfall')?.textContent || ''), null, { timeout: 20000 }).catch(() => {});
 kolla(await p.evaluate(() => /Staden når DHI|reaches DHI/.test(document.querySelector('#svadautfall').textContent)), 'steg 3: Prova katalogförfrågan svarar att staden når DHI (ingen är utesluten)');
 // Servern vägrar också när någon försöker ändå: via Caddy (X-Forwarded-For) ger återkallelse 403 och ändrar inte statuslistan.
 {
@@ -273,7 +277,7 @@ const knappar = () => p.evaluate(() => Object.fromEntries([...document.querySele
   .map(b => [b.dataset.kovbeslut, b.disabled || b.getAttribute('aria-disabled') === 'true'])));
 await mock([], []);
 await p.goto('about:blank');   // samma adress som förra sidan laddar inte om, och mockarna skulle inte slå igenom
-await p.goto(`${DASH}/?lang=sv#steg-3`); await p.waitForTimeout(2500);
+await p.goto(`${DASH}/?lang=sv#steg-3`); await stilla(p, 2500);
 let kb = await knappar();
 kolla(kb.godkann === true && kb.avsla === true && kb.hav === true, `KoV-rutan: inget väntar och inget gäller -> alla knappar låsta (${JSON.stringify(kb)})`);
 // En grå KoV-knapp förklarar sig: mouseover, och en kort ruta vid klick som försvinner av sig själv och inte skickar något anrop.
@@ -300,7 +304,7 @@ kolla(kb.godkann === true && kb.avsla === true && kb.hav === true, `KoV-rutan: i
 }
 await p.unroute('**/api/kov'); await p.unroute('**/api/avtal');
 await mock([], [{id: 'aaaaaaaa-1', dhiAvtalId: 'bbbbbbbb-2', distribution: 'A', status: 'GALLANDE', regler: {}, url: '/avtal/aaaaaaaa-1'}]);
-await p.goto(`${DASH}/?lang=sv&mock=2#steg-3`); await p.waitForTimeout(2500);
+await p.goto(`${DASH}/?lang=sv&mock=2#steg-3`); await stilla(p, 2500);
 kb = await knappar();
 kolla(kb.hav === false && kb.godkann === true, `KoV-rutan: ett gällande avtal -> bara Häv är öppen (${JSON.stringify(kb)})`);
 const rad = await p.textContent('#kovavtalrad');
@@ -310,7 +314,7 @@ const lagen = [];
 for (let i = 0; i < 6; i++) { lagen.push(JSON.stringify(await knappar())); await p.waitForTimeout(1400); }
 kolla(new Set(lagen).size === 1, `KoV-knapparna blinkar inte mellan statusrundor (${new Set(lagen).size} olika lägen)`);
 await p.unroute('**/api/kov'); await p.unroute('**/api/avtal');
-await p.goto(`${DASH}/#jobb-3`); await p.waitForTimeout(1200);
+await p.goto(`${DASH}/#jobb-3`); await stilla(p, 1200);
 kolla(await p.evaluate(() => document.querySelector('section.flik.aktiv').id) === 'jobb', '#jobb-ID öppnar fliken Jobb');
 // Fliken Jobb visar att ett jobb pågår (snurra + text) och släpper det när jobbet är klart. Mockad jobblista, inga riktiga jobb.
 {
@@ -318,7 +322,7 @@ kolla(await p.evaluate(() => document.querySelector('section.flik.aktiv').id) ==
   const jobb = () => ({aktivt: !klar, jobb: [{id: 3, atgard: 'forhandla-b', steg: 3, etikett: 'Förhandla Distribution B', status: klar ? 'klar' : 'kör', startad: '2026-10-23T10:00:00Z',
     klar: klar ? '2026-10-23T10:00:05Z' : null, utfall: null, kopos: null, rader: [{tid: '2026-10-23T10:00:00Z', kod: 'jobb.start', p: {}, text: 'startar'}]}]});
   await p.route('**/api/jobb', r => r.fulfill({json: jobb()}));
-  await p.goto(`${DASH}/#jobb-3`); await p.waitForTimeout(2500);
+  await p.goto(`${DASH}/#jobb-3`); await stilla(p, 2500);
   const under = await p.evaluate(() => ({rad: document.querySelector('#jobbpagar .snurr') !== null && /pågår/.test(document.querySelector('#jobbpagar').textContent),
     lista: document.querySelector('#jobblista .snurr') !== null, anim: getComputedStyle(document.querySelector('#jobbpagar .snurr') || document.body).animationName}));
   kolla(under.rad && under.lista && under.anim === 'snurra', `fliken Jobb: ett pågående jobb visar snurra och "pågår" i raden och i listan (${JSON.stringify(under)})`);
@@ -326,13 +330,13 @@ kolla(await p.evaluate(() => document.querySelector('section.flik.aktiv').id) ==
   kolla(await p.evaluate(() => !document.querySelector('#jobbpagar .snurr') && !document.querySelector('#jobblista .snurr') && document.querySelector('#jobbpagar').textContent === ''), 'fliken Jobb: snurran försvinner när jobbet är klart');
   await p.unroute('**/api/jobb');
 }
-await p.goto(`${DASH}/#ordlista-dsp`); await p.waitForTimeout(1200);
+await p.goto(`${DASH}/#ordlista-dsp`); await stilla(p, 1200);
 kolla(await p.evaluate(() => document.getElementById('ordlista-dsp').classList.contains('markerad')), '#ordlista-ID markerar begreppet');
-await p.goto(`${DASH}/?lang=en#steg-1`); await p.waitForTimeout(2500);
+await p.goto(`${DASH}/?lang=en#steg-1`); await stilla(p, 2500);
 kolla(await p.evaluate(() => document.documentElement.lang) === 'en', 'engelska via ?lang=en');
 const namn = await p.textContent('#steg-1 .teknikruta');
 kolla(/stands in for DHI/.test(namn) && !/står i för/.test(namn), 'teknikrutan på engelska utan svenska delar');
-await p.goto(`${DASH}/?lang=sv#steg-5`); await p.waitForTimeout(3500);
+await p.goto(`${DASH}/?lang=sv#steg-5`); await stilla(p, 3500);
 const vard = await p.textContent('#provvarde'), avtal = await p.textContent('#provavtal');
 const id = (vard.match(/"contractAgreementId":\s*"([^"]+)"/) || [])[1];
 kolla(/"distribution":\s*"B"/.test(vard) && !/"distribution":\s*"A"/.test(vard), 'steg 5 visar ett värde ur distribution B');
@@ -342,13 +346,13 @@ kolla(/"statusIKlartext":\s*"(gällande|hävt|utgånget|okänt)"/.test(avtal) &&
 kolla(!/T\d\d\.\d|T\d\d:\d\dZ/.test(vard), 'tidsstämplarna är hela');
 kolla(jsfel.length === 0, `inga JS-fel${jsfel.length ? ': ' + jsfel.join('; ') : ''}`);
 // F13: länkar till ett steg eller jobb som inte finns får en kort notis i stället för att tyst skrivas om.
-await p.goto(`${DASH}/?lang=sv#steg-7`); await p.waitForTimeout(2000);
+await p.goto(`${DASH}/?lang=sv#steg-7`); await stilla(p, 2000);
 kolla(await p.evaluate(() => { const n = document.querySelector('#lanknot'); return !!n && !n.hidden && /Steg 7 finns inte/.test(n.textContent); }), 'F13: #steg-7 ger en notis om att steget inte finns');
-await p.goto(`${DASH}/?lang=sv#jobb-99999`); await p.waitForTimeout(2500);
+await p.goto(`${DASH}/?lang=sv#jobb-99999`); await stilla(p, 2500);
 kolla(await p.evaluate(() => { const n = document.querySelector('#lanknot'); return !!n && !n.hidden && /Jobb 99999 finns inte/.test(n.textContent); }), 'F13: #jobb-99999 ger en notis om att jobbet inte finns');
 // Knapparna (besökartestet 2026-10-22): åtgärdsknappar har en egen färg (dataspace-lila), är minst 44 px höga, "Prova själv" ligger
 // först i steget, och nästa rimliga åtgärd markeras (ring och märke) med en knapp i ordningsraden.
-await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(3500);
+await p.goto(`${DASH}/?lang=sv#steg-1`); await stilla(p, 3500);
 const kn = await p.evaluate(() => {
   const k = document.querySelector('#steg-1 button.kor'); const cs = getComputedStyle(k); const nk = document.querySelector('#nastaknapp');
   return { bg: cs.backgroundColor, h: k.getBoundingClientRect().height, forst: document.querySelector('#steg-1 .prova') === document.querySelector('#steg-1 h2 + div'),
@@ -377,7 +381,7 @@ kolla(pos.normal === pos.grå && pos.normal === pos.snurr, `texten börjar på s
     return { fore, efter, hogerOm: rt.left >= rk.right - 1, sammaRad: Math.abs(rt.top + rt.height / 2 - (rk.top + rk.height / 2)) < rk.height };
   });
   kolla(h.fore === h.efter && h.hogerOm && h.sammaRad, `spärrtexten: till höger om knappen och sidan hoppar inte (höjd ${h.fore} -> ${h.efter})`);
-  await p.goto(`${DASH}/?lang=sv#steg-2`); await p.waitForTimeout(3000);
+  await p.goto(`${DASH}/?lang=sv#steg-2`); await stilla(p, 3000);
   const o = await p.evaluate(() => {
     const koder = [...document.querySelectorAll('#steg-2 .odrlkol li code')];
     return { antal: koder.length, kapad: koder.filter(c => c.scrollWidth > c.clientWidth + 1).length,
@@ -419,11 +423,11 @@ kolla(pos.normal === pos.grå && pos.normal === pos.snurr, `texten börjar på s
   await p.unroute('**/api/status*');
   // Tomma läget provas mot ett mockat svar (annars beror provet på stackens tillstånd).
   await p.route('**/api/analys?lage=b*', r => r.fulfill({contentType: 'application/json', body: JSON.stringify({rader: [], blockerad: {orsak: 'no-delivery', distribution: 'B'}})}));
-  await p.evaluate(() => { document.querySelector('input[name="analyslage"][value="b"]').checked = true; laddaAnalys(); }); await p.waitForTimeout(1500);
+  await p.evaluate(() => { document.querySelector('input[name="analyslage"][value="b"]').checked = true; laddaAnalys(); }); await stilla(p, 1500);
   kolla(await p.evaluate(() => !!document.querySelector('#analysresultat a[data-hopp="1"]') && !!document.querySelector('#analysresultat a[data-hopp="4"]')), 'steg 6: tomma läget länkar till steg 1 och steg 4');
   await p.unroute('**/api/analys?lage=b*');
   kolla(o.rullning === '14px', `rullningslisterna är alltid synliga och 14 px breda (${o.rullning})`);
-  await p.goto(`${DASH}/?lang=sv#steg-3`); await p.waitForTimeout(3000);
+  await p.goto(`${DASH}/?lang=sv#steg-3`); await stilla(p, 3000);
   kolla(await p.evaluate(() => /B<\/b> = öppna data/.test(document.querySelector('#steg-3 .distnyckel')?.innerHTML || '') && /<b>A<\/b> = skyddade data/.test(document.querySelector('#steg-3 .distnyckel')?.innerHTML || '')),
         'steg 3: under knapparna står i klartext vilken distribution som är vilken');
   kolla(await p.evaluate(() => ['forhandla-b', 'forhandla-a'].every(x => document.querySelector(`#steg-3 button.kor[data-atgard="${x}"]`).getBoundingClientRect().height <= 48)),
@@ -440,7 +444,7 @@ kolla(pos.normal === pos.grå && pos.normal === pos.snurr, `texten börjar på s
   kolla(await p.evaluate(() => { const u = lankaAvtal(esc('"http://x:1/avtal/ab-12"')); return u.includes('<a href="http://x:1/avtal/ab-12"'); }), 'avtalets adress i de grå rutorna blir en klickbar länk');
 }
 // F15: bekräftelsen har en KORT knapptext, förklaringen under, och ett fönster på 15 s (förr 8 s och 5 s).
-await p.goto(`${DASH}/?lang=sv#steg-3`); await p.waitForTimeout(2000);
+await p.goto(`${DASH}/?lang=sv#steg-3`); await stilla(p, 2000);
 const bekr = await p.evaluate(async () => {
   const k = document.createElement('button'); k.textContent = 'KoV häver avtalet'; document.querySelector('#steg-3').appendChild(k);
   const forsta = bekraftat(k, 'Klicka igen för att häva. Det går inte att ångra, men ett nytt avtal kan tecknas efteråt.');
@@ -454,20 +458,35 @@ const bekr = await p.evaluate(async () => {
 });
 kolla(bekr.forsta === false && bekr.kort === 'Klicka igen för att häva' && /Det går inte att ångra/.test(bekr.info), `F15: första klicket ger en kort knapptext (${bekr.kort}) och förklaringen under`);
 kolla(bekr.kvar && bekr.andra === true && bekr.efter === 'KoV häver avtalet' && !bekr.infoKvar, 'F15: bekräftelsen gäller fortfarande efter 6,5 s, andra klicket bekräftar och knappen återställs');
+// Besökartestet 2026-11-01: sidans uppdatering byggde om avtalstabellen och nollställde "Klicka igen för att häva" efter några sekunder.
+{
+  await p.route('**/api/avtal', r => r.fulfill({json: {avtal: [{id: 'aaaaaaaa-1111', distribution: 'A', status: 'GALLANDE', dhiAvtalId: 'dhi-1', regler: {}}], synkfel: null}}));
+  const hv = await p.evaluate(async () => {
+    await laddaAvtalLista();
+    const k = document.querySelector('#avtallista button[data-hav-id]');
+    if (!k) return {saknas: true};
+    k.click();
+    await laddaAvtalLista();
+    const samma = document.querySelector('#avtallista button[data-hav-id]') === k;
+    return {samma, text: k.textContent, kvar: !!k.dataset.bekraftaTill};
+  });
+  await p.unroute('**/api/avtal');
+  kolla(!hv.saknas && hv.samma && hv.kvar && hv.text === 'Klicka igen för att häva', `Häv-bekräftelsen överlever en uppdatering av avtalstabellen (${JSON.stringify(hv)})`);
+}
 // F2: dubbelklick på Leverera B i fliken Felinjektion ger ett jobb och ingen dialog (en window.alert låste hela fliken i testet 2026-10-19).
 {
   const dialoger = [], anrop = [];
   const f = await ny('F2-felinjektion');
   f.on('dialog', async d => { dialoger.push(d.message()); await d.dismiss(); });
   f.on('request', r => { if (r.method() === 'POST' && /\/api\/atgard\/transfer-b/.test(r.url())) anrop.push(r.url()); });
-  await f.goto(`${DASH}/?lang=sv#felinjektion`); await f.waitForTimeout(2500);
+  await f.goto(`${DASH}/?lang=sv#felinjektion`); await stilla(f, 2500);
   await f.waitForFunction(() => !document.querySelector('#felinjektion button[data-atgard="transfer-b"]')?.disabled, null, { timeout: 40000 }).catch(() => {});
-  await f.dblclick('#felinjektion button[data-atgard="transfer-b"]'); await f.waitForTimeout(2500);
+  await f.dblclick('#felinjektion button[data-atgard="transfer-b"]'); await stilla(f, 2500);
   kolla(dialoger.length === 0 && anrop.length === 1, `F2: dubbelklick på Leverera B ger ett anrop och ingen dialog (${anrop.length} anrop, ${dialoger.length} dialoger)`);
   kolla(!(await f.content()).includes('alert('), 'F2: sidan innehåller inget alert()');
   await f.close();
 }
-await p.goto(`${DASH}/?lang=sv#steg-3`); await p.waitForTimeout(2500);
+await p.goto(`${DASH}/?lang=sv#steg-3`); await stilla(p, 2500);
 const jobbKlart = () => p.waitForFunction(() => typeof jobbAktivtNu !== 'undefined' && !jobbAktivtNu, null, { timeout: 90000 }).catch(() => {});
 await jobbKlart();
 // Snurran (besökartestet 2026-10-22): knappen som startade jobbet visar en snurra på pilens plats medan jobbet kör, ingen text om att vänta,
@@ -483,15 +502,15 @@ const sn = await p.evaluate(() => { const k = document.querySelector('#steg-3 bu
 kolla(sn.pagar && sn.busy === 'true' && sn.anim === 'snurra', `snurra: knappen som startade jobbet snurrar (${sn.anim}, aria-busy ${sn.busy})`);
 kolla(!sn.annan && (sn.annanInnehall === '""' || sn.annanInnehall === 'none' || sn.annanInnehall === 'normal') && sn.annanKant === 'dashed', `grå knapp: ingen paussymbol och streckad ram (${sn.annanInnehall}, ${sn.annanKant})`);
 kolla(!/pågår|Vänta tills/.test(sn.text), `ingen text om att ett jobb pågår medan snurran visas ('${sn.text}')`);
-await jobbKlart(); await p.waitForTimeout(1500);
+await jobbKlart(); await stilla(p, 1500);
 // F3: efter att KoV beslutat står inte Förhandla A-jobbet kvar med "väntar på KoV"
 await p.waitForFunction(() => { const b = document.querySelector('#kovruta button[data-kovbeslut="godkann"]'); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true'; }, null, { timeout: 30000 }).catch(() => {});
 await p.click('#kovruta button[data-kovbeslut="godkann"]');
-await jobbKlart(); await p.waitForTimeout(2500);
+await jobbKlart(); await stilla(p, 2500);
 kolla(await p.evaluate(() => !document.querySelector('#kort-forhandla-a .lstatus.vantar')), 'F3: efter KoV:s beslut står Förhandla A-jobbet inte kvar med etiketten "väntar på KoV"');
 kolla(await p.evaluate(() => [...document.querySelectorAll('.last-hint')].filter(e => !e.closest('.kovval')).every(e => e.hidden) && !document.querySelector('button.kor.pagar')), 'F4: snurran och förklaringarna försvinner när jobbet är klart');
 // F6: ett språkbyte mitt i ett KoV-jobb följer KOV-jobbet, inte det äldre Förhandla A-jobbet vars ruta också har ett jobb-id
-await p.click('#steg-3 button.kor[data-atgard="forhandla-a"]'); await jobbKlart(); await p.waitForTimeout(1500);
+await p.click('#steg-3 button.kor[data-atgard="forhandla-a"]'); await jobbKlart(); await stilla(p, 1500);
 await p.waitForFunction(() => { const b = document.querySelector('#kovruta button[data-kovbeslut="godkann"]'); return b && !b.disabled && b.getAttribute('aria-disabled') !== 'true'; }, null, { timeout: 30000 }).catch(() => {});
 await p.click('#kovruta button[data-kovbeslut="godkann"]'); await p.waitForTimeout(400);
 await p.click('.sprak button[data-lang="en"]');
@@ -500,20 +519,20 @@ kolla(await p.evaluate(() => document.documentElement.lang === 'en' && !!documen
       'F6: efter språkbytet mitt i KoV-jobbet följs just det jobbet (i KoV-rutan), inte det äldre i Förhandla A-rutan');
 await jobbKlart();
 // F6, enkla fallet: ett batchjobb
-await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(2500);
+await p.goto(`${DASH}/?lang=sv#steg-1`); await stilla(p, 2500);
 await p.waitForFunction(() => !document.querySelector('button.kor[data-atgard="kor-batch"]')?.disabled, null, { timeout: 30000 }).catch(() => {});
 await p.click('button.kor[data-atgard="kor-batch"]'); await p.waitForTimeout(400);
 await p.click('.sprak button[data-lang="en"]');
 await p.waitForSelector('#kort-kor-batch .loggruta', { timeout: 20000 }).catch(() => {});
 kolla(await p.evaluate(() => document.documentElement.lang === 'en' && !!document.querySelector('#kort-kor-batch .loggruta')), 'F6: efter språkbytet mitt i batchjobbet finns jobbrutan kvar (på engelska)');
-await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
+await p.goto(`${DASH}/?lang=sv#steg-1`); await stilla(p, 1500);
 // Statistikhändelserna: rätt namn, bara {h}, ingenting innan besökaren rört något, tak på 150 och ett svar 500 märks inte.
 {
   const kroppar = [], sidfel = [];
   const h = await ny('handelser');
   h.on('pageerror', e => sidfel.push(e.message));
   h.on('request', r => { if (/\/api\/handelse/.test(r.url()) && r.method() === 'POST') kroppar.push(r.postDataJSON()); });
-  await h.goto(`${DASH}/?lang=sv#steg-3`); await h.waitForTimeout(2500);
+  await h.goto(`${DASH}/?lang=sv#steg-3`); await stilla(h, 2500);
   kolla(kroppar.length === 0, `statistik: ingen händelse skickas av själva sidladdningen (${kroppar.length})`);
   await h.click('#nod-6'); await h.waitForTimeout(600);
   await h.click('nav#flikar button[data-flik="jobb"]'); await h.waitForTimeout(600);
@@ -524,23 +543,23 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   await h.route('**/api/handelse', r => r.fulfill({status: 500, body: 'fel'}));
   const f2 = await ny('handelser-500'); f2.on('pageerror', e => sidfel.push(e.message));
   await f2.route('**/api/handelse', r => r.fulfill({status: 500, body: 'fel'}));
-  await f2.goto(`${DASH}/?lang=sv#steg-3`); await f2.waitForTimeout(2000);
+  await f2.goto(`${DASH}/?lang=sv#steg-3`); await stilla(f2, 2000);
   await f2.click('#nod-5'); await f2.waitForTimeout(800);
   kolla(sidfel.length === 0 && await f2.evaluate(() => document.querySelector('#lanknot').hidden), 'statistik: ett svar 500 från /api/handelse märks inte (inget JS-fel, ingen notis)');
   await h.close(); await f2.close();
 }
 { // Smal skärm (400 px): stegraden, träffytor, textstorlek, nyckeltal intill knappen, utfallet synligt.
   const m = await ny('400px-steg', { viewport: { width: 400, height: 800 } });
-  await m.goto(`${DASH}/?lang=sv#steg-6`); await m.waitForTimeout(2500);
+  await m.goto(`${DASH}/?lang=sv#steg-6`); await stilla(m, 2500);
   await plantera(m, '400px-steg');
   await m.evaluate(() => window.scrollTo(0, 0)); await m.waitForTimeout(400);
   kolla(await m.evaluate(() => document.getElementById('stegrad').hidden), '400 px: stegraden ligger inte över sidrubriken vid sidans topp');
   await m.evaluate(() => window.scrollTo(0, document.getElementById('steg-6').getBoundingClientRect().bottom + window.scrollY - 300)); await m.waitForTimeout(600);
   kolla(await m.evaluate(() => !document.getElementById('stegrad').hidden), '400 px: stegraden syns när man scrollat ned i en stegpanel');
-  await m.click('#stegrad button[data-steg="3"]'); await m.waitForTimeout(1500);
+  await m.click('#stegrad button[data-steg="3"]'); await stilla(m, 1500);
   const toppen = await m.evaluate(() => (document.querySelector('#steg-3 .stegrubrik') || document.querySelector('#steg-3 h2, #steg-3 h3')).getBoundingClientRect().top);
   kolla(toppen > 0 && toppen < 260, `400 px: klick på ett steg i stegraden landar på panelens topp (rubriken ${Math.round(toppen)} px från kanten)`);
-  await m.goto(`${DASH}/?lang=sv#steg-6`); await m.waitForTimeout(2500);
+  await m.goto(`${DASH}/?lang=sv#steg-6`); await stilla(m, 2500);
   await m.evaluate(() => window.scrollTo(0, 1500)); await m.waitForTimeout(600);
   const sm = await m.evaluate(() => {
     const mat = e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; };
@@ -568,7 +587,7 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   const live = await m.evaluate(() => document.querySelector('#steg-1 .knappkort .livetal')?.textContent || '');
   kolla(/^Just nu: /.test(live) && live.length > 15, `steg 1: nyckeltalen visas intill knappen ('${live.slice(0, 60)}')`);
   // "…och se utfallet": loggen hamnar i bild.
-  await m.evaluate(() => kor('kor-batch', {})); await m.waitForTimeout(3500);
+  await m.evaluate(() => kor('kor-batch', {})); await stilla(m, 3500);
   const logg = await m.evaluate(() => { const r = document.getElementById('jobblogg').getBoundingClientRect(); return [Math.round(r.top), innerHeight]; });
   kolla(logg[0] >= 0 && logg[0] < logg[1], `400 px: efter en åtgärd som flyttar till Jobb ligger loggen i bild (${logg[0]} px från toppen)`);
   await m.close();
@@ -600,16 +619,16 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   kolla(await q.evaluate(() => [...document.querySelectorAll('summary')].filter(x => !x.textContent.trim() && !x.getAttribute('aria-label')).length === 0), 'inga <summary> utan text');
   kolla(await q.evaluate(() => (document.querySelector('img.logga')?.alt || '').length > 8), 'logotypen har en beskrivande alt-text');
   // Ordningsradens "Förhandla A + KoV" öppnar KoV-rutan, inte bara steg 3.
-  await q.goto(`${DASH}/?lang=sv#steg-1`); await q.waitForTimeout(2000);
-  await q.click('#ordning button[data-kov="1"]'); await q.waitForTimeout(1200);
+  await q.goto(`${DASH}/?lang=sv#steg-1`); await stilla(q, 2000);
+  await q.click('#ordning button[data-kov="1"]'); await stilla(q, 1200);
   kolla(await q.evaluate(() => !!document.querySelector('#kovruta.fokus') && location.hash === '#steg-3'), 'ordningsradens "Förhandla A + KoV" öppnar steg 3 med KoV-rutan i fokus');
   // Avtalslänkarna i Suveränitet är relativa (fungerar oavsett adress).
-  await q.goto(`${DASH}/?lang=sv#suveranitet`); await q.waitForTimeout(3000);
+  await q.goto(`${DASH}/?lang=sv#suveranitet`); await stilla(q, 3000);
   kolla(await q.evaluate(() => { const l = [...document.querySelectorAll('#avtallista a')]; return l.length === 0 || l.every(a => a.getAttribute('href').startsWith('/avtal/')); }),
         'avtalslänkarna i Suveränitet är relativa (/avtal/<id>)');
   // Jobb-fliken öppnar på det senaste jobbet.
-  await q.goto(`${DASH}/?lang=sv#kedjan`); await q.waitForTimeout(1500);
-  await q.click('nav#flikar button[data-flik="jobb"]'); await q.waitForTimeout(1800);
+  await q.goto(`${DASH}/?lang=sv#kedjan`); await stilla(q, 1500);
+  await q.click('nav#flikar button[data-flik="jobb"]'); await stilla(q, 1800);
   const jobbval = await q.evaluate(() => { const rader = [...document.querySelectorAll('#jobblista tr')]; return rader.length ? [rader[0].querySelector('a')?.textContent, valtJobb] : null; });
   kolla(!jobbval || String(jobbval[0]) === String(jobbval[1]), `Jobb-fliken öppnar på det senaste jobbet (${jobbval ? jobbval.join(' / ') : 'inga jobb'})`);
   await q.close();
@@ -624,9 +643,9 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   await m2.route('**/api/analys?lage=a*', r => r.fulfill({json: A400}));
   // kartplattorna blockeras redan före sidladdningen (A är startläge och kartan startar direkt): provet gäller den schematiska kartans text, som annars döljs när plattorna visas
   await m2.route('https://*.openstreetmap.org/**', r => r.abort());
-  await m2.goto(`${DASH}/?lang=sv#steg-6`); await m2.waitForTimeout(2500);
+  await m2.goto(`${DASH}/?lang=sv#steg-6`); await stilla(m2, 2500);
   await plantera(m2, '400px-karta');
-  await valjA(m2); await m2.waitForTimeout(1800);
+  await valjA(m2); await stilla(m2, 1800);
   const k400 = await m2.evaluate(() => {
     const t = [...document.querySelectorAll('svg.karta text')].map(x => x.getBoundingClientRect());
     let n = 0;
@@ -641,7 +660,7 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   });
   kolla(k400.antal >= 8 && k400.n === 0 && k400.utanfor === 0,
         `400 px: kartans texter krockar inte och ryms (${k400.antal} texter, ${k400.n} krockar, ${k400.utanfor} utanför; kartan ${k400.bredd}×${k400.hojd} px)`);
-  await m2.goto(`${DASH}/?lang=sv#suveranitet`); await m2.waitForTimeout(3500);
+  await m2.goto(`${DASH}/?lang=sv#suveranitet`); await stilla(m2, 3500);
   const rull = await m2.evaluate(() => [...document.querySelectorAll('section.flik.aktiv table')].filter(t => t.scrollWidth > t.clientWidth + 4).map(t => t.hasAttribute('data-rull')));
   kolla(rull.every(Boolean), `400 px: tabeller som går att rulla i sidled har en ledtråd (${rull.filter(Boolean).length} av ${rull.length})`);
   await m2.close();
@@ -649,7 +668,7 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
 { // Granskning c2 (C2-1): ett sent pollsvar får inte återfylla en jobbruta som tömts eller tagits över. Deterministiskt: svaren hålls
   // tillbaka tills rutan hunnit tömmas. Inga riktiga jobb startas; /api/jobb/900x och /api/kov är mockade.
   const j = await ny('jobbruta', { viewport: { width: 1280, height: 900 } });
-  await j.goto(`${DASH}/?lang=sv#steg-1`); await j.waitForTimeout(2500);
+  await j.goto(`${DASH}/?lang=sv#steg-1`); await stilla(j, 2500);
   await plantera(j, 'jobbruta');
   const jobb = id => ({id, status: 'klar', utfall: null, etikett: 'Testjobb', rader: [{tid: '2026-10-14T10:00:00Z', text: 'rad'}], resultat: null});
   const grind = () => { let slapp; const vantan = new Promise(r => { slapp = r; }); return {vantan, slapp}; };
@@ -709,9 +728,9 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
     const k = await ny(`kartgrans-${bredd}`, { viewport: { width: bredd, height: 900 } });
     await k.route('**/api/analys?lage=a*', r => r.fulfill({json: AK}));
     await k.route('https://*.openstreetmap.org/**', r => r.abort());    // kartplattorna får inte dölja SVG:n som proven mäter
-    await k.goto(`${DASH}/?lang=sv#steg-6`); await k.waitForTimeout(2500);
+    await k.goto(`${DASH}/?lang=sv#steg-6`); await stilla(k, 2500);
     if (bredd === 400) await plantera(k, 'kartgrans');
-    await valjA(k); await k.waitForTimeout(1800);
+    await valjA(k); await stilla(k, 1800);
     const g = await k.evaluate(() => {
       const svg = document.querySelector('svg.karta').getBoundingClientRect();
       const t = [...document.querySelectorAll('svg.karta text')].filter(x => /^SSO1_/.test(x.textContent)).map(x => x.getBoundingClientRect());
@@ -731,22 +750,22 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   const mock = async (pg, nasta) => pg.route('**/api/status*', async r => { const j = await hamtaEkta(r); if (!j) return; j.nasta = nasta; r.fulfill({json: j}); });
   const f = await ny('nasta-analysera', { viewport: { width: 1280, height: 900 } });
   await mock(f, 'analysera');
-  await f.goto(`${DASH}/?lang=sv#kedjan`); await f.waitForTimeout(2500);
+  await f.goto(`${DASH}/?lang=sv#kedjan`); await stilla(f, 2500);
   const na = await f.evaluate(() => { const nk = document.querySelector('#nastaknapp'); return { synlig: !nk.hidden, text: nk.textContent, hopp: nk.dataset.hopp }; });
   kolla(na.synlig && /Analysera/.test(na.text) && na.hopp === '6', `F1: efter Leverera A pekar "Nästa" på Analysera (steg 6) (${na.text})`);
-  await f.click('#nastaknapp'); await f.waitForTimeout(1500);
+  await f.click('#nastaknapp'); await stilla(f, 1500);
   const slut = await f.evaluate(() => ({ steg6: location.hash, dold: document.querySelector('#nastaknapp').hidden }));
   kolla(slut.steg6 === '#steg-6' && slut.dold, `F1: när steg 6 öppnats tar raden slut (hash ${slut.steg6}, Nästa dold ${slut.dold})`);
   await f.unroute('**/api/status*');
   await mock(f, 'forhandla-a');
-  await f.goto(`${DASH}/?lang=sv#kedjan`); await f.waitForTimeout(2500);
-  await f.click('#nastaknapp'); await f.waitForTimeout(1500);
+  await f.goto(`${DASH}/?lang=sv#kedjan`); await stilla(f, 2500);
+  await f.click('#nastaknapp'); await stilla(f, 1500);
   const fok = await f.evaluate(() => { const b = document.activeElement; return { ar: b && b.dataset && b.dataset.atgard, kov: !!document.querySelector('#kovruta.fokus') }; });
   kolla(fok.ar === 'forhandla-a' && !fok.kov, `F3: "Nästa: Förhandla A" flyttar fokus till knappen Förhandla A, inte till KoV-rutan (fokus på ${fok.ar})`);
   await f.close();
   // KoV-rutan vid 1040 px: förklaringarna ligger under knapparna och ryms i rutan
   const k = await ny('kov-1040', { viewport: { width: 1040, height: 900 } });
-  await k.goto(`${DASH}/?lang=en#steg-3`); await k.waitForTimeout(3000);
+  await k.goto(`${DASH}/?lang=en#steg-3`); await stilla(k, 3000);
   const kov = await k.evaluate(() => { const r = document.querySelector('#kovruta'); if (!r) return { saknas: true };
     const pr = r.getBoundingClientRect(); const ut = [...r.querySelectorAll('*')].filter(e => { const x = e.getBoundingClientRect(); return x.width > 0 && x.right > pr.right + 1; }).length;
     return { ut, sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }; });
@@ -799,7 +818,7 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   // Utan schema (lokalt) ska inget visas.
   const t0 = await ny('aterstall-saknas', { viewport: { width: 1280, height: 900 } });
   await t0.route('**/api/aterstallning', r => r.fulfill({json: {nastaUtc: null}}));
-  await t0.goto(`${DASH}/`); await t0.waitForTimeout(1500);
+  await t0.goto(`${DASH}/`); await stilla(t0, 1500);
   kolla(await t0.evaluate(() => document.querySelector('#aterstall').hidden && document.querySelector('#aterstallremsa').hidden), 'nedräkningen är dold när inget schema är satt');
   await t0.close();
   // Extern variant: inga interna värdnamn i nedräkningen (sidan skrubbas av servern).
@@ -826,7 +845,9 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
     kolla(new RegExp(sp === 'sv' ? 'Vänta \\d s' : 'Wait \\d s').test(d.paus), `kön ${r}: banner med nedräkning ("${d.paus.slice(0, 40)}…")`);
     kolla(d.knappar.length > 0 && d.knappar.every(x => x), `kön ${r}: åtgärdsknapparna är låsta under väntan (${d.knappar.length} synliga)`);
     kolla(!d.sidscroll, `skydd ${r}: ingen sidledsrullning`);
-    await t.waitForTimeout(3600);
+    // Vänta in att bannern faktiskt släpper (tickandet kan släpa på en belastad maskin) i stället för en fast paus.
+    await t.waitForSelector('#pausremsa', { state: 'hidden', timeout: 10000 }).catch(() => {});
+    await t.waitForTimeout(300);
     const e = await t.evaluate(() => ({dold: document.querySelector('#pausremsa').hidden,
       knappar: [...document.querySelectorAll('button.kor[data-atgard]:not([data-svada])')].filter(b => b.offsetParent).map(b => b.disabled),
       sr: document.querySelector('#skyddsr').textContent }));
@@ -944,7 +965,7 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
 { // Antalet i steg 6: fältet visar det värde som faktiskt användes (0 och -5 blev tidigare kvar i fältet medan rubriken sa 1).
   const t = await ny('antal', { viewport: { width: 1280, height: 900 } });
   await t.goto(`${DASH}/?lang=sv#steg-6`); await t.waitForSelector('#analystopp', { timeout: 8000 });
-  const varde = async v => { await t.fill('#analystopp', v); await t.dispatchEvent('#analystopp', 'change'); await t.waitForTimeout(1200);
+  const varde = async v => { await t.fill('#analystopp', v); await t.dispatchEvent('#analystopp', 'change'); await stilla(t, 1200);
                               return t.inputValue('#analystopp'); };
   kolla(await varde('0') === '1' && await varde('-5') === '1' && await varde('999') === '91',
         'steg 6: antal 0 och -5 blir 1 och 999 blir 91 i fältet (rubriken och fältet säger samma sak)');
@@ -963,7 +984,7 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
 { // Sista minuten: bannern säger inte "om 1 min" när raden visar sekunder (0:28 → "mindre än en minut").
   const t = await ny('sista-minuten', { viewport: { width: 1280, height: 900 } });
   await t.goto(`${DASH}/?lang=sv&aterstall=0.5`); await t.waitForSelector('#aterstallremsatext', { state: 'attached', timeout: 8000 }).catch(() => {});
-  await t.waitForTimeout(1500);
+  await stilla(t, 1500);
   const rem = await t.evaluate(() => (document.querySelector('#aterstallremsatext') || {}).textContent || '');
   kolla(/mindre än en minut/.test(rem) && !/om 1 min/.test(rem), `nedräkning: bannern i sista minuten säger "mindre än en minut" ('${rem.slice(0, 50)}')`);
   await t.close();
@@ -986,8 +1007,21 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   await q.waitForFunction(() => document.querySelector('#nastaslut') && !document.querySelector('#nastaslut').hidden, null, { timeout: 15000 }).catch(() => {});
   const omladdad = await q.evaluate(() => ({ knapp: document.querySelector('#nastaknapp').hidden, text: document.querySelector('#nastaknapp').textContent, slut: !document.querySelector('#nastaslut').hidden }));
   kolla(omladdad.knapp && omladdad.text === '' && omladdad.slut, 'Nästa: efter omladdning står sluttexten kvar och den dolda knappen är tom');
+  // MIM-rutorna: begreppen i dem (MIM, kravkoder, JSON-LD, OpenAPI …) ska vara understrukna och förklaras i ordlistan, i alla steg som har en ruta
+  {
+    const mimOrd = await q.evaluate(() => {
+      const ut = {};
+      for (const nr of [1, 2, 3, 4, 5, 6]) {
+        const ruta = document.querySelector(`#steg-${nr} .mimruta, .panel[data-steg="${nr}"] .mimruta`) || [...document.querySelectorAll('.mimruta')][nr - 1];
+        ut[nr] = ruta ? [...ruta.querySelectorAll('.term')].map(t => t.dataset.term) : null;
+      }
+      return ut;
+    });
+    kolla(Object.values(mimOrd).some(v => v && v.includes('mim')), 'ordlistan: "MIM" är understruket i MIM-rutorna');
+    kolla(!Object.values(mimOrd).some(v => v && v.includes('mimkrav')), 'MIM-rutorna i stegen har inga kravkoder (RC…, R…) i löptexten (de finns på /mim)');
+  }
   // Tab-ordning: ord -> länken i rutan -> nästa fokuserbara EFTER ordet (efter ordet i dokumentet, inte i sidhuvudet och inte sidans slut); Skift+Tab tillbaka till ordet
-  await q.goto(DASH + '/#kedjan'); await q.waitForTimeout(1500);
+  await q.goto(DASH + '/#kedjan'); await stilla(q, 1500);
   await q.keyboard.press('Tab');
   const ord = await q.evaluate(() => { const a = document.activeElement; window.__ord = a; return a.classList.contains('term'); });
   await q.keyboard.press('Tab');
@@ -996,13 +1030,95 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await p.waitForTimeout(1500);
   const nasta = await q.evaluate(() => { const a = document.activeElement, o = window.__ord;
     return { body: a === document.body, tips: !!a.closest('#tips'), sidhuvud: !!a.closest('header'), efter: !!(o.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING), tag: a.tagName }; });
   kolla(ord && lank && !nasta.body && !nasta.tips && !nasta.sidhuvud && nasta.efter, `Tab: ord -> länk i rutan -> nästa fokuserbara EFTER ordet: ${JSON.stringify(nasta)}`);
-  await q.goto(DASH + '/#kedjan'); await q.waitForTimeout(1500);
+  await q.goto(DASH + '/#kedjan'); await stilla(q, 1500);
   await q.keyboard.press('Tab'); await q.keyboard.press('Tab'); await q.keyboard.press('Shift+Tab');
   kolla(await q.evaluate(() => document.activeElement.classList.contains('term')), 'Skift+Tab från länken i rutan går tillbaka till ordet');
-  await q.goto(DASH + '/#kedjan'); await q.waitForTimeout(1500);
+  await q.goto(DASH + '/#kedjan'); await stilla(q, 1500);
   await q.keyboard.press('Tab'); await q.keyboard.press('Tab'); await q.keyboard.press('Escape'); await q.waitForTimeout(300);
   kolla(await q.evaluate(() => document.activeElement.classList.contains('term') && document.getElementById('tips').hidden), 'Esc i rutans länk stänger rutan och flyttar fokus tillbaka till ordet');
   await q.close();
+}
+// Nätavbrott (provrunda 2026-10-28): pollningarna ska hoppa över rundan tyst, inget ohanterat avslag och inget js_fel till statistiken.
+{
+  const n = await ny('natavbrott', { viewport: { width: 1250, height: 900 } });
+  const handelser = [];
+  await n.route('**/api/handelse', async r => { handelser.push(r.request().postData() || ''); await r.continue().catch(() => {}); });
+  await n.addInitScript(() => { window.__rej = 0; window.addEventListener('unhandledrejection', () => { window.__rej++; }); });
+  await n.goto(DASH + '/#kedjan'); await stilla(n, 3000);
+  await n.context().setOffline(true); await n.waitForTimeout(9000); await n.context().setOffline(false); await n.waitForTimeout(7000);
+  const rej = await n.evaluate(() => window.__rej);
+  kolla(rej === 0, `nätavbrott i 9 s: inga ohanterade avslag från pollningen (${rej})`);
+  kolla(!handelser.some(t => /js_fel/.test(t)), 'nätavbrott: inget js_fel skickas till statistiken');
+  const lever = await n.evaluate(async () => { const r = await fetch('/api/status'); return r.ok; });
+  kolla(lever && await n.evaluate(() => !!document.querySelector('#sammanfattning').textContent), 'efter nätavbrottet fungerar sidan och pollningen går vidare');
+  await n.close();
+}
+// Ordlistan på sidor utan egen motor (ordlista.py): brunnsvyn, brunnssidan, /modell, termsidan, /mim och /nyheter ska ha understrukna
+// begrepp, en tipsruta vid fokus som Esc stänger (och bara den), inga radbrott runt orden i MIM-rutan och ingen rullning i sidled.
+{
+  const PUBLIKVY = process.env.PUBLIKVY || 'http://localhost:38085';
+  const sidor = [[DASH, '/mim'], [DASH, '/nyheter'], [PUBLIKVY, '/'], [PUBLIKVY, '/brunnar/SSO1_01-4526'], [PUBLIKVY, '/modell'],
+                 [PUBLIKVY, '/modell/utkast/0.1/source'], [PUBLIKVY, '/mim']];
+  for (const sprak of ['sv', 'en']) for (const [bas, vag] of sidor) {
+    const o = await ny('ordlista ' + vag, { viewport: { width: 1250, height: 900 } });
+    await o.goto(`${bas}${vag}?lang=${sprak}&test=1`, { waitUntil: 'load' });
+    const antal = await o.locator('.term').count();
+    let tips = false, stangd = false;
+    if (antal) {
+      await o.locator('.term').first().focus();
+      tips = await o.locator('#tips').isVisible();
+      await o.keyboard.press('Escape');
+      stangd = !(await o.locator('#tips').isVisible());
+    }
+    const brott = await o.locator('.mimruta .term').evaluateAll(l => l.filter(e => getComputedStyle(e).display === 'block').length);
+    const rull = await o.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
+    kolla(antal > 0 && tips && stangd, `ordlistan (${sprak}) ${vag}: ${antal} understrukna begrepp, tipsruta vid fokus, Esc stänger rutan`);
+    kolla(brott === 0 && !rull, `ordlistan (${sprak}) ${vag}: inga radbrott runt orden i MIM-rutan och ingen rullning i sidled`);
+    await o.close();
+  }
+  const ol = await ny('ordlistesidan', { viewport: { width: 400, height: 900 } });
+  await ol.goto(`${PUBLIKVY}/ordlista?lang=sv`, { waitUntil: 'load' });
+  kolla(await ol.locator('dt').count() >= 50 && !(await ol.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), 'brunnsvyns egen ordlistesida: alla begrepp, ingen rullning i sidled vid 400 px');
+  await ol.close();
+}
+// /modell vid 390 px: termnamnen i tabellerna får inte brytas mitt i ordet (tabellen ska rulla i sidled i stället), och sidan själv rullar inte.
+{
+  const PUBLIKVY = process.env.PUBLIKVY || 'http://localhost:38085';
+  for (const sprak of ['sv', 'en']) {
+    const sm = await ny('modell 390 px', { viewport: { width: 390, height: 800 } });
+    await sm.goto(`${PUBLIKVY}/modell?lang=${sprak}&test=1`, { waitUntil: 'load' });
+    const m = await sm.evaluate(() => {
+      const koder = [...document.querySelectorAll('table td:first-child code')];
+      return { antal: koder.length, brutna: koder.filter(c => c.getClientRects().length > 1).map(c => c.textContent).slice(0, 5),
+               sidrull: document.documentElement.scrollWidth > innerWidth + 1 };
+    });
+    kolla(m.antal >= 40 && m.brutna.length === 0, `/modell (${sprak}) vid 390 px: ${m.antal} termnamn, inget bryts mitt i ordet${m.brutna.length ? ' (brutna: ' + m.brutna.join(', ') + ')' : ''}`);
+    kolla(!m.sidrull, `/modell (${sprak}) vid 390 px: sidan rullar inte i sidled (tabellen rullar för sig)`);
+    await sm.close();
+  }
+}
+// Nedladdning (nedladdning.py): varje steg har sin ruta, ett klick ger en fil med kontrollsumma, och A utan avtal ger en förklaring i stället för en fil.
+{
+  const dl = await b.newContext({ locale: 'sv-SE', viewport: { width: 1250, height: 1000 }, acceptDownloads: true });
+  const nd = await dl.newPage();
+  nd.on('pageerror', e => jsfel.push(`nedladdning: ${e.message}`));
+  await nd.goto(DASH + '/?lang=sv&test=1'); await stilla(nd, 2500);
+  const antal = {};
+  for (const n of [1, 2, 3, 4, 5, 6]) antal[n] = await nd.locator(`#steg-${n} button.ladda`).count();
+  kolla(Object.values(antal).every(v => v > 0), `nedladdning: varje steg 1-6 har en ruta med knappar (${JSON.stringify(antal)})`);
+  await nd.locator('#nod-1').click(); await nd.waitForTimeout(400);
+  const [fil] = await Promise.all([nd.waitForEvent('download', { timeout: 30000 }).catch(() => null), nd.locator('#steg-1 button.ladda[data-fil="matvarden"]').click()]);
+  await nd.waitForTimeout(600);
+  const svar = await nd.locator('#steg-1 li[data-fil="matvarden"] .lsvar').innerText();
+  kolla(!!fil && /^svada-matvarden-.*\.json$/.test(fil.suggestedFilename()) && /SHA-256: [0-9a-f]{64}/.test(svar), `nedladdning: ett klick ger filen ${fil ? fil.suggestedFilename() : '(ingen)'} och visar kontrollsumman`);
+  await nd.locator('#nod-6').click(); await nd.waitForTimeout(400);
+  // Utan sessionskaka (direktanrop mot dashboardens port) gäller alla avtal; med sessioner av ett eget avtal. Antingen får A-filen sin
+  // märkning i namnet, eller så förklaras varför den inte lämnas ut. Aldrig ett tyst fel.
+  const [afil] = await Promise.all([nd.waitForEvent('download', { timeout: 15000 }).catch(() => null), nd.locator('#steg-6 button.ladda[data-fil="analys-a-geojson"]').click()]);
+  await stilla(nd, 1200);
+  const atext = await nd.locator('#steg-6 li[data-fil="analys-a-geojson"] .lsvar').innerText();
+  kolla(afil ? /DISTRIBUTION-A-ej-for-spridning/.test(afil.suggestedFilename()) : atext.trim().length > 20, `nedladdning: A märks i filnamnet eller förklaras (${afil ? afil.suggestedFilename() : atext.slice(0, 80)})`);
+  await dl.close();
 }
 // Slutkontroll: sidfel i SENARE block (400 px, fynd, jobbruta, karta, uteslutning) ska också underkänna testet.
 kolla(jsfel.length === 0, `inga JS-fel i någon provsida (slutkontroll)${jsfel.length ? ': ' + jsfel.join('; ') : ''}`);

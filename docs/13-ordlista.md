@@ -98,3 +98,26 @@ HTML-kommentarer och syns därför inte i renderad markdown.
 <!-- SYNK: term="betrodd utfärdare per intygstyp" strang="supportedtypes" -->
 <!-- SYNK: term="utfärdarläge i IdentityHub" strang="svada.credential.issuer" -->
 <!-- SYNK: term="EDC in-memory-BOM" strang="controlplane-base-bom" -->
+
+## MIM och modellens begrepp (tillagt 2026-10-29)
+
+Samma begrepp finns i kontrollrummets ordlista (`vy.py`, `ORDLISTA`) och förklaras på sidan `/mim`.
+
+| Term | Definition |
+|---|---|
+| **MIM** | Minimal Interoperability Mechanism: minimikrav för interoperabilitet från OASC. Vi bedömer oss själva; ingen certifiering. |
+| **Kravkoder** (RC3.2, R1.2b) | Numret på ett enskilt krav i en MIM. |
+| **PoC-begränsning** | Ett krav som hålls tillbaka just för att det här är en PoC. |
+| **Leverans-JSON** | Leverantörens leverans: värdena inpackade med uppgifter om vem som levererar och på vilka villkor. Ersätter ordet "kuvert". |
+| **Schemakontroll** | Kontroll av en leverans mot modellens JSON Schema innan staden lagrar den. |
+
+## Ordlistan på alla sidor (tillagt 2026-10-30)
+
+Begreppen och deras förklaringar (`ORDLISTA`) bor i `services/dashboard/ordlista.py`, med en identisk kopia i
+`services/publik-vy/ordlista.py` (likheten kontrolleras i `tests/mim_enhet.py`). Kontrollrummets egen motor i `vy.py` läser
+därifrån. Sidor utan egen motor får en liten fristående motor (`ordlista.med_ordlista`): brunnsvyn, brunnssidorna, `/modell`
+med termsidorna, `/mim` och `/nyheter`. Brunnsvyn har dessutom en egen sida, `/ordlista`, eftersom den värden inte når
+kontrollrummets flik. Åtta begrepp tillkom: PROV-O, UN/CEFACT, JSON Schema, EPSG, ISO 8601, URN, DID och ETSI.
+Tabeller, rubriker, kod och länkar understryks inte. Första förekomsten per stycke understryks.
+
+Två begrepp tillkom med nedladdningarna (2026-10-30): Kontrollsumma (SHA-256) och CSV. Se `docs/koncept/C7-nedladdning.md`.

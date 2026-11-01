@@ -32,14 +32,18 @@ Allt konfigureras via env – portar och id:n kommer ur .env (hård regel 4/5).
 """
 
 import asyncio
+import collections
 import datetime as dt
+import hashlib
+import json
 import os
 import threading
 
 from fastapi import FastAPI, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 import ngsild
+import schemakontroll
 import validering
 from auktorisation import Auktorisationer, Auktorisationsfel
 from avtalsregister import Avtalsregister
@@ -79,6 +83,11 @@ AUKT = Auktorisationer(EDC_MGMT_URL, ASSET_DIST,
 # ---------------------------------------------------------------------------
 LEVERANSER = []
 LEVERANS_LAS = threading.Lock()
+# Den senast mottagna (och godkända) leveransen per avtal, byte för byte som den kom, med SHA-256 räknad vid mottagandet.
+# Gör att en besökare kan ladda ned exakt det som gick genom kedjan och kontrollera summan mot loggen. Ligger i minnet
+# och har tak (som resten av demon); äldst avtal faller först.
+INNEHALL_TAK = int(os.environ.get("INGEST_INNEHALL_TAK", "30"))
+INNEHALL = collections.OrderedDict()
 RAKNARE = {"mottagna": 0, "accepterade": 0, "avvisade": 0, "entiteter": 0}
 STARTAD = dt.datetime.now(dt.timezone.utc)
 
@@ -197,8 +206,9 @@ async def ingest(begaran: Request,
                       parametrar={"avtal": aukt["contractAgreementId"], "status": st["status"]})
 
     # 2. Nyttolasten
+    raa = await begaran.body()
     try:
-        kropp = await begaran.json()
+        kropp = json.loads(raa)
     except Exception:                                    # noqa: BLE001
         return avvisa(400, "ogiltig-json",
                       "nyttolasten gick inte att tolka som JSON",
@@ -224,6 +234,14 @@ async def ingest(begaran: Request,
         x_transfer_process_id or None,
         avtal_url=REGISTER.hamta_url(aukt["contractAgreementId"]))
     entiteter = ngsild.till_entiteter(kropp, kropp["records"], proveniens, dist)
+    # 2b. Schemakontroll (MIM2 R3.4): det staden är på väg att lagra måste följa datamodellens (tillfälliga) schema.
+    schema = schemakontroll.kontrollera(entiteter, dist)
+    if schema["resultat"] == "AVVIKELSE":
+        return avvisa(422, "schema-avvikelse",
+                      "leveransen följer inte datamodellens schema (%s): %d av %d poster godkändes"
+                      % (schema["schema"], schema["godkanda"], schema["poster"]),
+                      exempel=schema["exempel"], extra=gemensamt, kod="ingest.schema_avvikelse",
+                      parametrar={"schema": schema["schema"], "godkanda": schema["godkanda"], "poster": schema["poster"]})
     try:
         skrivna = ngsild.skriv(ORION_URL, entiteter)
     except ngsild.OrionFel as fel:
@@ -233,6 +251,13 @@ async def ingest(begaran: Request,
 
     RAKNARE["accepterade"] += 1
     RAKNARE["entiteter"] += skrivna
+    summa = hashlib.sha256(raa).hexdigest()
+    with LEVERANS_LAS:
+        INNEHALL[aukt["contractAgreementId"]] = {"bytes": raa, "sha256": summa, "distribution": dist.upper(),
+                                                 "batchId": kropp.get("batchId"), "at": _nu()}
+        INNEHALL.move_to_end(aukt["contractAgreementId"])
+        while len(INNEHALL) > INNEHALL_TAK:
+            INNEHALL.popitem(last=False)
     kvitto = {
         "resultat": "LEVERERAD",
         "distribution": dist.upper(),
@@ -242,10 +267,15 @@ async def ingest(begaran: Request,
         "entiteter": skrivna,
         "contractAgreementId": aukt["contractAgreementId"],
         "transferProcessId": x_transfer_process_id or None,
-        "detalj": "Distribution %s, batch %s -> %d entiteter i stadens dataplattform"
-                  % (dist.upper(), kropp.get("batchId"), skrivna),
-        "kod": "ingest.levererad",
-        "parametrar": {"dist": dist.upper(), "batch": kropp.get("batchId"), "entiteter": skrivna},
+        "schemakontroll": schema,
+        "sha256": summa,
+        "bytes": len(raa),
+        "detalj": "Distribution %s, batch %s -> %d entiteter i stadens dataplattform. Schemakontroll (%s): %s"
+                  % (dist.upper(), kropp.get("batchId"), skrivna, schema["schema"],
+                     "%d av %d poster godkända" % (schema["godkanda"], schema["poster"]) if schema["resultat"] == "OK" else "ej kontrollerad"),
+        "kod": "ingest.levererad" if schema["resultat"] == "OK" else "ingest.levererad_utan_schema",
+        "parametrar": {"dist": dist.upper(), "batch": kropp.get("batchId"), "entiteter": skrivna,
+                       "schema": schema["schema"], "godkanda": schema["godkanda"], "poster": schema["poster"]},
     }
     _logga(kvitto)
     return kvitto
@@ -278,6 +308,18 @@ def leveranser():
         lista = list(LEVERANSER)
     return {"count": len(lista), "counters": dict(RAKNARE),
             "deliveries": lista}
+
+
+@app.get("/leveranser/{avtals_id}/innehall")
+def leverans_innehall(avtals_id: str):
+    """Den senast mottagna leveransen under avtalet, exakt som den kom, med summan som räknades vid mottagandet."""
+    with LEVERANS_LAS:
+        post = INNEHALL.get(avtals_id)
+    if post is None:
+        return JSONResponse(status_code=404, content={"fel": "ingen-leverans", "detalj": "ingen mottagen leverans under avtalet %s" % avtals_id})
+    return Response(content=post["bytes"], media_type="application/json",
+                    headers={"X-Content-SHA256": post["sha256"], "X-Distribution": post["distribution"],
+                             "X-Batch-Id": str(post["batchId"]), "X-Received-At": post["at"]})
 
 
 @app.get("/auktorisationer")

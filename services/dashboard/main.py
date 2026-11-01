@@ -64,7 +64,10 @@ import kallor
 import kedjan
 import skydd
 import sessioner
+import mimsida
+import nedladdning
 import nyheter
+import ordlista
 import statistiksida
 import steg as stegmodul
 import vy
@@ -190,6 +193,7 @@ async def rensa_api_externt(request, anrop_vidare):
     sokvag = request.url.path
     if (DEMO_VARIANT != "extern"
             or not (sokvag.startswith("/api/") or sokvag == "/health")
+            or (sokvag.startswith("/api/ladda-ned/") and svar.status_code == 200)      # filerna rensas i nedladdning.py (leveransen aldrig): summan gäller exakt de byte som skickas; felsvar rensas här som förut
             or "json" not in svar.headers.get("content-type", "")):
         return svar
     kropp = b"".join([d async for d in svar.body_iterator])
@@ -367,6 +371,26 @@ PUBLIKA_INGANGAR = [
 ]
 
 
+def onskat_sprak(huvud):
+    """Språket webbläsaren ber om (Accept-Language-huvudet): svenska bara om svenska är det första önskemålet (efter q-värde), annars
+    engelska. Utan huvud (curl, sökrobotar, våra prov) svenska. Samma funktion i kontrollrummet, brunnsvyn och gatewayen (provet jämför)."""
+    onskemal = []
+    for i, del_ in enumerate((huvud or "").split(",")):
+        tag, _, q = del_.strip().partition(";")
+        tag = tag.strip().lower()
+        if not tag or tag == "*":
+            continue
+        try:
+            vikt = float(q.strip()[2:]) if q.strip().startswith("q=") else 1.0
+        except ValueError:
+            vikt = 0.0
+        if vikt > 0:
+            onskemal.append((-vikt, i, tag))
+    if not onskemal:
+        return "sv"
+    return "sv" if sorted(onskemal)[0][2].split("-")[0] == "sv" else "en"
+
+
 def _valt_sprak(begaran):
     """(språk, uttryckligt): ?lang=sv|en vinner över kakan svada-sprak."""
     fraga = begaran.query_params.get("lang")
@@ -378,7 +402,7 @@ def _valt_sprak(begaran):
     if huvud in vy.SPRAK:
         return huvud, False
     kaka = begaran.cookies.get("svada-sprak")
-    return (kaka if kaka in vy.SPRAK else "sv"), False
+    return (kaka if kaka in vy.SPRAK else onskat_sprak(begaran.headers.get("accept-language"))), False
 
 
 @app.middleware("http")
@@ -391,6 +415,7 @@ async def oversatt_api(begaran: Request, call_next):
     svar = await call_next(begaran)
     sokvag = begaran.url.path
     if (not sokvag.startswith("/api/") or sokvag.startswith("/api/steg")
+            or (sokvag.startswith("/api/ladda-ned/") and svar.status_code == 200)      # filen skickas som den är: summan och huvudena ska överleva
             or "application/json" not in svar.headers.get("content-type", "")):
         return svar
     if _valt_sprak(begaran)[0] != "en":
@@ -430,6 +455,7 @@ def index(begaran: Request):
         stegmodul.STEG, _komponentlista(sprak), kallor.PORTAR, kallor.VARD,
         0.5, PUBLIKA_INGANGAR, sprak=sprak,
         variant=DEMO_VARIANT, utestangning=UTESTANGNING_TILLATEN))
+    svar.headers["Vary"] = "Accept-Language, Cookie"
     if uttryckligt:
         svar.set_cookie("svada-sprak", sprak, max_age=31536000, samesite="lax")
     return svar
@@ -461,10 +487,16 @@ def _spola_handelser():
     _HANDELSER.spola()
 
 
+@app.get("/mim", response_class=HTMLResponse)
+def mim_sida(begaran: Request):
+    sprak, _ = _valt_sprak(begaran)
+    return HTMLResponse(ordlista.med_ordlista(mimsida.sida(sprak), sprak, f"/?lang={sprak}#ordlista-{{id}}"))
+
+
 @app.get("/nyheter", response_class=HTMLResponse)
 def nyheter_sida(begaran: Request):
     sprak, _ = _valt_sprak(begaran)
-    return HTMLResponse(nyheter.sida(sprak))
+    return HTMLResponse(ordlista.med_ordlista(nyheter.sida(sprak), sprak, f"/?lang={sprak}#ordlista-{{id}}"))
 
 
 @app.get("/statistik", response_class=HTMLResponse)
@@ -583,6 +615,30 @@ def api_steg5_ursprung(lang: str = "sv"):
         # Ett normalt läge (senaste leveransen är inte B): 200 utan värde, så att sidan behåller sina
         # statiska exempel utan att webbläsarens konsol får ett fel.
         return {"tillgangligt": False}
+
+
+@app.get("/api/ladda-ned")
+def api_ladda_ned_lista(lang: str = "sv"):
+    """Vilka filer som går att ladda ned, per steg (steg 0 = ordlistan och MIM-bedömningen). Själva filerna skapas först vid nedladdning."""
+    i = 1 if lang == "en" else 0
+    return {"filer": [{"id": p["id"], "steg": p["steg"], "titel": p["en" if i else "sv"][0], "format": p["sv"][1],
+                       "krav": "avtal-a" if p.get("krav_a") else None, "info": p["info"][i]} for p in nedladdning.POSTER]}
+
+
+@app.get("/api/ladda-ned/{post_id}")
+def api_ladda_ned(post_id: str, lang: str = "sv"):
+    """Skapar och lämnar ut en fil (nedladdning.py). Normala skäl att den inte finns just nu ger 403/409 med en förklaring."""
+    sprak = "en" if lang == "en" else "sv"
+    try:
+        innehall, mime, namn, art, summa, klass = nedladdning.skapa(post_id, sprak, extern=DEMO_VARIANT == "extern")
+    except nedladdning.Ej as ej:
+        return JSONResponse(status_code=ej.status, content={"fel": ej.kod, "detalj": ej.text(sprak)})
+    except KallFel as fel:
+        return _fel_svar(fel, 502)
+    nedladdning.anteckna(nedladdning.PER_ID[post_id], namn, innehall, summa)
+    return Response(content=innehall, media_type=mime, headers={
+        "Content-Disposition": 'attachment; filename="%s"' % namn, "X-Content-SHA256": summa, "X-Svada-Art": art,
+        "X-Svada-Klass": klass, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/api/steg/{nr}/exempel")
@@ -916,10 +972,11 @@ async def http_fel(begaran: Request, fel: StarletteHTTPException):
         en = sprak == "en"
         return HTMLResponse('<!doctype html><html lang="%s"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
                             '<title>%s</title><body style="font:16px/1.5 system-ui,sans-serif;max-width:34rem;margin:12vh auto;padding:0 16px">'
-                            '<h1>%s</h1><p>%s</p><p><a href="/?lang=%s">%s</a></p></body></html>'
+                            '<h1>%s</h1><p>%s</p><p><a href="/?lang=%s">%s</a></p>'
+                            '<p style="font-size:.85rem;opacity:.8">Version %s</p></body></html>'
                             % (sprak, "Page not found" if en else "Sidan finns inte", "Page not found" if en else "Sidan finns inte",
                                "There is nothing at this address." if en else "Det finns inget på den här adressen.", sprak,
-                               "Back to the control room" if en else "Tillbaka till kontrollrummet"), status_code=404)
+                               "Back to the control room" if en else "Tillbaka till kontrollrummet", DEMO_VERSION), status_code=404)
     return JSONResponse({"detail": fel.detail}, status_code=fel.status_code, headers=getattr(fel, "headers", None))
 
 

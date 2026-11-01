@@ -30,6 +30,15 @@ kolla(main._valt_sprak(R(h={"x-svada-lang": "sv"}, c={"svada-sprak": "en"}))[0] 
 kolla(main._valt_sprak(R(q={"lang": "sv"}, h={"x-svada-lang": "en"}))[0] == "sv", "?lang= i adressen går före huvudet")
 kolla(main._valt_sprak(R(c={"svada-sprak": "en"}))[0] == "en" and main._valt_sprak(R())[0] == "sv", "utan huvud följer språket kakan, och utan kaka är det svenska")
 kolla(main._valt_sprak(R(h={"x-svada-lang": "xx"}, c={"svada-sprak": "en"}))[0] == "en", "ett okänt språk i huvudet ignoreras")
+# Webbläsarens språk (Accept-Language) gäller bara när besökaren inte valt själv: svenska om svenska önskas först, annars engelska, utan huvud svenska
+al = lambda v, **k: main._valt_sprak(R(h={"accept-language": v}, **k))[0]
+kolla(al("sv-SE,sv;q=0.9,en;q=0.8") == "sv", "webbläsaren vill ha svenska först: svenska")
+kolla(al("en-US,en;q=0.9,sv;q=0.8") == "en", "webbläsaren vill ha engelska först: engelska, även om svenska står med")
+kolla(al("de-DE,de;q=0.9") == "en" and al("fr") == "en", "ett annat språk än svenska ger engelska (sidan finns bara på svenska och engelska)")
+kolla(al("en;q=0.5,sv;q=0.9") == "sv", "q-värdet avgör ordningen, inte listans ordning")
+kolla(al("*") == "sv" and al("") == "sv" and al("sv;q=0, en") == "en", "inget önskemål, joker eller svenska avstängt (q=0) hanteras")
+kolla(al("en-US", c={"svada-sprak": "sv"}) == "sv", "kakan (ett eget val) går före webbläsarens språk")
+kolla(main._valt_sprak(R(q={"lang": "sv"}, h={"accept-language": "en-US"}))[0] == "sv", "?lang= går före webbläsarens språk")
 
 def hamta(sokvag, rubriker=None):
     """GET mot appen utan nätverk (ASGI direkt; testklienten kräver ett extra paket som imagen saknar). Returnerar (status, rubriker, text)."""

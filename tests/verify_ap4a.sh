@@ -138,7 +138,7 @@ fi
 for ID in "${EDC_ASSET_B_ID}" "${EDC_ASSET_A_ID}"; do
   DS=$(echo "$KATALOG" | jq -c '[ .dataset ] | flatten | map(select(.["@id"] == "'"${ID}"'")) | .[0] // empty')
   if [ -n "$DS" ] && echo "$DS" | jq -e '
-        (.["dct:conformsTo"]["@id"] // "") == "urn:svada:dataprodukt:modellerad-bradddata:1.0.0"
+        ([.["dct:conformsTo"]] | flatten | map(.["@id"]) | (index("urn:svada:dataprodukt:modellerad-bradddata:1.0.0") != null) and (map(select(endswith("/modell"))) | length) == 1)
         and ([.[] | strings | select(test("90 av 91 serier är syntetiska"))] | length) >= 1
         and ([.["http://www.w3.org/ns/dqv#hasQualityMeasurement"]] | flatten | length) >= 3' >/dev/null 2>&1; then
     ok "4a.2 ${ID} deklarerar specifikation, kvalitet (dqv) och att 90 av 91 serier är syntetiska"
@@ -279,6 +279,21 @@ for c in ${SVADA_PREFIX:-svada}-edc-provider ${SVADA_PREFIX:-svada}-edc-consumer
     no "4a.x $c saknas på dsp-public"
   fi
 done
+
+# --- 4a.5b Katalogen läker sig själv efter providerns omstart --------------
+section "4a.5b Bevakaren registrerar om katalogen efter en omstart av providern"
+docker restart "${SVADA_PREFIX:-svada}-edc-provider" >/dev/null 2>&1
+vanta_health "$PROV_API" 120 >/dev/null 2>&1
+LAKT=nej
+for _ in $(seq 1 30); do
+  if curl -s --max-time 10 -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" "${PROV_MGMT}/v3/assets/${EDC_ASSET_B_ID}" | grep -q "${EDC_ASSET_B_ID}" \
+     && curl -s --max-time 10 -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" "${PROV_MGMT}/v3/assets/${EDC_ASSET_A_ID}" | grep -q "${EDC_ASSET_A_ID}"; then
+    LAKT=ja; break
+  fi
+  sleep 5
+done
+[ "$LAKT" = ja ] && ok "4a.5b båda tillgångarna är tillbaka utan att registrera-edc körts för hand" \
+                  || no "4a.5b katalogen läktes inte efter omstarten (bevakaren registrera-edc-bevakare?)"
 
 # --- 4a.6 Regression ---------------------------------------------------
 section "4a.6 Regression"

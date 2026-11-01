@@ -13,6 +13,118 @@ MONSTER = re.compile(r"^\d{4}\.\d{2}\.\d{2}-\d+$")
 
 # Nyast överst. (version, datum, [(svenska, engelska), ...])
 NYHETER = [
+    ("2026.10.29-14", "2026-11-01", [
+        ("Filer som byggs vid hämtningen (kontrollrummets och brunnsvyns tabeller, JSON, zip och termlista) har nu ett tidsmärke (UTC) i namnet, så att två hämtningar går att skilja åt och webbläsaren inte ersätter en tidigare fil. Under knapparna för katalogen och deltagarregistret står varför kontrollsumman blir en annan vid varje hämtning (nya id:n och en tidpunkt i svaret).",
+         "Files built at download time (the control room's and the well view's tables, JSON, zip and term list) now carry a time stamp (UTC) in the name, so two downloads can be told apart and the browser does not replace an earlier file. Under the buttons for the catalogue and the participant register it now says why the checksum differs with each download (new ids and a time in the answer)."),
+        ("Termnamnen i tabellerna på datamodellsidan bryts nu inte mitt i ordet vid smal skärm (tabellen rullar i sidled i stället), och enheterna MQS (kubikmeter per sekund) och MTR (meter) förklaras.",
+         "The term names in the tables on the data model page are no longer broken in the middle of words on a narrow screen (the table scrolls sideways instead), and the units MQS (cubic metres per second) and MTR (metres) are explained."),
+    ]),
+    ("2026.10.29-13", "2026-10-30", [
+        ("Rättningar efter testet: etiketten vid en nekad körning säger nu \"nekad av spärren – skyddet fungerade\", och efter ett driftfel vid Leverera A föreslår Nästa att leverera igen (avtalet gäller ju fortfarande) i stället för att börja om.",
+         "Fixes after the test: the label for a refused run now says \"refused by the safeguard – the protection worked\", and after an operational failure at Deliver A, Next suggests delivering again (the contract still holds) instead of starting over."),
+        ("MIM-rutorna i stegen använder inte längre kravkoderna (RC och R) i löptexten; koderna finns kvar på MIM-sidan. Märket Nästa ryms i knappen, tabellerna på datamodellsidan bryter inte mitt i ord, exempelfilerna beskrivs som utkast, felsidorna har versionsraden och brunnsvyn minns valt språk.",
+         "The MIM boxes in the steps no longer use the requirement codes (RC and R) in running text; the codes remain on the MIM page. The Next badge fits inside the button, the tables on the data model page no longer break in the middle of words, the example files are described as drafts, the error pages have the version line and the open view remembers the chosen language."),
+    ]),
+    ("2026.10.29-12", "2026-10-30", [
+        ("Du kan nu ladda ned det som passerar varje steg: mätvärdena, katalogen, avtalen, leveransen, posterna i stadens plattform och analysen. Filerna är det kedjan faktiskt har, inte inspelade exempel, och varje fil har en kontrollsumma (SHA-256) som går att räkna ut själv.",
+         "You can now download what passes through each step: the measurements, the catalogue, the agreements, the delivery, the records in the city's platform and the analysis. The files are what the chain actually has, not recorded examples, and each file has a checksum (SHA-256) you can compute yourself."),
+        ("Leveransens kontrollsumma räknas när den tas emot och står också i auditloggen, så att filen går att jämföra byte för byte med det som gick genom kedjan.",
+         "The delivery's checksum is computed when it is received and is also in the audit log, so the file can be compared byte for byte with what went through the chain."),
+        ("Brunnsvyn kan laddas ned som CSV eller JSON, och datamodellen finns som en zip med en kontrollsumma per fil och som termlista i CSV. Ordlistan och MIM-bedömningen kan också laddas ned. Distribution A kräver fortfarande ett gällande avtal och märks som icke-publik.",
+         "The open view can be downloaded as CSV or JSON, and the data model is available as a zip with a checksum per file and as a term list in CSV. The glossary and the MIM assessment can also be downloaded. Distribution A still needs a current agreement and is marked as non-public."),
+    ]),
+    ("2026.10.29-11", "2026-10-30", [
+        ("Ordlistan finns nu på alla sidor: brunnsvyn, datamodellen, MIM-sidan och nyheterna understryker begreppen och förklarar dem när du pekar på dem, och brunnsvyn har en egen ordlistesida.",
+         "The glossary is now on every page: the open view, the data model, the MIM page and the news underline the terms and explain them when you point at them, and the open view has its own glossary page."),
+        ("Raderna i MIM-rutorna bryts inte längre kring understrukna ord, länkarna ut till OASC säger att de öppnas i en ny flik, och länkarna i ordlistan har egna namn.",
+         "The lines in the MIM boxes no longer break around underlined words, the links out to OASC say they open in a new tab, and the glossary links have names of their own."),
+        ("Sidan om MIM-bedömningen heter inte längre Svada-mini, förklarar att hävningsregeln är avstängd i den delade demon, och har en versionsrad. Steg 6 säger nu att läge B visar brunnarnas namn men inga positioner.",
+         "The MIM page no longer says Svada-mini, explains that the termination rule is switched off in the shared demo, and has a version line. Step 6 now says that mode B shows the chambers' names but no positions."),
+        ("Fler små rättningar efter testet: KoV-knapparna behåller sina namn när de är avstängda, ordförklaringen stängs när fokus går vidare, kontextfilen bär utkastets status, Om-sidan berättar att Krokängsparkens dygn bygger på samma mätvärden, och brunnsvyns adress till tidsserien säger att den inte fungerar direkt i en webbläsare.",
+         "More small fixes after the test: the KoV buttons keep their names when disabled, the term explanation closes when focus moves on, the context file carries the draft's status, the About page says that Krokängsparken's days are built on the same measured values, and the open view's time series address says it does not work directly in a browser."),
+    ]),
+    ("2026.10.29-10", "2026-10-29", [
+        ("Ny sida om hur vi följer MIM:arna: för varje MIM vad den är, vad vi gör, våra avsteg och vår bedömning, och hur statusen ska läsas. Den nås från varje MIM-ruta och från länken \"MIM-bedömningen\" högst upp, både i kontrollrummet och i brunnsvyn. Texterna i rutorna är omskrivna och säger tydligt att vår PoC är teknisk och att de mjuka delarna inte omfattas fullt ut.",
+         "A new page about how we follow the MIMs: for each MIM what it is, what we do, our departures and our assessment, and how to read the status. It is reached from every MIM box and from the link \"MIM assessment\" at the top, in the control room and in the chamber view. The texts in the boxes are rewritten and say clearly that our PoC is technical and that the soft parts are not fully covered."),
+        ("Ordlistan har 20 nya begrepp (bland annat MIM, JSON-LD, OpenAPI, gateway, tidsserie och kravkoderna) och \"JSON-kuvert\" heter nu \"leverans-JSON\".",
+         "The glossary has 20 new terms (among them MIM, JSON-LD, OpenAPI, gateway, time series and the requirement codes) and the \"JSON envelope\" is now called \"delivery JSON\"."),
+    ]),
+    ("2026.10.29-9", "2026-10-29", [
+        ("Demon läker sig själv om DHI:s connector startar om: katalogen byggs upp igen inom ungefär femton sekunder i stället för att vara tom tills någon registrerar om den för hand. Avtal som redan slutits går inte att återskapa, så en besökare kan behöva förhandla om.",
+         "The demo now heals itself if DHI's connector restarts: the catalogue is rebuilt within about fifteen seconds instead of staying empty until someone registers it again by hand. Agreements already made cannot be recreated, so a visitor may have to negotiate again."),
+    ]),
+    ("2026.10.29-8", "2026-10-29", [
+        ("Rättningar efter webbläsartestet: datamodellsidan visar nu rätt profil för leveranstypen B (stod \"bara A\"), SSSOM-filen och specifikationen öppnas som text i webbläsaren i stället för att laddas ner, MIM-länkarna har tydligare namn för skärmläsare, och några interna beteckningar är borta ur de publika texterna.",
+         "Fixes after the browser test: the data model page now shows the right profile for delivery type B (it said \"only A\"), the SSSOM file and the specification open as text in the browser instead of downloading, the MIM links have clearer names for screen readers, and a few internal labels are gone from the public texts."),
+    ]),
+    ("2026.10.29-7", "2026-10-29", [
+        ("Texterna om datamodellen är rättade så att de inte säger mer än de ska: modellen bygger på NGSI-LD och är länkad (inte återanvänd) till erkända modeller, och banderollerna i alla genererade filer säger att den är en tillfällig PoC-modell. "
+         "Avvisningsexempel från schemakontrollen står nu på både svenska och engelska.",
+         "The texts about the data model are corrected so that they do not say more than they should: the model is built on NGSI-LD and linked (not reused) to recognised models, and the banners in all generated files say that it is a temporary PoC model. "
+         "Rejection examples from the schema check are now in both Swedish and English."),
+    ]),
+    ("2026.10.29-6", "2026-10-29", [
+        ("Vi har tittat på MIM7 (geodata). Den har inga numrerade krav i v9.0, så den går inte att bedöma; vi redovisar vad vi gör i stället. Vi visar bara brunnarnas positioner som punkter på en karta, och bara i den icke-offentliga distribution A. MIM-rutan i steg 6 säger det.",
+         "We have looked at MIM7 (geospatial data). It has no numbered requirements in v9.0, so it cannot be assessed; we state what we do instead. We only show the positions of the chambers as points on a map, and only in the non-public distribution A. The MIM box in step 6 says so."),
+    ]),
+    ("2026.10.29-5", "2026-10-29", [
+        ("Datamodellen är tydligt märkt som en tillfällig modell framtagen för PoC:en, inte föreslagen som allmän modell, och vad den bygger på står på /modell. "
+         "Varje leverans kontrolleras nu mot modellens schema innan staden lagrar den, och resultatet visas i steg 4. Den öppna vyns JSON har enhetskoder och en länk till modellen, "
+         "och katalogens conformsTo pekar på modellen. Fem termer som saknades (leveranstyperna A och B samt tre egenskaper på brunnen) är nu definierade.",
+         "The data model is clearly marked as a temporary model made for the PoC, not proposed as a general model, and what it is built on is on /modell. "
+         "Every delivery is now checked against the model's schema before the City stores it, and the result is shown in step 4. The open view's JSON has unit codes and a link to the model, "
+         "and the catalogue's conformsTo points to the model. Five terms that were missing (the delivery types A and B and three properties of the chamber) are now defined."),
+    ]),
+    ("2026.10.29-4", "2026-10-29", [
+        ("Nytt: en ruta i varje steg (1–6), på brunnsvyn och på datamodellsidan som säger vilka MIM:ar (OASC:s minimikrav för interoperabilitet) som berörs, hur, och vår status. "
+         "Rutan har en rad om vad varje MIM är och en länk till deras webbsida. Statusen är vår egen bedömning och inte en certifiering; vi påstår inget som vår öppna MIM-redovisning inte beskriver.",
+         "New: a box in every step (1–6), on the open chamber view and on the data model page that says which MIMs (OASC's minimal interoperability mechanisms) are involved, how, and our status. "
+         "The box has a line on what each MIM is and a link to their web page. The status is our own assessment and not a certification; we claim nothing that our open MIM assessment does not describe."),
+    ]),
+    ("2026.10.29-3", "2026-10-29", [
+        ("Modellversionen i de modellerade värdena heter nu \"FCF-simulator 1.0.0 / enkel överfallsmodell\" i stället för ett internt komponentnamn. "
+         "JSON-LD-svaren från tidsserien och från gatewayen nämner nu kontextens publika adress (tidigare ett internt värdnamn).",
+         "The model version in the modelled values is now \"FCF-simulator 1.0.0 / enkel överfallsmodell\" instead of an internal component name. "
+         "The JSON-LD answers from the time series interface and from the gateway now name the public address of the context (before, an internal host name)."),
+    ]),
+    ("2026.10.29-2", "2026-10-29", [
+        ("Data bär nu datamodellutkastets kontext: attributen i stadens plattform lagras under modellens egna adresser, så att attributen som är termer i modellen går att följa till sin definition på /modell. "
+         "Svaren ser likadana ut som förut (samma korta attributnamn). Modellen är fortfarande ett utkast. En besökares egen kontext (Link-huvud) ersätts av vår.",
+         "The data now carries the draft data model's context: the attributes in the City's platform are stored under the model's own addresses, so the attributes that are terms of the model can be followed to their definition at /modell. "
+         "The answers look the same as before (the same short attribute names). The model is still a draft. A visitor's own context (Link header) is replaced by ours."),
+    ]),
+    ("2026.10.29-1", "2026-10-29", [
+        ("Steg 2 förklarar deltagarregistret enklare: staden har inte leverantörens adress sparad, utan slår upp den i en lista som samordnaren håller. "
+         "Registret går inte att nå direkt för besökare; kontrollrummet visar vad det innehåller. I datamodellutkastet är två termer (sourceSrs och provenance.dataset) nu märkta som kopplade, eftersom de länkar till en annan term, och exempelfilen visar avtalet utan intern beteckning.",
+         "Step 2 explains the participant directory more simply: the City does not have the provider's address saved, but looks it up in a list kept by the orchestrator. "
+         "Visitors cannot reach the directory directly; the control room shows what it contains. In the draft data model two terms (sourceSrs and provenance.dataset) are now marked as linked, because they link to another term, and the example file shows the agreement without an internal label."),
+    ]),
+    ("2026.10.28-3", "2026-10-29", [
+        ("Vi säger nu öppet att demon är byggd med AI-assistenter: en rad på Om-sidan, i projektets beskrivning och i översikten över MIM-bedömningarna, och en mening i rutan överst på datamodellutkastet. "
+         "Koden, testerna och dokumentationen är utvecklade tillsammans med AI-assistenter (bland annat Claude, Codex och Gemini). Björn Hagström och Niklas Fjellman har styrt arbetet och tar ansvar för innehållet, men allt är inte oberoende granskat av människor.",
+         "We now say openly that the demo is built with AI assistants: a line on the About page, in the project description and in the overview of the MIM assessments, and a sentence in the box at the top of the draft data model. "
+         "The code, the tests and the documentation were developed together with AI assistants (among them Claude, Codex and Gemini). Björn Hagström and Niklas Fjellman have directed the work and are responsible for the content, but not everything has been independently reviewed by humans."),
+        ("Demon är öppen utan lösenord även när man kör den lokalt: det är nu standard.",
+         "The demo is now open without a password when run locally too: that is the default."),
+    ]),
+    ("2026.10.28-2", "2026-10-28", [
+        ("Steg 2: staden hittar nu leverantören i samordnarens deltagarregister i stället för att ha adressen inlagd. Registret är samordnarens lista över deltagarna med medlemsstatus (en återkallelse syns direkt) och connectorns adress, men utan roller; det ligger på samordnarens interna adress, och steget visar namn och status. Steget visar vilka deltagare som finns och hur leverantören hittades.",
+         "Step 2: the City now finds the provider in the orchestrator's participant directory instead of having the address built in. The directory is the orchestrator's list of the participants with membership status (a revocation shows at once) and connector address, but no roles; it sits on the orchestrator's internal address, and the step shows names and status. The step shows which participants exist and how the provider was found."),
+    ]),
+    ("2026.10.28-1", "2026-10-28", [
+        ("Nytt: ett UTKAST till datamodell för de modellerade bräddresultaten finns på /modell på brunnsvyns adress (länk i sidfoten). Det är ett arbetsutkast som vi använder för att lära oss: "
+         "det är inte beslutat, inte överenskommet med dataägaren, leverantören eller förvaltaren och inte inskickat till Smart Data Models. Varje term har en definition, en enhet och en egen adress som går att slå upp.",
+         "New: a DRAFT data model for the modelled overflow results is at /modell on the chamber view's address (link in the footer). It is a working draft we use to learn: "
+         "it is not decided, not agreed with the data owner, the provider or the custodian, and not submitted to Smart Data Models. Each term has a definition, a unit and an address of its own that can be looked up."),
+    ]),
+    ("2026.10.23-13", "2026-10-28", [
+        ("Den öppna brunnsvyns maskingränssnitt har nu en formell beskrivning (OpenAPI) på /openapi.json på brunnsvyns adress.",
+         "The machine interface of the open chamber view now has a formal description (OpenAPI) at /openapi.json on the chamber view's address."),
+    ]),
+    ("2026.10.23-12", "2026-10-28", [
+        ("Ett kort nätavbrott (wifi, VPN, dator som vilar) räknas inte längre som ett fel i webbläsaren i statistiken: sidan hoppar bara över rundan och fortsätter när nätet är tillbaka.",
+         "A short network outage (wifi, VPN, a computer that sleeps) is no longer counted as a browser error in the statistics: the page just skips that round and carries on when the network is back."),
+    ]),
     ("2026.10.23-11", "2026-10-26", [
         ("Raden \"Nästa\" tar slut med en tydlig text (\"Klart: du har gått igenom hela kedjan.\") när du sett analysen, i stället för att försvinna.",
          "The \"Next\" row now ends with a clear message (\"Done: you have been through the whole chain.\") once you have seen the analysis, instead of just disappearing."),

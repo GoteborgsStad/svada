@@ -28,6 +28,9 @@ projekthänvisningar; "intern" (standard) visar dem. Styrs av DEMO_VARIANT.
 import html
 import i18n
 import json
+import mim
+import nedladdning
+from ordlista import ORDLISTA
 import os
 import re
 
@@ -201,7 +204,7 @@ TEXTER = {
                     "villkor. Distribution B har bara tillstånd (permission), "
                     "med plikten att ange källan. Distribution A har ett "
                     "snävare tillstånd (permission: användning, bara för "
-                    "staden) och dessutom förbud (prohibition) och en "
+                    "staden) och dessutom förbud (prohibition) och "
                     "skyldigheter (obligation). Distribution A syns i DHI:s katalog "
                     "och går bara att få avtal om på dess villkor."),
                 "vcText": (
@@ -261,6 +264,8 @@ TEXTER = {
                    '<a href="https://www.vinnova.se/en/p/the-swedish-water-data-lab-svada--transition-for-smart-water-management" target="_blank" rel="noopener">Projektet hos Vinnova ↗</a>'),
         "omKredH": "Skapad av",
         "omKred": "Björn Hagström, expert på informationshantering och data spaces, och Niklas Fjellman.",
+        "omAIH": "Byggd med AI-assistenter",
+        "omAI": "Koden, testerna och dokumentationen är utvecklade tillsammans med AI-assistenter (bland annat Claude, Codex och Gemini). Björn Hagström och Niklas Fjellman har styrt arbetet och tar ansvar för innehållet, men allt är inte oberoende granskat av människor.",
         "omBpH": "Följer DSSC Blueprint 3.0",
         "omBp": ('Demon följer <b>Blueprint 3.0</b> från Data Spaces Support Centre (DSSC), EU:s referensram för data spaces: roller (dataleverantör, datakonsument, operatör), '
                  'dataprodukter, avtal och policyer i ODRL, datautbyte med Dataspace Protocol och verifierbara intyg. Styrning, juridik och affärsmodell ingår inte i demon. '
@@ -302,14 +307,17 @@ TEXTER = {
                 "utdrag ur stadens system, liksom brunnsnamnen. Av 91 brunnar "
                 "är det bara den här som har en riktig mätserie; de övriga 90 "
                 "har påhittade serier som räknas fram ur brunnens id. En av de 91, "
-                "SSO1_01-Pump_490, är en bräddpunkt vid en pumpstation."),
+                "SSO1_01-Pump_490, är en bräddpunkt vid en pumpstation. Den riktiga "
+                "mätserien är bara ett par dygn lång; varje dygn i demon "
+                "räknas på samma mätvärden, så den brunnens dygnsvärden är lika."),
         "omKoordH": "Koordinater",
         "omKoord": (
                 "<b>Alla koordinater i demon är påhittade.</b> Brunnarnas "
                 "riktiga positioner är känsliga, så brunnarna är utplacerade "
                 "slumpvis på Liseberg. Krokängsparkens brunn ligger på "
                 "Lisebergsbanans spår. Det finns inget samband kvar att räkna "
-                "tillbaka till de riktiga positionerna."),
+                "tillbaka till de riktiga positionerna. Brunnarnas namn (gatukorsningar) "
+                "är däremot riktiga och får visas öppet enligt dataägaren."),
         "omModellH": "Modellen",
         "omModell": (
                 "DHI:s riktiga Future City Flow är en hydrodynamisk modell av "
@@ -370,7 +378,7 @@ TEXTER = {
         "avvisad": "jobbet klart · leveransen avvisades",
         "ingetavtal": "jobbet klart · inget avtal ingicks",
         "fel": "misslyckades",
-        "nekad": "nekad av spärren (så ska det vara)",
+        "nekad": "nekad av spärren – skyddet fungerade",
         "helaLogg": "Öppna hela loggen i fliken Jobb →",
         "roll": {
                 "demo": "demonstratör (simulerar en händelse)",
@@ -619,6 +627,8 @@ TEXTER = {
                    '<a href="https://www.vinnova.se/en/p/the-swedish-water-data-lab-svada--transition-for-smart-water-management" target="_blank" rel="noopener">The project at Vinnova ↗</a>'),
         "omKredH": "Created by",
         "omKred": "Björn Hagström, expert on information management and data spaces, and Niklas Fjellman.",
+        "omAIH": "Built with AI assistants",
+        "omAI": "The code, the tests and the documentation were developed together with AI assistants (among them Claude, Codex and Gemini). Björn Hagström and Niklas Fjellman have directed the work and are responsible for the content, but not everything has been independently reviewed by humans.",
         "omBpH": "Follows the DSSC Blueprint 3.0",
         "omBp": ('The demo follows <b>Blueprint 3.0</b> from the Data Spaces Support Centre (DSSC), the EU reference framework for data spaces: roles (data provider, data consumer, operator), '
                  'data products, agreements and policies in ODRL, data exchange with the Dataspace Protocol and verifiable credentials. Governance, legal and business model are not part of the demo. '
@@ -661,14 +671,19 @@ TEXTER = {
                 "extract of the city's system, as are the chamber names. Of 91 "
                 "chambers only this one has a real series; the other 90 have "
                 "made-up series computed from the chamber's id. One of the 91, "
-                "SSO1_01-Pump_490, is an overflow point at a pumping station."),
+                "SSO1_01-Pump_490, is an overflow point at a pumping station. The real "
+                "series is only a couple of days long; every day in the demo is "
+                "computed from the same measured values, so that chamber's daily "
+                "values are identical."),
         "omKoordH": "Coordinates",
         "omKoord": (
                 "<b>All coordinates in the demo are made up.</b> The chambers' "
                 "real positions are sensitive, so the chambers are placed at "
                 "random within Liseberg. The Krokängsparken chamber sits on the"
                 " Lisebergsbanan roller coaster track. There is no link left to"
-                " trace back to the real positions."),
+                " trace back to the real positions. The chambers' names (street "
+                "crossings) are real, however, and may be shown openly according "
+                "to the data owner."),
         "omModellH": "The model",
         "omModell": (
                 "DHI's real Future City Flow is a hydrodynamic model of the "
@@ -729,7 +744,7 @@ TEXTER = {
         "avvisad": "job done · delivery rejected",
         "ingetavtal": "job done · no agreement made",
         "fel": "failed",
-        "nekad": "refused by the safeguard (as it should be)",
+        "nekad": "refused by the safeguard – the protection worked",
         "helaLogg": "Open the full log in the Jobs tab →",
         "roll": {
                 "demo": "demonstrator (simulates an event)",
@@ -796,458 +811,6 @@ ORDTEXT = {
     },
 }
 
-# Ordlistan: id, regex (JavaScript-syntax) och förklaring per språk. cs=True
-# betyder skiftlägeskänslig matchning. Driver både tipsrutorna och fliken Ordlista.
-ORDLISTA = [
-    {"id": "poc",
-     "sv": {"term": "PoC (proof of concept)", "re": "PoC(?::e?n)?(?!\\p{L})", "cs": True,
-            "def": "Ett bevis på att något fungerar i praktiken: här en körbar demo i liten skala av hela kedjan, med riktiga komponenter men utan att vara en driftsatt tjänst."},
-     "en": {"term": "PoC (proof of concept)", "re": "PoC", "cs": True,
-            "def": "A proof that something works in practice: here a small-scale, runnable demo of the whole chain, with real components but not a deployed service."}},
-    {"id": "braddbrunn",
-     "sv": {"term": "Bräddbrunn",
-            "re": "bräddbrunn\\p{L}*",
-            "def": (
-                    "En brunn i avloppsnätet där vattnet kan rinna över till "
-                    "ett utsläpp när ledningen är full. Här sitter givaren som "
-                    "mäter.")},
-     "en": {"term": "Overflow chamber",
-            "re": "overflow chambers?",
-            "def": (
-                    "A chamber in the sewer network where water can spill over "
-                    "to an outlet when the pipe is full. This is where the "
-                    "measuring sensor sits.")},
-    },
-    {"id": "bradd",
-     "sv": {"term": "Bräddning, brädda",
-            "re": "brädd(?:ning\\p{L}*|ar|ade|a(?!\\p{L})|händelse\\p{L}*|flöde\\p{L}*|data)",
-            "def": (
-                    "När avloppsledningen är full, till exempel vid kraftigt "
-                    "regn, rinner en del av avloppsvattnet över och ut i ett "
-                    "vattendrag i stället för till reningsverket. Det kallas "
-                    "att det bräddar. Bräddning ska hållas så liten som "
-                    "möjligt.")},
-     "en": {"term": "Overflow",
-            "re": "overflows?(?! chamber)(?! data)|overflowing",
-            "def": (
-                    "When the sewer pipe is full, for example in heavy rain, "
-                    "some of the sewage spills over into a watercourse instead "
-                    "of going to the treatment plant. Overflow should be kept "
-                    "as small as possible.")},
-    },
-    {"id": "spillflode",
-     "sv": {"term": "Spillflöde",
-            "re": "spillflöde\\p{L}*",
-            "def": (
-                    "Den del av flödet som bräddar ut, mätt i kubikmeter per "
-                    "sekund (m³/s).")},
-     "en": {"term": "Spill flow",
-            "re": "spill flow",
-            "def": (
-                    "The part of the flow that overflows, measured in cubic "
-                    "metres per second (m³/s).")},
-    },
-    {"id": "totalflode",
-     "sv": {"term": "Totalflöde",
-            "re": "totalflöde\\p{L}*",
-            "def": "Allt vatten som rinner genom brunnen, mätt i m³/s."},
-     "en": {"term": "Total flow",
-            "re": "total flow",
-            "def": "All water flowing through the chamber, measured in m³/s."},
-    },
-    {"id": "eudataspace",
-     "lank": "https://digital-strategy.ec.europa.eu/en/policies/data-spaces",
-     "sv": {"term": "Gemensamma europeiska dataspaces",
-            "re": "europeiska dataspace\\p{L}*|Common European Data Spaces",
-            "def": (
-                    "EU:s satsning, enligt datastrategin från 2020, på "
-                    "dataspaces inom bland annat hälsa, energi, mobilitet, "
-                    "jordbruk och miljö. Bygger på gemensamma regler och "
-                    "byggstenar så att dataspaces kan kopplas ihop.")},
-     "en": {"term": "Common European data spaces",
-            "re": "common European data spaces|European ones",
-            "def": (
-                    "The EU initiative, under the 2020 data strategy, for data "
-                    "spaces in areas such as health, energy, mobility, "
-                    "agriculture and the environment. Built on shared rules and"
-                    " building blocks so data spaces can be connected.")},
-    },
-    {"id": "dsp",
-     "lank": "https://eclipse-dataspace-protocol-base.github.io/DataspaceProtocol/",   # specifikationen (L21)
-     "sv": {"term": "Dataspace Protocol (DSP)",
-            "re": "Dataspace Protocol|DSP(?!\\p{L})",
-            "cs": True,
-            "def": (
-                    "Standardprotokollet som connectorer använder för att visa "
-                    "katalog, förhandla avtal och styra överföringar.")},
-     "en": {"term": "Dataspace Protocol (DSP)",
-            "re": "Dataspace Protocol|DSP(?!\\p{L})",
-            "cs": True,
-            "def": (
-                    "The standard protocol connectors use to show catalogues, "
-                    "negotiate agreements and control transfers.")},
-    },
-    {"id": "dataspace",
-     "lank": "https://dssc.eu/",
-     "sv": {"term": "Dataspace",
-            "re": "dataspace\\p{L}*",
-            "def": (
-                    "Ett sätt för organisationer att dela data utan gemensam "
-                    "databas. Data ligger kvar hos den som har det och lämnas "
-                    "ut först när ett maskinellt avtal säger ja. Villkoren "
-                    "följer med och kontrolleras automatiskt.")},
-     "en": {"term": "Data space",
-            "re": "data spaces?",
-            "def": (
-                    "A way for organisations to share data without a shared "
-                    "database. Data stays with whoever holds it and is released"
-                    " only when a machine-readable agreement says yes. The "
-                    "terms travel with it and are checked automatically.")},
-    },
-    {"id": "connector",
-     "sv": {"term": "Connector",
-            "re": "connector\\p{L}*",
-            "def": (
-                    "Programvaran varje part kör för att delta i dataspacet. "
-                    "Den visar katalog, förhandlar avtal och styr överföringar."
-                    " Här används Eclipse EDC.")},
-     "en": {"term": "Connector",
-            "re": "connectors?",
-            "def": (
-                    "The software each party runs to take part in the data "
-                    "space. It shows the catalogue, negotiates agreements and "
-                    "controls transfers. Eclipse EDC is used here.")},
-    },
-    {"id": "edc",
-     "lank": "https://projects.eclipse.org/projects/technology.edc",
-     "sv": {"term": "Eclipse EDC",
-            "re": "Eclipse EDC|EDC(?!\\p{L})",
-            "cs": True,
-            "def": (
-                    "Connector med öppen källkod från Eclipse Foundation, en "
-                    "vanlig grund för dataspaces i EU.")},
-     "en": {"term": "Eclipse EDC",
-            "re": "Eclipse EDC|EDC(?!\\p{L})",
-            "cs": True,
-            "def": (
-                    "Open-source connector from the Eclipse Foundation, a "
-                    "common basis for data spaces in the EU.")},
-    },
-    {"id": "odrl",
-     "lank": "https://www.w3.org/TR/odrl-model/",
-     "sv": {"term": "ODRL",
-            "re": "ODRL",
-            "cs": True,
-            "def": (
-                    "W3C-standard för maskinläsbara användningsvillkor: vad som"
-                    " är tillåtet, vad som är förbjudet och vilka skyldigheter "
-                    "som gäller.")},
-     "en": {"term": "ODRL",
-            "re": "ODRL",
-            "cs": True,
-            "def": (
-                    "W3C standard for machine-readable usage terms: what is "
-                    "permitted, what is prohibited and which duties apply.")},
-    },
-    {"id": "intyg",
-     "lank": "https://www.w3.org/TR/vc-data-model-2.0/",
-     "sv": {"term": "Verifierbart intyg",
-            "re": "verifierbar\\p{L}* intyg\\p{L}*|intyg\\p{L}*|rollintyg\\p{L}*|VC(?![\\p{L}\\p{N}])",
-            "def": (
-                    "Digitalt intyg med kryptografisk signatur (W3C Verifiable "
-                    "Credential, VC) som bevisar vem en part är eller vilken "
-                    "roll den har. En grundteknik i dataspaces: intygen visas "
-                    "och kontrolleras i varje led, enligt protokollet DCP.")},
-     "en": {"term": "Verifiable credential",
-            "re": "verifiable credentials?|credentials?|VCs?(?![\\p{L}\\p{N}])",
-            "def": (
-                    "A digital certificate with a cryptographic signature (W3C "
-                    "Verifiable Credential, VC) that proves who a party is or "
-                    "which role it holds. A basic technique in data spaces: the "
-                    "credentials are shown and checked at every step, under the "
-                    "protocol DCP.")},
-    },
-    {"id": "dssc",
-     "lank": "https://dssc.eu/",
-     "sv": {"term": "DSSC",
-            "re": "DSSC",
-            "cs": True,
-            "def": (
-                    "Data Spaces Support Centre, EU:s stödcentrum för "
-                    "dataspaces. Förvaltar referensramen (Blueprint) med "
-                    "byggblock som PoC:en jämförs mot.")},
-     "en": {"term": "DSSC",
-            "re": "DSSC",
-            "cs": True,
-            "def": (
-                    "Data Spaces Support Centre, the EU support centre for data"
-                    " spaces. It maintains the reference framework (Blueprint) "
-                    "whose building blocks the PoC is compared against.")},
-    },
-    {"id": "ngsild",
-     "lank": "https://en.wikipedia.org/wiki/NGSI-LD",
-     "sv": {"term": "NGSI-LD",
-            "re": "NGSI-LD",
-            "cs": True,
-            "def": (
-                    "Standard för att beskriva saker och deras tillstånd över "
-                    "tid, till exempel en brunn och dess flöde.")},
-     "en": {"term": "NGSI-LD",
-            "re": "NGSI-LD",
-            "cs": True,
-            "def": (
-                    "A standard for describing things and their state over "
-                    "time, such as a chamber and its flow.")},
-    },
-    {"id": "kontextbroker",
-     "lank": "https://github.com/FIWARE/context.Orion-LD",
-     "sv": {"term": "Kontextbroker",
-            "re": "kontextbroker\\p{L}*",
-            "def": (
-                    "Databas som håller det senaste tillståndet för saker, här "
-                    "brunnar, och svarar på NGSI-LD. Här används Orion-LD.")},
-     "en": {"term": "Context broker",
-            "re": "context brokers?",
-            "def": (
-                    "A database holding the latest state of things, here "
-                    "chambers, answering in NGSI-LD. Orion-LD is used here.")},
-    },
-    {"id": "fiware",
-     "lank": "https://www.fiware.org/",
-     "sv": {"term": "FIWARE",
-            "re": "FIWARE",
-            "cs": True,
-            "def": (
-                    "Öppen plattform med komponenter för smarta städer, bland "
-                    "annat Orion-LD och Mintaka.")},
-     "en": {"term": "FIWARE",
-            "re": "FIWARE",
-            "cs": True,
-            "def": (
-                    "Open platform with components for smart cities, including "
-                    "Orion-LD and Mintaka.")},
-    },
-    {"id": "dataprodukt",
-     "sv": {"term": "Dataprodukt",
-            "re": "dataprodukt\\p{L}*",
-            "def": (
-                    "Data som paketerats tillsammans med beskrivning, klassning"
-                    " och användningsvillkor, så att det kan delas som en "
-                    "enhet.")},
-     "en": {"term": "Data product",
-            "re": "data products?",
-            "def": (
-                    "Data packaged together with a description, classification "
-                    "and usage terms, so it can be shared as one unit.")},
-    },
-    {"id": "klass",
-     "sv": {"term": "Informationsklass (K1R1T1, K0R1T1)",
-            "re": "K[01]R1T1|informationsklass\\p{L}*|klassning\\p{L}*",
-            "def": (
-                    "Stadens klassning av information efter konfidentialitet "
-                    "(K), riktighet (R) och tillgänglighet (T). K1 betyder "
-                    "känslig, K0 betyder öppen.")},
-     "en": {"term": "Information class (K1R1T1, K0R1T1)",
-            "re": "K[01]R1T1|information class\\p{L}*|classification",
-            "def": (
-                    "The city's classification of information by "
-                    "confidentiality (K), integrity (R) and availability (T). "
-                    "K1 means sensitive, K0 means open.")},
-    },
-    {"id": "kov",
-     "sv": {"term": "KoV",
-            "re": "KoV(?!-gate)",
-            "cs": True,
-            "def": (
-                    "Kretslopp och Vatten, Göteborgs Stads förvaltning för "
-                    "vatten och avlopp. Äger data och sätter villkoren, som "
-                    "binder den som tar emot data.")},
-     "en": {"term": "KoV",
-            "re": "KoV(?! gate)",
-            "cs": True,
-            "def": (
-                    "Kretslopp och Vatten, the City of Gothenburg's water and "
-                    "sewage administration. Owns the data and sets the terms, "
-                    "which bind whoever receives the data.")},
-    },
-    {"id": "intraservice",
-     "sv": {"term": "Intraservice",
-            "re": "Intraservice",
-            "cs": True,
-            "def": (
-                    "Göteborgs Stads förvaltning för digitala tjänster. Driver "
-                    "stadens connector och dataplattform och tar emot data på "
-                    "KoV:s uppdrag, bunden av KoV:s villkor.")},
-     "en": {"term": "Intraservice",
-            "re": "Intraservice",
-            "cs": True,
-            "def": (
-                    "The City of Gothenburg's digital services administration. "
-                    "Runs the city's connector and data platform and receives "
-                    "data on KoV's behalf, bound by KoV's terms.")},
-    },
-    {"id": "dhi",
-     "lank": "https://www.dhigroup.com/",
-     "sv": {"term": "DHI",
-            "re": "DHI(?!:)",
-            "cs": True,
-            "def": (
-                    "Konsultföretag inom vatten som tar fram data åt staden med"
-                    " modellen Future City Flow.")},
-     "en": {"term": "DHI",
-            "re": "DHI(?!')",
-            "cs": True,
-            "def": (
-                    "Water engineering consultancy that produces the data for "
-                    "the city with the Future City Flow model.")},
-    },
-    {"id": "fcf",
-     "lank": "https://www.dhigroup.com/se/teknologier/future-city-flow",
-     "sv": {"term": "Future City Flow",
-            "re": "Future City Flow",
-            "cs": True,
-            "def": (
-                    "DHI:s modell för flöden och bräddning i avloppsnätet. I "
-                    "PoC:en ersatt av en simulerad, enkel beräkning.")},
-     "en": {"term": "Future City Flow",
-            "re": "Future City Flow",
-            "cs": True,
-            "def": (
-                    "DHI's model for flows and overflow in the sewer network. "
-                    "Replaced in the PoC by a simple simulated calculation.")},
-    },
-    {"id": "batch",
-     "sv": {"term": "Batch",
-            "re": "batch\\p{L}*",
-            "def": (
-                    "En omgång beräknade data, här ett modellerat dygn för alla"
-                    " brunnar. Datumet sist i batch-id:t (till exempel"
-                    " batch-015-2026-06-29) är det modellerade dygnet, inte"
-                    " när batchen kördes.")},
-     "en": {"term": "Batch",
-            "re": "batch(?:es)?",
-            "def": (
-                    "One round of computed data, here a modelled day for all "
-                    "chambers. The date at the end of the batch id (for example "
-                    "batch-015-2026-06-29) is the modelled day, not when the "
-                    "batch was run.")},
-    },
-    {"id": "modellerat-dygn",
-     "sv": {"term": "Modellerat dygn",
-            "re": "modellerade? dygn\\p{L}*",
-            "def": (
-                    "Det dygn en batch avser. Demon visar inte mätningar i"
-                    " realtid: modellen räknar fram ett nytt dygn för varje"
-                    " batch (här en var tionde minut), och datumet står i"
-                    " batch-id:t. Det är alltså inte dagens datum och inte"
-                    " tiden då batchen kördes.")},
-     "en": {"term": "Modelled day",
-            "re": "modelled days?",
-            "def": (
-                    "The day a batch covers. The demo does not show"
-                    " measurements in real time: the model computes a new day"
-                    " for each batch (here one every ten minutes), and the date"
-                    " is in the batch id. It is neither today's date nor the"
-                    " time the batch was run.")},
-    },
-    {"id": "dsga",
-     "sv": {"term": "DSGA",
-            "re": "DSGA(?: 0\\.1)?",
-            "cs": True,
-            "def": "Data Space Governance Authority: den part som styr ett dataspace, med regler, medlemmar och intyg. I demon spelas den av Svadas utfärdare (version 0.1)."},
-     "en": {"term": "DSGA",
-            "re": "DSGA(?: 0\\.1)?",
-            "cs": True,
-            "def": "Data Space Governance Authority: the party that governs a data space, with rules, members and credentials. In the demo it is played by the Svada issuer (version 0.1)."}},
-    {"id": "cip",
-     "sv": {"term": "CIP",
-            "re": "CIP(?!-)",
-            "cs": True,
-            "def": (
-                    "Stadens dataplattform (City Information Platform) där data"
-                    " lagras och delas vidare.")},
-     "en": {"term": "CIP",
-            "re": "CIP(?!-)",
-            "cs": True,
-            "def": (
-                    "The city's data platform (City Information Platform), "
-                    "where data is stored and shared onwards.")},
-    },
-    {"id": "proveniens",
-     "lank": "https://www.w3.org/TR/prov-overview/",
-     "sv": {"term": "Ursprungsmärkning (proveniens)",
-            "re": "ursprungsmärkning\\p{L}*|proveniens\\p{L}*",
-            "def": (
-                    "Uppgifter som följer med varje värde om varifrån det "
-                    "kommer: avtal, batch, distribution och klass.")},
-     "en": {"term": "Provenance",
-            "re": "provenance",
-            "def": (
-                    "Information attached to every value about where it came "
-                    "from: agreement, batch, distribution and class.")},
-    },
-    {"id": "dcat",
-     "lank": "https://docs.dataportal.se/dcat/sv/",
-     "sv": {"term": "DCAT-AP-SE",
-            "re": "DCAT-AP(?:-SE)?",
-            "cs": True,
-            "def": (
-                    "Den svenska nationella profilen av DCAT-AP, EU:s "
-                    "gemensamma standard för att beskriva datamängder i "
-                    "kataloger, till exempel för Sveriges och EU:s portaler. "
-                    "Används inte i demon: DHI:s katalog bygger på DCAT i "
-                    "den form Dataspace Protocol beskriver.")},
-     "en": {"term": "DCAT-AP-SE",
-            "re": "DCAT-AP(?:-SE)?",
-            "cs": True,
-            "def": (
-                    "The Swedish national profile of DCAT-AP, the EU's common "
-                    "standard for describing datasets in catalogues, for example "
-                    "for Swedish and EU portals. Not used in the demo: "
-                    "DHI's catalogue is built on DCAT in the form the "
-                    "Dataspace Protocol describes.")},
-    },
-    {"id": "dcatbegrepp",
-     "lank": "https://www.w3.org/TR/vocab-dcat-3/",
-     "sv": {"term": "DCAT",
-            "re": "DCAT(?![-\\p{L}\\p{N}])",
-            "cs": True,
-            "def": (
-                    "Data Catalog Vocabulary, W3C:s standard för att beskriva "
-                    "datamängder och kataloger så att de kan läsas av maskiner. "
-                    "I demon beskrivs dataprodukten i DCAT i den form "
-                    "Dataspace Protocol använder i DHI:s katalog. Profilerna "
-                    "DCAT-AP och DCAT-AP-SE bygger på DCAT.")},
-     "en": {"term": "DCAT",
-            "re": "DCAT(?![-\\p{L}\\p{N}])",
-            "cs": True,
-            "def": (
-                    "Data Catalog Vocabulary, the W3C standard for describing "
-                    "datasets and catalogues so that machines can read them. "
-                    "In the demo the data product is described in DCAT in the "
-                    "form the Dataspace Protocol uses in DHI's catalogue. The "
-                    "profiles DCAT-AP and DCAT-AP-SE build on DCAT.")},
-    },
-    {"id": "dcp",
-     "lank": "https://eclipse-dataspace-dcp.github.io/decentralized-claims-protocol/",
-     "sv": {"term": "Decentralized Claims Protocol (DCP)",
-            "re": "DCP(?![\\p{L}\\p{N}])",
-            "cs": True,
-            "def": (
-                    "Protokollet för hur en part visar upp verifierbara intyg "
-                    "för en annan part i ett dataspace, utan en central "
-                    "tjänst. Demon använder det för att kontrollera medlemskap, "
-                    "deltagare och roller.")},
-     "en": {"term": "Decentralized Claims Protocol (DCP)",
-            "re": "DCP(?![\\p{L}\\p{N}])",
-            "cs": True,
-            "def": (
-                    "The protocol for how one party presents verifiable "
-                    "credentials to another in a data space, without a central "
-                    "service. The demo uses it to check membership, participants "
-                    "and roles.")},
-    },
-]
 
 
 # Gränssnittstexter som inte kommer ur mockupen, eller som rättats mot koden
@@ -1774,6 +1337,20 @@ svg.pilar marker#pilds path { fill: var(--ds); }
 .panel h3 { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dov); margin: 0 0 .25rem; font-weight: 650; }
 .panel p { margin: 0 0 .9rem; max-width: 65ch; }
 .dsruta { border-radius: 10px; padding: .8rem .9rem; }
+
+.mimruta { border: 1px solid #c7d2e0; border-left: 4px solid #3b6ea8; background: #f5f8fc; border-radius: 6px; padding: .6rem .9rem; margin: 1rem 0; font-size: .9rem; }
+.mimruta h3 { margin: 0 0 .2rem; font-size: .95rem; }
+.mimruta .mimintro { margin: 0 0 .4rem; color: #555; font-size: .82rem; }
+.mimruta ul { margin: 0; padding: 0; list-style: none; }
+.mimruta li { margin: .45rem 0; padding-left: .6rem; border-left: 3px solid #999; }
+.mimruta li.mim-ok { border-left-color: #2e7d32; }
+.mimruta li.mim-delvis { border-left-color: #b26a00; }
+.mimruta li.mim-nej { border-left-color: #b3261e; }
+.mimruta li > span { display: block; }
+.mimruta .mimvad { color: #444; }
+.mimruta .mimstatus em { font-style: normal; font-weight: 600; }
+.mimruta a { margin-left: .4rem; }
+
 .dsruta.ds { background: var(--ds-ton); border: 1px solid var(--ds-ram); }
 .dsruta.kedja { background: var(--kedja-ton); border: 1px solid var(--ram); }
 .dsruta.princip { background: var(--yta); border: 1.5px dashed var(--ds); }
@@ -2279,6 +1856,8 @@ button.kor.sek:hover { background: var(--ds-ton); color: var(--akt-hover); borde
 /* Statusmärken och roller är inte klickbara: platta, fyrkantiga och grå, aldrig rundade med fyllning. */
 .rollchip, .chip { border-radius: 4px; border-color: transparent; background: var(--kod); }
 /* Nästa rimliga åtgärd: märket "Nästa" på knappen (sätts av markeraNasta). */
+/* Märket får plats inom knappen även när kolumnen är smal (1359 px: det stack ut och klipptes): knappen med märke får bryta rad. */
+.knappkort button.kor.nasta, .kovval button.kor.nasta { white-space: normal; text-align: left; }
 button.kor.nasta::after { content: attr(data-nasta); font-size: .7rem; font-weight: 700; background: #fff; color: var(--akt); border-radius: 4px; padding: 0 .4rem; margin-left: .3rem; }
 /* Ordningsraden: numrerade fyrkantiga steg, och en riktig knapp för nästa steg. */
 .ordning button[data-hopp] { border-radius: 6px; background: var(--kod); border: 1px solid var(--ram); padding: .25rem .6rem; }
@@ -2370,10 +1949,18 @@ const sov = ms => new Promise(klar => setTimeout(klar, ms));
 const talFormat = n => Number(n).toLocaleString(SPRAK === 'en' ? 'en-GB' : 'sv-SE');
 
 async function api(sokvag, metod, kropp) {
-  const svar = await fetch(sokvag, {
-    method: metod || 'GET',
-    headers: kropp ? {'content-type': 'application/json', 'x-svada-lang': SPRAK} : {'x-svada-lang': SPRAK},
-    body: kropp ? JSON.stringify(kropp) : undefined});
+  /* Ett nätavbrott (wifi, VPN, dator som vilar) får inte bli ett ohanterat fel: pollningarna hoppar då bara över rundan. Anroparna
+     hanterar redan ok === false; status 0 betyder att inget svar kom alls. (Förr räknades varje misslyckad pollning som ett js_fel i
+     statistiken; provrunda 2026-10-28.) */
+  let svar;
+  try {
+    svar = await fetch(sokvag, {
+      method: metod || 'GET',
+      headers: kropp ? {'content-type': 'application/json', 'x-svada-lang': SPRAK} : {'x-svada-lang': SPRAK},
+      body: kropp ? JSON.stringify(kropp) : undefined});
+  } catch (e) {
+    return {ok: false, status: 0, data: {}};
+  }
   const data = await svar.json().catch(() => ({}));
   return {ok: svar.ok, status: svar.status, data};
 }
@@ -2623,6 +2210,9 @@ function kovKnappar() {
        (aria-disabled): ett klick på den visar en kort ruta som förklarar varför, och orsaken står också som mouseover och
        som rad till höger om knappen. */
     const brist = !jobbAktivtNu && !behov;
+    /* Knappens namn är alltid dess text; orsaken ligger i title och är bara en beskrivning (annars blir orsaken knappens namn). */
+    if (!b.dataset.namn) b.dataset.namn = b.textContent.trim();
+    b.setAttribute('aria-label', b.dataset.namn);
     b.disabled = jobbAktivtNu;
     const orsakKort = brist ? (b.dataset.kovbeslut === 'hav' ? L('Inget gällande avtal om A att häva.', 'There is no current agreement for A to revoke.')
                                        : L('Ingen förfrågan väntar på beslut.', 'No request is waiting for a decision.')) : '';
@@ -2899,6 +2489,7 @@ async function laddaKov() {
   laddaOdrl();
   laddaAvtalLista();
   const [{ok, data}, reg] = await Promise.all([api('/api/kov'), api('/api/avtal')]);
+  if ($('#kovlista') && $('#kovlista').querySelector('button.bekrafta')) return;   // pågår en bekräftelse (Avslå): bygg inte om knappen
   /* DHI:s avtals-id -> status i stadens register, så att hävda avtal inte visas som bara FINALIZED. */
   const hav = {};
   (reg.ok ? reg.data.avtal : []).forEach(a => { if (a.dhiAvtalId && a.status !== 'GALLANDE') hav[a.dhiAvtalId] = a.status === 'UTGANGET' ? L('utgånget', 'expired') : L('hävt', 'revoked'); });
@@ -2932,6 +2523,8 @@ async function laddaAvtalLista() {
   const {ok, data} = await api('/api/avtal');
   const kropp = $('#avtallista');
   if (!kropp) return;
+  /* Pågår en bekräftelse ("Klicka igen för att häva") ska tabellen inte byggas om: den nya knappen skulle sakna fönstret för det andra klicket (besökartestet 2026-11-01). */
+  if (kropp.querySelector('button.bekrafta')) return;
   if (!ok) { kropp.innerHTML = `<tr><td colspan="5">${esc(data.fel || '')}</td></tr>`; return; }
   const namn = {GALLANDE: L('GÄLLER', 'VALID'), HAVT: L('HÄVT', 'REVOKED'), UTGANGET: L('UTGÅNGET', 'EXPIRED'), OKAND: L('OKÄND', 'UNKNOWN')};
   $('#avtalantal').textContent = L(`${data.avtal.length} avtal i stadens register`, `${data.avtal.length} agreements in the city's register`);
@@ -3812,7 +3405,7 @@ function markeraBegrepp(rot) {
 
 /* Första förekomsten per block, så att varje kort och ruta förklarar sina egna ord. */
 function markeraAllt() {
-  $$('.intro, #om .omkol, #om .omdata, .pgrid, .sinnehall p, .odrlintro, .forklaring, .knappkort, .kovruta, .svadaruta, .teknikruta, .anteckning, .ingaknappar, .provruta')
+  $$('.intro, #om .omkol, #om .omdata, .pgrid, .sinnehall p, .odrlintro, .forklaring, .knappkort, .kovruta, .svadaruta, .teknikruta, .anteckning, .ingaknappar, .provruta, .nedladdning .lintro, .nedladdning .linfo, .nedladdning .lhur, .mimruta .mimintro, .mimruta li, .distnyckel, .laslista li, .akta p')
     .forEach(markeraBegrepp);
 }
 
@@ -3999,7 +3592,7 @@ document.addEventListener('mouseover', e => {
   if (t) visaTips(t); else if (e.target.closest('#tips')) clearTimeout(tipsTimer);
 });
 document.addEventListener('mouseout', e => { if (e.target.closest('.term, #tips')) doljTips(); });
-document.addEventListener('focusin', e => { const t = e.target.closest('.term'); if (t) visaTips(t); });
+document.addEventListener('focusin', e => { const t = e.target.closest('.term'); if (t) visaTips(t); else if (!tips.hidden && !e.target.closest('#tips')) doljTips(true); });
 document.addEventListener('focusout', e => {
   if (e.target.closest('.term') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#tips'))) doljTips();
   if (e.target.closest('#tips') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#tips'))) doljTips();
@@ -4336,6 +3929,7 @@ def _sidhuvud(t, sprak):
     </div>
     <div class="krhoger">
       <div class="sprak" role="group" aria-label="Språk / Language">{sprakknappar}</div>
+      <p class="mimmenyrad">{mim.menylank(sprak)}</p>
       <div class="aterstallrad">
         <p class="aterstall" id="aterstall" hidden></p>
         <button type="button" class="aterstallinfo" id="aterstallinfo" hidden aria-haspopup="dialog"
@@ -4766,6 +4360,8 @@ def _panel(s, steg, komponenter, t, sprak, variant, utestangning=True):
       </div>
     </div>
     {extra_ruta}
+    {nedladdning.ruta(nr, sprak)}
+    {mim.ruta(nr, sprak)}
     {_teknikruta(s, t, sprak)}
     {_teknikdetaljer(s, komponenter, t, sprak, variant)}
     <div class="pnav">
@@ -4797,6 +4393,7 @@ def _omsida(t, antal):
       <div><h3>{e(t['omProjH'])}</h3><p>{t['omProj']}</p></div>
       <div><h3>{e(t['omBpH'])}</h3><p>{t['omBp']}</p></div>
       <div><h3>{e(t['omKredH'])}</h3><p>{e(t['omKred'])}</p></div>
+      <div><h3>{e(t['omAIH'])}</h3><p>{e(t['omAI'])}</p></div>
     </div>
     <div class="omdata" id="omdata">
       <h2>{e(t['omdataH'])}</h2>
@@ -4823,8 +4420,10 @@ def _ordlistesida(sprak):
     for o in sorted(ORDLISTA, key=nyckel):
         lank = ""
         if o.get("lank"):
-            lank = (' <a class="lasmer" href="%s" target="_blank" rel="noopener">%s ↗</a>'
-                    % (e(o["lank"]), "Läs mer" if sprak == "sv" else "Read more"))
+            lank = (' <a class="lasmer" href="%s" target="_blank" rel="noopener" aria-label="%s: %s (%s)">%s ↗</a>'
+                    % (e(o["lank"]), "Läs mer" if sprak == "sv" else "Read more", e(o[sprak]["term"]),
+                       "öppnas i ny flik, extern sida" if sprak == "sv" else "opens in a new tab, external site",
+                       "Läs mer" if sprak == "sv" else "Read more"))
         rader.append('<div id="ordlista-%s"><dt>%s</dt><dd>%s%s</dd></div>'
                      % (e(o["id"]), e(o[sprak]["term"]), e(o[sprak]["def"]), lank))
     return f"""
@@ -4833,6 +4432,7 @@ def _ordlistesida(sprak):
     <h2>{e(ot['rub'])}</h2>
     <p class="ordintro">{e(ot['intro'])}</p>
     <dl class="ordlista">{"".join(rader)}</dl>
+    {nedladdning.ruta(0, sprak)}
   </div>
 </section>"""
 
@@ -4916,8 +4516,8 @@ def sida(steg, komponenter, portar, vard, troskel, publika=None,
     sidan = (f"<!doctype html><html lang=\"{sprak}\"><head><meta charset=\"utf-8\">"
              "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
              f"<title>{e(t['h1'])}</title>"
-             f"<style>{STIL}:root{{--rullhint:'{'↔ scroll sideways' if sprak == 'en' else '↔ dra i sidled'}'}}</style></head><body>{kropp}"
-             f"<script>{skript}</script></body></html>")
+             f"<style>{STIL}{nedladdning.CSS}:root{{--rullhint:'{'↔ scroll sideways' if sprak == 'en' else '↔ dra i sidled'}'}}</style></head><body>{kropp}"
+             f"<script>{skript}{nedladdning.SKRIPT}</script></body></html>")
     # Externa varianten: inga containernamn eller interna värdnamn i did:web på sidan (hård regel 4).
     return rensa.utan_containernamn(sidan) if variant == "extern" else sidan
 

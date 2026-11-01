@@ -21,7 +21,7 @@ const HTML_UTE_EN = execFileSync('python3', [new URL('rendera_sida.py', import.m
 const ELAKA = ["x');window.__a2=1;//", 'x");window.__a2=2;//', "x\\');window.__a2=3;//", "x'\n;window.__a2=4;//"];
 const b = await chromium.launch({ executablePath: CHROME, headless: true });
 for (const id of ELAKA) {
-  const p = await b.newPage();
+  const p = await b.newPage({ locale: 'sv-SE' });
   const anrop = [];
   await p.route('**/*', r => {
     const u = new URL(r.request().url());
@@ -53,7 +53,7 @@ for (const id of ELAKA) {
 }
 // --- M8 (gränssnittstestet 2026-10-18): en dold flik ska också få veta att utestängningen gått ut -------------------
 {
-  const p = await b.newPage();
+  const p = await b.newPage({ locale: 'sv-SE' });
   const t0 = Date.now();
   await p.addInitScript(() => { Object.defineProperty(document, 'hidden', { get: () => true });
                                 Object.defineProperty(document, 'visibilityState', { get: () => 'hidden' }); });
@@ -75,7 +75,7 @@ for (const id of ELAKA) {
 }
 // --- M2: hävning och avslag kräver ett andra klick; godkänn gör det inte -----------------------------------------------
 {
-  const p = await b.newPage();
+  const p = await b.newPage({ locale: 'sv-SE' });
   const anrop = [];
   await p.route('**/*', r => {
     const u = new URL(r.request().url());
@@ -108,7 +108,7 @@ for (const id of ELAKA) {
 }
 // --- M3: hopp till Jobb visar det NYA jobbets logg direkt, och Bakåt går tillbaka till fliken man kom från --------------
 {
-  const p = await b.newPage();
+  const p = await b.newPage({ locale: 'sv-SE' });
   let startat = false;
   await p.route('**/*', async r => {
     const u = new URL(r.request().url());
@@ -146,7 +146,7 @@ print(vy.landning(rader, "http://tidsserie.fixtur.test/temporal/entities?type=Se
 print("\\x00")
 print(vy.brunn("urn:ngsi-ld:SewerOverflowModelB:SSO1_01-4526", serie, "http://tidsserie.fixtur.test/x", "http://k", "sv"))`]).toString().split('\x00');
   for (const [namn, html] of [['listan', PV[0]], ['en brunn', PV[1]]]) {
-    const p = await b.newPage({ viewport: { width: 560, height: 900 } });
+    const p = await b.newPage({ locale: 'sv-SE', viewport: { width: 560, height: 900 } });
     await p.route('**/*', r => { const u = new URL(r.request().url()); if (u.hostname !== 'fixtur.test') return r.abort();
       if (u.pathname === '/') return r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }); return r.fulfill({ json: {} }); });
     await p.goto('http://fixtur.test/'); await p.waitForTimeout(500);
@@ -158,7 +158,7 @@ print(vy.brunn("urn:ngsi-ld:SewerOverflowModelB:SSO1_01-4526", serie, "http://ti
 // Samordnarens ruta när utestängning får användas (renderad som den interna varianten): knappar, ingen onödig omritning, fel, omläsning,
 // namn för skärmläsare och nedräkning. (Flyttat hit från det levande webbläsartestet: den externa varianten har inga knappar.)
 {
-  const p = await b.newPage();
+  const p = await b.newPage({ locale: 'sv-SE' });
   let stadUte = false, nasta502 = false, jobbPagar = false;
   const anrop = [];
   await p.route('**/*', r => {
@@ -220,7 +220,7 @@ print(vy.brunn("urn:ngsi-ld:SewerOverflowModelB:SSO1_01-4526", serie, "http://ti
 }
 // Samma ruta på engelska och vid 400 px: nedräkningen på engelska, inga knappar som sticker ut, ingen sidledsrullning.
 {
-  const p = await b.newPage({ viewport: { width: 400, height: 900 } });
+  const p = await b.newPage({ locale: 'sv-SE', viewport: { width: 400, height: 900 } });
   await p.route('**/*', r => {
     const u = new URL(r.request().url());
     if (u.hostname !== 'fixtur.test') return r.abort();

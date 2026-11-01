@@ -33,9 +33,10 @@
     "odrl:terms": "use, distribute, publish; duty: attribution (Göteborgs Stad / DHI)",
     "dataRightsHolder": "Kretslopp och Vatten, Göteborgs Stad",
     "dataProvider": "DHI (Future City Flow)",
-    "dct:conformsTo": {
-      "@id": "urn:svada:dataprodukt:modellerad-bradddata:1.0.0"
-    },
+    "dct:conformsTo": [
+      {"@id": "urn:svada:dataprodukt:modellerad-bradddata:1.0.0"},
+      {"@id": "__MODELL_ADRESS__"}
+    ],
     "dct:accrualPeriodicity": "Ett modellerat dygn per batch (i demon var tionde minut)",
     "dct:temporal": "Dygnsaggregat; indata i fem minuters upplösning",
     "svada:modellensBegransning": "Förenklad överfallsberäkning per brunn (Future City Flow är en hydrodynamisk MIKE+/MOUSE-modell); bräddtiden är lika för alla brunnar som bräddar och bär ingen information",

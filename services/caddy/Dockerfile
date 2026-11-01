@@ -10,8 +10,10 @@ ARG CADDY_RUNTIME_IMAGE
 
 FROM ${CADDY_BUILDER_IMAGE} AS byggare
 ARG CADDY_RATELIMIT_VERSION
+ARG CADDY_REPLACE_RESPONSE_VERSION
 RUN xcaddy build \
-    --with github.com/mholt/caddy-ratelimit@${CADDY_RATELIMIT_VERSION}
+    --with github.com/mholt/caddy-ratelimit@${CADDY_RATELIMIT_VERSION} \
+    --with github.com/caddyserver/replace-response@${CADDY_REPLACE_RESPONSE_VERSION}
 
 FROM ${CADDY_RUNTIME_IMAGE}
 # Säkerhetsrättning: uppgradera OS-paketen (libssl/libcrypto m.fl.) så att
@@ -19,4 +21,4 @@ FROM ${CADDY_RUNTIME_IMAGE}
 RUN apk upgrade --no-cache
 COPY --from=byggare /usr/bin/caddy /usr/bin/caddy
 # Bevisa att tillägget faktiskt byggdes in (annars faller bygget här).
-RUN caddy list-modules | grep -q "http.handlers.rate_limit"
+RUN caddy list-modules | grep -q "http.handlers.rate_limit" && caddy list-modules | grep -q "http.handlers.replace_response"

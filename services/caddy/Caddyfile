@@ -21,8 +21,8 @@
 #   DEMO_ANVANDARE, DEMO_LOSENORD_HASH, DEMO_TILLTRADE_TOKEN,
 #   DEMO_KAKA_*, RATE_INLOGG_*   lösenordsgrinden, se snippet (inloggning)
 #
-# Hela demon ligger bakom ett gemensamt lösenord tills projektet är redo
-# att kommunicera den – alla värdnamn, utom /robots.txt.
+# Demon är öppen som standard. Med DEMO_GATE=on ligger hela demon bakom ett
+# gemensamt lösenord – alla värdnamn, utom /robots.txt.
 # =====================================================================
 {
 	# Ingen ACME-e-post: Let's Encrypt skickar inte längre påminnelser om
@@ -165,10 +165,10 @@
 			Disallow: /
 			ROBOTS 200
 	}
-	# Brytaren DEMO_GATE: "off" = demon är öppen för alla; alla andra värden (också "on", tomt, felstavat) = lösenordsgrinden gäller. Den som inte anger något får grinden,
-	# så den kan inte falla bort av misstag. Matcharen nedan träffar bara när grinden är på och kakan saknas.
+	# Brytaren DEMO_GATE: "off" eller inget angivet (standard) = demon är öppen för alla; alla andra värden ("on", felstavat) = lösenordsgrinden gäller,
+	# så en felstavning stänger hellre än öppnar. Matcharen nedan träffar bara när grinden är på och kakan saknas.
 	@utan_kaka {
-		expression "'{$DEMO_GATE:on}' != 'off'"
+		expression "'{$DEMO_GATE:off}' != 'off'"
 		not vars {http.request.cookie.svada_tilltrade} {$DEMO_TILLTRADE_TOKEN}
 		not path /robots.txt
 	}
@@ -249,10 +249,25 @@
 }
 
 (mintaka_proxy) {
+	# JSON-LD-svaren bär kontextadressen Mintaka fick (internt nät); byt den mot brunnsvyns publika adress så att inget internt värdnamn syns.
+	replace {
+		stream
+		match {
+			header Content-Type application/ld+json*
+		}
+		"{$MODELL_KONTEXT_URL:http://publik-vy:8085/modell/utkast/0.1/context.jsonld}" "{$PUBLIK_URL_BRUNNAR}/modell/utkast/0.1/context.jsonld"
+	}
 	reverse_proxy host.docker.internal:{$MINTAKA_PORT} {
 		# Besökarens Link-header (JSON-LD-kontext) skickas inte vidare: Mintaka 0.7 hämtar annars kontexten från den adressen,
 		# och en besökare kunde då få Mintaka att göra ett anrop till en valfri adress.
-		header_up -Link
+		# (Ett "header_up -Link" skulle tas bort EFTER inställningen nedan: Caddy utför borttagningar sist. Att sätta huvudet ersätter besökarens.)
+		# Vår egen kontext (aldrig besökarens) läggs på i stället: Orion lagrar attributen under datamodellens adresser, och med kontexten
+		# svarar Mintaka med de korta namnen som förut. Adressen är internt nät, MODELL_KONTEXT_URL.
+		# JSON-LD-svaren nämner kontextadressen (den interna). Besökaren ska se den publika; Mintaka får inte gzippa så att texten går att byta.
+		header_up Accept-Encoding identity
+		# Mintaka ekar Link-huvudet (kontextadressen) också i JSON-svar: byt det mot den publika adressen.
+		header_down Link "{$MODELL_KONTEXT_URL:http://publik-vy:8085/modell/utkast/0.1/context.jsonld}" "{$PUBLIK_URL_BRUNNAR}/modell/utkast/0.1/context.jsonld"
+		header_up Link "<{$MODELL_KONTEXT_URL:http://publik-vy:8085/modell/utkast/0.1/context.jsonld}>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\""
 		# En enskild temporal fråga får inte hänga hur länge som helst
 		# (K3). Räcker gott för hela historiken i den återställda demon.
 		transport http {

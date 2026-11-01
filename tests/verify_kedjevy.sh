@@ -326,6 +326,71 @@ else
   echo "  [HOPPAR ÖVER] webbläsartestet kräver 'cd tools && npm install' och Chrome"
 fi
 
+# K39: nedladdningarna (nedladdning.py, filer.py): registret, åtkomst, interna adresser, kontrollsummor; utan stack
+section "K39 Nedladdning (nedladdning_enhet.py, utan stack)"
+python3 -I tests/nedladdning_enhet.py > "${TMP}/nedladdning-enhet.log" 2>&1; NDRC=$?
+cat "${TMP}/nedladdning-enhet.log"
+[ "${NDRC}" -eq 0 ] && ok "K39 nedladdningarna: $(grep -c '\[OK\]' "${TMP}/nedladdning-enhet.log") kontroller gröna" || no "K39 nedladdningarna misslyckades (exit ${NDRC})"
+
+# K40: nedladdningarna mot stacken. Filerna är det kedjan faktiskt har, med SHA-256 som stämmer med de byte som skickas, leveransens summa
+# är den ingest-service räknade vid mottagandet (och som auditloggen bär), och inget internt läcker.
+section "K40 Nedladdning mot stacken: faktiska filer, kontrollsumma, auditloggen, inget internt"
+PUBV="http://localhost:${PUBLIK_VY_PORT}"
+for ATG in kor-batch forhandla-b transfer-b; do        # en B-leverans ska finnas (den ska vara mottagen under ett avtal)
+  JID=$(curl -s --max-time 30 -X POST "${DASH}/api/atgard/${ATG}" -H 'content-type: application/json' -d '{}' | jq -r '.id // empty')
+  for _ in $(seq 1 60); do [ "$(curl -s --max-time 10 "${DASH}/api/jobb/${JID}" | jq -r '.status')" != "kör" ] && break; sleep 2; done
+done
+shasum_fil() { shasum -a 256 "$1" | cut -d' ' -f1; }
+NDFEL=0
+for F in matvarden matvarden-csv katalog deltagare odrl-b odrl-a avtal leverans-b schemakontroll cip-b analys-b-csv analys-b-json ordlista mim; do
+  KOD=$(curl -s --max-time 60 -D "${TMP}/nd-$F.h" -o "${TMP}/nd-$F.body" -w '%{http_code}' "${DASH}/api/ladda-ned/${F}")
+  if [ "${KOD}" != "200" ]; then echo "  [FEL] ${F}: HTTP ${KOD} ($(head -c 200 "${TMP}/nd-$F.body"))"; NDFEL=$((NDFEL+1)); continue; fi
+  HS=$(grep -i '^x-content-sha256:' "${TMP}/nd-$F.h" | tr -d '\r' | awk '{print $2}'); BS=$(shasum_fil "${TMP}/nd-$F.body")
+  if [ "${F}" != "leverans-b" ]; then
+    [ "${HS}" = "${BS}" ] && echo "  [OK] ${F}: kontrollsumman stämmer med filen" || { echo "  [FEL] ${F}: huvudet ${HS} men filen ${BS}"; NDFEL=$((NDFEL+1)); }
+  fi
+  grep -qiE 'edc-provider|edc-consumer|orion-stad|stad-gateway|ingest-service|identity-hub|host\.docker\.internal|127\.0\.0\.1|mintaka:' "${TMP}/nd-$F.body" && { echo "  [FEL] ${F}: interna adresser i filen"; NDFEL=$((NDFEL+1)); }
+  grep -qi '^content-disposition: attachment; filename="svada-' "${TMP}/nd-$F.h" || { echo "  [FEL] ${F}: saknar Content-Disposition med filnamn"; NDFEL=$((NDFEL+1)); }
+done
+[ "${NDFEL}" -eq 0 ] && ok "K40 14 filer: 200, kontrollsumma rätt, inga interna adresser, filnamn" || no "K40 ${NDFEL} fel bland de 14 filerna"
+# Leveransen: byte för byte det som togs emot; summan är den som räknades vid mottagandet och som auditloggen bär.
+HS=$(grep -i '^x-content-sha256:' "${TMP}/nd-leverans-b.h" | tr -d '\r' | awk '{print $2}'); BS=$(shasum_fil "${TMP}/nd-leverans-b.body")
+[ "${HS}" = "${BS}" ] && ok "K40 leverans-b: summan som räknades vid mottagandet är summan av filen" || no "K40 leverans-b: mottagningssumman ${HS} är inte filens ${BS}"
+curl -s --max-time 30 "${DASH}/api/audit" | jq -e --arg s "${HS}" '[.handelser[]? | select(.typ=="leverans") | .detaljer.sha256] | index($s) != null' >/dev/null \
+  && ok "K40 auditloggen bär leveransens SHA-256" || no "K40 auditloggen saknar leveransens SHA-256 ${HS}"
+[ "$(jq '.records | length' "${TMP}/nd-leverans-b.body")" = "91" ] && ok "K40 leverans-b innehåller 91 poster" || no "K40 leverans-b har inte 91 poster"
+# Engelska: filen ska komma som den är, med summa och filnamn (översättningen av API-svar får inte röra nedladdningar).
+curl -s --max-time 60 -D "${TMP}/nd-en.h" -o "${TMP}/nd-en.body" -H 'Accept-Language: en-US' "${DASH}/api/ladda-ned/odrl-b?lang=en" >/dev/null
+HS=$(grep -i '^x-content-sha256:' "${TMP}/nd-en.h" | tr -d '\r' | awk '{print $2}')
+[ -n "${HS}" ] && [ "${HS}" = "$(shasum_fil "${TMP}/nd-en.body")" ] && grep -qi '^content-disposition: attachment; filename="svada-.*\.json"' "${TMP}/nd-en.h" \
+  && ok "K40 engelska: nedladdningen bär kontrollsumma och filnamn, och summan stämmer med filen" || no "K40 engelska: nedladdningen saknar summa eller filnamn, eller summan stämmer inte"
+[ "$(jq 'length' "${TMP}/nd-cip-b.body")" -ge 91 ] && ok "K40 stadens plattform (B) har minst 91 poster" || no "K40 cip-b har färre än 91 poster"
+! head -1 "${TMP}/nd-analys-b-csv.body" | grep -qi 'position\|lon\|lat' && ok "K40 analysen för B saknar positioner" || no "K40 analys-b-csv har positioner"
+curl -s --max-time 30 "${DASH}/api/audit" | jq -e '[.handelser[]? | select(.typ=="nedladdning")] | length > 0' >/dev/null && ok "K40 nedladdningarna syns i auditloggen" || no "K40 nedladdningar saknas i auditloggen"
+for A in leverans-a cip-a analys-a-csv analys-a-geojson; do                  # A: 200 eller 403 med förklaring, aldrig ett serverfel
+  KOD=$(curl -s --max-time 60 -o "${TMP}/nd-a.body" -w '%{http_code}' "${DASH}/api/ladda-ned/${A}")
+  case "${KOD}" in 200|403|409) ok "K40 ${A}: ${KOD} (A följer avtalet)";; *) no "K40 ${A}: ${KOD}";; esac
+done
+[ "$(curl -s -o /dev/null -w '%{http_code}' "${DASH}/api/ladda-ned/finns-inte")" = "404" ] && ok "K40 en okänd fil ger 404" || no "K40 okänd fil ger inte 404"
+# Brunnsvyn: CSV, JSON med summa, datamodellen som zip med manifest och termlistan som CSV
+curl -s --max-time 30 -D "${TMP}/pv.h" -o "${TMP}/pv.csv" "${PUBV}/brunnar?format=csv"
+[ "$(grep -i '^x-content-sha256:' "${TMP}/pv.h" | tr -d '\r' | awk '{print $2}')" = "$(shasum_fil "${TMP}/pv.csv")" ] && [ "$(wc -l < "${TMP}/pv.csv")" -ge 92 ] \
+  && ok "K40 brunnsvyn: CSV med kontrollsumma och minst 91 brunnar" || no "K40 brunnsvyns CSV"
+curl -s --max-time 30 -D "${TMP}/pj.h" -o "${TMP}/pj.json" "${PUBV}/brunnar?format=json"
+[ "$(grep -i '^x-content-sha256:' "${TMP}/pj.h" | tr -d '\r' | awk '{print $2}')" = "$(shasum_fil "${TMP}/pj.json")" ] && ok "K40 brunnsvyn: JSON bär kontrollsumman av de byte som skickas" || no "K40 brunnsvyns JSON-summa"
+curl -s --max-time 30 -D "${TMP}/z.h" -o "${TMP}/utkast.zip" "${PUBV}/modell/utkast/0.1/utkast.zip"
+curl -s --max-time 30 -o "${TMP}/utkast2.zip" "${PUBV}/modell/utkast/0.1/utkast.zip"
+python3 -I - "${TMP}/utkast.zip" > "${TMP}/zipprov.log" 2>&1 <<'PY' && ok "K40 datamodellen som zip: manifestet stämmer med varje fil och LÄS-MIG säger utkast" || { cat "${TMP}/zipprov.log"; no "K40 zip-provet"; }
+import hashlib, json, sys, zipfile
+z = zipfile.ZipFile(sys.argv[1]); m = json.loads(z.read("MANIFEST.json"))["sha256"]
+assert m and all(hashlib.sha256(z.read(n)).hexdigest() == h for n, h in m.items()), "manifest"
+assert b"DRAFT" in z.read("READ-ME.txt")
+assert b"invalid" not in z.read("context.jsonld") and b"modell.svada" not in z.read("context.jsonld")
+PY
+cmp -s "${TMP}/utkast.zip" "${TMP}/utkast2.zip" && ok "K40 zip-filen är densamma vid varje hämtning (samma summa)" || no "K40 zip-filen skiljer mellan hämtningar"
+[ "$(grep -i '^x-content-sha256:' "${TMP}/z.h" | tr -d '\r' | awk '{print $2}')" = "$(shasum_fil "${TMP}/utkast.zip")" ] && ok "K40 zip: kontrollsumman i huvudet stämmer" || no "K40 zip-summan"
+[ "$(curl -s --max-time 30 "${PUBV}/modell/utkast/0.1/termlista.csv" | wc -l)" -ge 52 ] && ok "K40 termlistan som CSV har alla termer" || no "K40 termlistan som CSV"
+
 # K28: en egen vy per besökare (sessioner.py och sessionsdelarna i jobb.py): kaka, tidsgräns, tak, jobbkö, ägande. Utan stack och nätverk.
 section "K28 En egen vy per besökare: sessioner, jobbkö och ägande (sessioner_enhet.py, utan stack och utan nätverk)"
 if [ -n "${DASH_IMAGE:-}" ]; then
@@ -392,12 +457,51 @@ if docker image inspect "${DASH_IMAGE}" >/dev/null 2>&1; then
 else
   no "K33 hittar ingen dashboard-image; testet kan inte köras"
 fi
+# K33b: språkregeln efter webbläsaren är samma i kontrollrummet, brunnsvyn och gatewayen (ingen stack, inga beroenden)
+python3 tests/sprak_publik_enhet.py 2>&1 | tee "${TMP}/sprak-publik.log" | grep -E '^  \[FEL\]'
+[ "${PIPESTATUS[0]}" -eq 0 ] && ok "K33b språkregeln är lika i de tre tjänsterna ($(grep -c '^  \[OK\]' "${TMP}/sprak-publik.log") kontroller gröna)" || no "K33b språkregeln i de tre tjänsterna"
+
+# K36: staden hittar leverantören i deltagarregistret (MIM3 RC5.1), i dashboard-imagen utan nätverk
+section "K36 Leverantören hittas i deltagarregistret (leverantor_enhet.py, i dashboard-imagen, utan stack)"
+if docker image inspect "${DASH_IMAGE}" >/dev/null 2>&1; then
+  docker run --rm --network none -v "${PWD}/services:/srv:ro" -v "${PWD}/tests:/tst:ro" "${DASH_IMAGE}" python /tst/leverantor_enhet.py 2>&1 | tee "${TMP}/leverantor-enhet.log"
+  LVRC=${PIPESTATUS[0]}
+  LVFEL=$(grep -c '^  \[FEL\]' "${TMP}/leverantor-enhet.log"); LVOK=$(grep -c '^  \[OK\]' "${TMP}/leverantor-enhet.log")
+  if [ "${LVRC}" -eq 0 ] && [ "${LVFEL}" -eq 0 ] && [ "${LVOK}" -ge 12 ]; then ok "K36 leverantörsvalet: ${LVOK} kontroller gröna"
+  else no "K36 leverantörsvalet: exit ${LVRC}, ${LVFEL} fel, ${LVOK} OK (väntade minst 12)"; fi
+else
+  no "K36 hittar ingen dashboard-image; testet kan inte köras"
+fi
 
 # K32: portförskjutningen (två installationer på samma värd)
 section "K32 Portförskjutning: värdportarna flyttas, de interna lämnas (portforskjutning_enhet.py, utan stack)"
 python3 -I tests/portforskjutning_enhet.py > "${TMP}/portforskjutning.log" 2>&1; PRC=$?
 cat "${TMP}/portforskjutning.log"
 [ "${PRC}" -eq 0 ] && ok "K32 portförskjutningen: klassningen och förskjutningen stämmer" || no "K32 portförskjutningen misslyckades (exit ${PRC})"
+
+# K34: datamodellens utkast (termlistan stämmer med koden, filerna är genererade, UTKAST-märkningen finns; utan stack)
+section "K34 Datamodellens utkast stämmer med koden och är märkt som utkast (datamodell_enhet.py, utan stack)"
+python3 -I tests/datamodell_enhet.py > "${TMP}/datamodell-enhet.log" 2>&1; DMRC=$?
+cat "${TMP}/datamodell-enhet.log"
+[ "${DMRC}" -eq 0 ] && ok "K34 datamodellens utkast: $(grep -c '\[OK\]' "${TMP}/datamodell-enhet.log") kontroller gröna" || no "K34 datamodellens utkast misslyckades (exit ${DMRC})"
+
+# K35: datamodellen på brunnsvyns adress (modell.py): bara fasta filer, varje term uppslagbar, allt märkt som utkast; utan stack
+section "K35 Datamodellens utkast på brunnsvyns adress (modell_publik_enhet.py, utan stack)"
+python3 -I tests/modell_publik_enhet.py > "${TMP}/modell-publik-enhet.log" 2>&1; MPRC=$?
+cat "${TMP}/modell-publik-enhet.log"
+[ "${MPRC}" -eq 0 ] && ok "K35 datamodellen på brunnsvyn: $(grep -c '\[OK\]' "${TMP}/modell-publik-enhet.log") kontroller gröna" || no "K35 datamodellen på brunnsvyn misslyckades (exit ${MPRC})"
+
+# K37: MIM-rutorna på stegen och sidorna (mim.py): status mot docs/mims, länkar, båda språken, inget internt; utan stack
+section "K37 MIM-rutor (mim_enhet.py, utan stack)"
+python3 -I tests/mim_enhet.py > "${TMP}/mim-enhet.log" 2>&1; MIRC=$?
+cat "${TMP}/mim-enhet.log"
+[ "${MIRC}" -eq 0 ] && ok "K37 MIM-rutorna: $(grep -c '\[OK\]' "${TMP}/mim-enhet.log") kontroller gröna" || no "K37 MIM-rutorna misslyckades (exit ${MIRC})"
+
+# K38: schemakontrollen vid inläsning (schemakontroll.py): exempelfilerna godkänns, avvikelser hittas, saknat schema redovisas öppet; utan stack
+section "K38 Schemakontroll vid inläsning (schemakontroll_enhet.py, utan stack)"
+python3 -I tests/schemakontroll_enhet.py > "${TMP}/schemakontroll-enhet.log" 2>&1; SKRC=$?
+cat "${TMP}/schemakontroll-enhet.log"
+[ "${SKRC}" -eq 0 ] && ok "K38 schemakontrollen: $(grep -c '\[OK\]' "${TMP}/schemakontroll-enhet.log") kontroller gröna" || no "K38 schemakontrollen misslyckades (exit ${SKRC})"
 
 # K31: versionsnumret (.env är källan; nyheter.py, sidfoten, /api/status, /nyheter och brunnsvyn följer det)
 section "K31 Versionsnummer: .env, /nyheter, sidfoten och /api/status är samma version (version_enhet.py + mot stacken)"

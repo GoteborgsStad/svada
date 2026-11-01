@@ -447,7 +447,7 @@ fi
 if grep -rn 'url("fcf", *"/distributions' services/dashboard/ >/dev/null 2>&1; then
   no "6b.9 dashboardkoden hämtar dataproduktens nyttolast från fcf-sim"
 else
-  ok "6b.9 dashboardkoden hämtar aldrig dataproduktens nyttolast (bara /health, /batches/run, /felinjektion)"
+  ok "6b.9 dashboardkoden hämtar aldrig dataproduktens nyttolast (bara /health, /batches/run, /felinjektion och mätfönstret /measurements, inte batchen)"
 fi
 MEM=$(docker stats --no-stream --format '{{.MemUsage}}' ${SVADA_PREFIX:-svada}-dashboard 2>/dev/null)
 [ -n "${MEM}" ] && ok "6b.9 minnesanvändning: ${MEM}" || no "6b.9 kunde inte mäta minnet"

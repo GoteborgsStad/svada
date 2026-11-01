@@ -198,6 +198,12 @@ for at in ("kor-batch", "hamta-katalog", "forhandla-b", "transfer-b", "forhandla
     klart(sd, at)
 klart(sd, "transfer-a", status="fel", utfall="nekad")
 kolla(nasta_for(sd) == "forhandla-a", "efter en nekad leverans av A är nästa 'forhandla-a'")
+# Ett driftfel (inte en spärr) vid Leverera A ändrar inget: avtalet gäller, så nästa är att leverera igen
+sdf = sessioner.Session("f" * 32); besokare[sdf.id] = sdf
+for at in ("kor-batch", "hamta-katalog", "forhandla-b", "transfer-b", "forhandla-a", "kov-godkann"):
+    klart(sdf, at)
+klart(sdf, "transfer-a", status="fel", utfall=None)
+kolla(nasta_for(sdf) == "transfer-a", "efter ett driftfel vid Leverera A är nästa 'transfer-a' igen (avtalet gäller)")
 # Ett avslag av en NY begäran medan ett avtal gäller (delad demon: avslaget häver inget) tar besökaren tillbaka dit hen var; häver avslaget avtal börjar hen om.
 for nr_, (havda, forvantat) in enumerate((([], "analysera"), (["x"], "forhandla-a"))):
     sh = sessioner.Session(("%x" % (50 + nr_)) * 32)

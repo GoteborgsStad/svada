@@ -279,7 +279,13 @@ REF="$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -X POST -H "X-Api-Ke
   || no "8f3.6 referensanropet svarade HTTP ${REF}, förväntat 404"
 echo "  (testläge svada-roll: startar om utfärdare, hubbar och connectorer ...)"
 if starta_om_identitet "svada-roll"; then ok "8f3.6 stacken uppe i testläge svada-roll"; else no "8f3.6 stacken kom inte upp i testläge"; fi
-docker logs "${P}-identity-hub-stad" 2>&1 | grep -q "TESTLÄGE svada-roll - lagrar ett rollintyg utfärdat av Svada" \
+# Raden skrivs av hubbens start-steg, som kan komma efter hälsokontrollen: vänta på just den raden (högst 30 s) i stället för att läsa loggen en gång.
+ROLLRAD=1
+for _ in $(seq 1 30); do
+  docker logs "${P}-identity-hub-stad" 2>&1 | grep -q "TESTLÄGE svada-roll - lagrar ett rollintyg utfärdat av Svada" && { ROLLRAD=0; break; }
+  sleep 1
+done
+[ "${ROLLRAD}" -eq 0 ] \
   && ok "8f3.6 staden håller nu ett rollintyg utfärdat av Svada (testlägets avsikt)" \
   || no "8f3.6 testläget lagrade inget Svada-signerat rollintyg"
 TOKEN="$(hamta_kov_token)"
@@ -321,6 +327,12 @@ done
 [ "${MEDLEM}" = "2" ] && ok "8f3.7 staden håller två medlemsintyg: ett från Svada och ett självutfärdat" \
   || no "8f3.7 staden håller ${MEDLEM} medlemsintyg (förväntat 2)"
 hamta_katalog
+# Direkt efter en omstart kan stadens identitetstjänst svara 405 på STS-vägen ("Unable to obtain credentials"): då har ingen provider
+# hunnit avgöra något, så anropet görs om. Ett svar från providern (Unauthorized eller en katalog) är aldrig skäl för nytt försök.
+for _ in 1 2 3 4 5 6; do
+  grep -q 'Unable to obtain credentials' "${KATALOG_FIL}" 2>/dev/null || break
+  sleep 5; hamta_katalog
+done
 if ! katalog_ok && grep -q 'Unauthorized' "${KATALOG_FIL}"; then
   ok "8f3.7 providern avvisar DSP-anropet (401) när staden presenterar ett självutfärdat medlemsintyg"
 else

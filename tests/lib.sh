@@ -2,6 +2,9 @@
 # Gemensamma hjälpfunktioner för verify_apN.sh.
 # Källas in: . "$(dirname "$0")/lib.sh"
 
+# Datamodellens kontext som Link-header mot Orion och Mintaka (attributen lagras under modellens adresser; med kontexten kommer de korta namnen tillbaka).
+LANK_MODELL=(-H "Link: <${MODELL_KONTEXT_URL:-http://publik-vy:8085/modell/utkast/0.1/context.jsonld}>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"")
+
 # Räknare för fel i aktuellt skript.
 FAIL=0
 
@@ -84,7 +87,7 @@ demo_inloggning() {
   local dir="$1" anv pw svar
   [ -n "${PUBLIK_URL_KONTROLLRUM:-}" ] || return 0
   # Lösenordsgrinden är avstängd (DEMO_GATE=off): ingen inloggning behövs och ingen kaka finns.
-  [ "${DEMO_GATE:-on}" = "off" ] && { echo "  (lösenordsgrinden är avstängd: ingen inloggning)"; return 0; }
+  [ "${DEMO_GATE:-off}" = "off" ] && { echo "  (lösenordsgrinden är avstängd: ingen inloggning)"; return 0; }
   if [ ! -s .demo-losenord ]; then
     no "demo_inloggning: .demo-losenord saknas (kör tools/nytt-demo-losenord.sh)"
     return 1

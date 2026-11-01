@@ -32,7 +32,7 @@ ORION="http://localhost:${ORION_STAD_PORT}"
 # ÅTGÄRD G22: :2026 är numera stad-gateway. Läsning av CIP:en kräver token –
 # verifieringen är stadens egen komponent och använder drifttoken. Att
 # läsningen NEKAS utan token verifieras i 1.8.
-ORION_AUTH=(-H "Authorization: Bearer ${STAD_GATEWAY_DRIFT_TOKEN}")
+ORION_AUTH=(-H "Authorization: Bearer ${STAD_GATEWAY_DRIFT_TOKEN}" "${LANK_MODELL[@]}")
 MINTAKA="http://localhost:${MINTAKA_PORT}"
 BRUNN="urn:ngsi-ld:SewerOverflowWeir:SSO1_01-4526"          # brunnsregistret (orört av leveranserna)
 BRUNN_B="urn:ngsi-ld:SewerOverflowModelB:SSO1_01-4526"      # modellerat värde, öppen distribution
@@ -306,8 +306,10 @@ else
 fi
 
 if echo "$LEV" | jq -e '.resultat == "LEVERERAD" and .distribution == "B"
-                         and .entiteter == 91' >/dev/null 2>&1; then
-  ok "4c.1 ingest kvitterade 91 entiteter ur Distribution B ($(echo "$LEV" | jq -r .batchId))"
+                         and .entiteter == 91
+                         and .schemakontroll.resultat == "OK" and .schemakontroll.godkanda == 91
+                         and .schemakontroll.schema == "schema-profil-B.json"' >/dev/null 2>&1; then
+  ok "4c.1 ingest kvitterade 91 entiteter ur Distribution B, alla godkända av schemakontrollen ($(echo "$LEV" | jq -r .batchId))"
 else
   no "4c.1 ingest-kvittot ser fel ut: $LEV"
 fi
@@ -553,7 +555,7 @@ else
   no "4c.6 den andra batchens transfer hamnade i '$TP_TILLSTAND' (kvitto: $LEV)"
 fi
 sleep 5
-TIDSSTEG=$(curl -s --max-time 30 \
+TIDSSTEG=$(curl -s "${LANK_MODELL[@]}" --max-time 30 \
   "${MINTAKA}/temporal/entities/${BRUNN_B}?attrs=overflowVolumeM3&timerel=after&timeAt=2020-01-01T00:00:00Z" \
   | jq '[ .overflowVolumeM3[]?.observedAt ] | unique | length')
 if [ "${TIDSSTEG:-0}" -ge 2 ]; then

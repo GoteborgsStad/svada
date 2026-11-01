@@ -24,6 +24,10 @@ dataägaren (KoV); här är det ett utkast som ingen har godkänt.
 | Begreppsmodell | NGSI-LD-entiteter; `SewerOverflowWeir` är ingen publicerad Smart Data Model (G7) |
 | Höjdreferens | Ej angiven (G18) |
 
+### Beslut: utsläppspunktens koordinater i distribution B (2026-11-01)
+
+Distribution B (K0R1T1) tar bort *brunnens* egen GIS: `location` och `sourceSrs`. **Utsläppspunkten** (där vattnet rinner ut i mottagaren) behåller sina koordinater i leverans B (`outlet.location`), eftersom den hör till vad bräddningen påverkar och inte till brunnens läge i stadens ledningsnät. Brunnsvyns öppna filer och termlistan har inga koordinater alls. Zip-filen innehåller exempelfilen `examples/example-A.json`, vars position är påhittad (inte en riktig brunn). Det är ett medvetet val som granskare och testare inte ska rapportera som läcka. Alternativet, att också ta bort utsläppspunktens koordinater i B, ändrar dataprodukten och ska i så fall beslutas av dataägaren (Kretslopp och Vatten).
+
 ## 14.2 Vad som är riktigt och vad som är syntetiskt
 
 * **En brunn av 91** (SSO1_01-4526, Krokängsparken) bygger på riktiga mätvärden. De övriga **90 är

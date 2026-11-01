@@ -335,3 +335,24 @@ talar DSP, men interoperabiliteten behöver verifieras per version – ett
 naturligt PoC 3-tema); juridiken kring maskinförhandlade avtal (stadens
 jurister behövs tidigt); och dataförordningens effekt på
 leverantörsavtalen, DHI-avtalet inräknat.
+
+## 8.5 Kakor och tredje part (granskat 2026-10-30)
+
+Demon sätter bara kakor som behövs för att den ska fungera eller som besökaren själv bett om. Inga spårnings- eller
+reklamkakor, ingen tredjepartsskript.
+
+| Kaka | Värd | Syfte | Livslängd | Sätts när |
+|---|---|---|---|---|
+| `svada-sess` | kontrollrummet | Slumpad id (128 bit) som håller isär besökarnas avtal och jobb. HttpOnly, SameSite=Lax. Kopplas inte till person eller IP; ligger bara i serverns minne. | 24 timmar | Vid första besöket på kontrollrummet (alla adresser utom `/health` och statiska filer), i externa varianten via Caddy. Brunnsvyn sätter den inte |
+| `svada-sprak` | kontrollrummet och brunnsvyn (var för sig) | Minns språkvalet (`sv`/`en`). | 1 år | Bara när besökaren väljer språk uttryckligen (`?lang=` eller språkknappen) |
+| `svada_tilltrade` | alla värdar (hela domänen) | Bara om lösenordsgrinden är på (`DEMO_GATE` ej `off`; av som standard): minns att besökaren angett lösenordet. HttpOnly. | 30 dagar (`DEMO_KAKA_MAXALDER`) | Efter rätt lösenord, satt av Caddy |
+| `svada-test` | alla värdar | Håller vårt eget testbesök utanför statistiken. | 1 år | Bara via `?test=1`, alltså inte för vanliga besökare |
+
+**Språkval:** `?lang=` går först, sedan kakan `svada-sprak`, sist webbläsarens språk (`Accept-Language`): svenska om
+svenska är det första önskemålet, annars engelska. Utan huvud (curl, sökrobotar, våra prov) blir det svenska. Kontrollrummets startsida och brunnsvyns HTML-sidor bär
+`Vary: Accept-Language, Cookie`; övriga svar gör det inte, men ingen delad cache står framför demon (Caddy cachar inte).
+
+**Tredje part:** Leaflet (kartan) och all övrig kod serveras av oss. Kartplattorna hämtas av besökarens webbläsare från
+`tile.openstreetmap.org` när brunnarna ur A visas. OpenStreetMap ser då besökarens IP-adress och ungefär vilket område som
+visas; vi har kontrollerat att plattornas svar inte sätter någon kaka. Inga typsnitt, analystjänster eller inbäddningar hämtas
+utifrån. Statistiken räknas ur Caddys egen åtkomstlogg med kapade IP-adresser, utan kakor.

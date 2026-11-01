@@ -72,14 +72,15 @@ def forhandla(asset, katalog=None):
     offert = dict(offert_for(katalog, asset))
     offert["@context"] = ["http://www.w3.org/ns/odrl.jsonld",
                           {"svada": "https://svada.goteborg.se/ns/"}]
-    offert["assigner"] = kallor.PROVIDER_ID
+    lev = kallor.valj_leverantor()
+    offert["assigner"] = lev["id"]
     offert["target"] = asset
     svar = kallor.anrop(
         kallor.url("edc_consumer_mgmt", "/management/v3/contractnegotiations"),
         "POST", {
             "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
             "@type": "ContractRequest",
-            "counterPartyAddress": kallor.PROVIDER_DSP,
+            "counterPartyAddress": kallor.valj_leverantor()["adress"],
             "protocol": kallor.DSP_PROTOKOLL,
             "policy": offert},
         headers=kallor.EDC_CONSUMER_MGMT_HUVUD, timeout=30)
@@ -140,7 +141,7 @@ def _starta_transfer(avtal, token):
         "POST", {
             "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
             "@type": "TransferRequest",
-            "counterPartyAddress": kallor.PROVIDER_DSP,
+            "counterPartyAddress": kallor.valj_leverantor()["adress"],
             "contractId": avtal,
             "protocol": kallor.DSP_PROTOKOLL,
             "transferType": kallor.TRANSFER_TYPE,

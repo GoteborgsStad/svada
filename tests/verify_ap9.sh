@@ -43,6 +43,9 @@ TMP="$(mktemp -d)"; trap 'rm -rf "${TMP}"' EXIT
 # själva grinden, utan kakan).
 T0_EPOK="$(date +%s)"       # 9.12 granskar bara loggrader från den här körningen (äldre rader kan vara skrivna med en äldre inställning); inloggningen nedan är en Basic-begäran
 demo_inloggning "${TMP}"
+# Vår egen provning ska inte synas i användningsstatistiken (robotar, API-träffar, fel och begränsade räknas annars med): alla curl-anrop
+# bär testkakan svada-test, som en webbläsare efter ?test=1. Anrop med "curl -q" (9.11, utan .curlrc) styr kakan själva.
+printf 'cookie = "svada-test=1"\n' >>"${TMP}/.curlrc"; export CURL_HOME="${TMP}"
 # Användarnamnet kan vara valt (nytt-demo-losenord.sh --valj): ta det ur
 # lösenordsfilen, inte standardvärdet i .env.
 DEMO_ANVANDARE="$(sed -n 's/^användare: //p' .demo-losenord 2>/dev/null)"
@@ -268,8 +271,8 @@ try: d=json.load(open(sys.argv[1]))
 except Exception: d=[]
 print(sum(1 for e in d if isinstance(e,dict) and e.get('type')==sys.argv[2]) if isinstance(d,list) else 0)" "$1" "$2"
 }
-MK_A="$(curl -s --max-time 30 -o "${TMP:-/tmp}/ts-a-direkt.json" -w '%{http_code}' "${MINTAKA_DIREKT}?type=SewerOverflowModelA&${TS_TID}&limit=1")"
-MK_B="$(curl -s --max-time 30 -o "${TMP:-/tmp}/ts-b-direkt.json" -w '%{http_code}' "${MINTAKA_DIREKT}?type=SewerOverflowModelB&${TS_TID}&limit=1")"
+MK_A="$(curl -s "${LANK_MODELL[@]}" --max-time 30 -o "${TMP:-/tmp}/ts-a-direkt.json" -w '%{http_code}' "${MINTAKA_DIREKT}?type=SewerOverflowModelA&${TS_TID}&limit=1")"
+MK_B="$(curl -s "${LANK_MODELL[@]}" --max-time 30 -o "${TMP:-/tmp}/ts-b-direkt.json" -w '%{http_code}' "${MINTAKA_DIREKT}?type=SewerOverflowModelB&${TS_TID}&limit=1")"
 A_FINNS="$(antal_typ "${TMP:-/tmp}/ts-a-direkt.json" SewerOverflowModelA)"
 B_FINNS="$(antal_typ "${TMP:-/tmp}/ts-b-direkt.json" SewerOverflowModelB)"
 # Rent läge (nollställningen kör verify_ap9 innan något levererats): då finns inget att läcka och provet bevisar inget.
@@ -317,6 +320,21 @@ NB="$(antal_typ "${TMP:-/tmp}/ts-prov.json" SewerOverflowModelB)"; NA="$(antal_t
 { [ "${KOD}" = 200 ] || [ "${KOD}" = 206 ]; } && [ "${NB}" -ge 1 ] && [ "${NA}" = 0 ] \
   && ok "positivt fall: exakt en B-typ med kända parametrar ger B-entiteter (${KOD}) och ingen A" \
   || no "B-frågan gav ${KOD}, ${NB} B- och ${NA} A-entiteter (väntade 200/206, minst en B, ingen A)"
+# Gatewayen (distribution A, med drifttoken) nämner den PUBLIKA kontextadressen i JSON-LD-svar och i Link-huvudet, aldrig det interna värdnamnet.
+GW_LD="$(curl -s -D - --max-time 30 -H "Authorization: Bearer ${STAD_GATEWAY_DRIFT_TOKEN}" -H 'Accept: application/ld+json' "${PUBLIK_URL_CIP}/ngsi-ld/v1/entities?type=SewerOverflowModelB&limit=1")"
+if echo "${GW_LD}" | grep -q "modell/utkast/0.1/context.jsonld" && ! echo "${GW_LD}" | grep -q "publik-vy"; then ok "gatewayens JSON-LD-svar pekar på den publika kontexten och nämner inget internt värdnamn"; else no "gatewayens JSON-LD-svar saknar den publika kontexten eller nämner publik-vy"; fi
+# Tidsserien (B, öppen): JSON-LD-svaret nämner den PUBLIKA kontextadressen och aldrig det interna värdnamnet (Caddy byter den).
+TS_LD="$(curl -s --max-time 30 -H 'Accept: application/ld+json' "${PUBLIK_URL_TIDSSERIE}/temporal/entities?type=SewerOverflowModelB&attrs=overflowVolumeM3&limit=1&${TS_TID}")"
+if echo "${TS_LD}" | grep -q "${PUBLIK_URL_BRUNNAR}/modell/utkast/0.1/context.jsonld" && ! echo "${TS_LD}" | grep -q "publik-vy"; then ok "tidsseriens JSON-LD-svar pekar på den publika kontexten och nämner inget internt värdnamn"; else no "tidsseriens JSON-LD-svar saknar den publika kontexten eller nämner publik-vy"; fi
+# Samma i JSON-svarets huvuden (Mintaka ekar Link-huvudet också där).
+TS_HUV="$(curl -s -D - -o /dev/null --max-time 30 "${PUBLIK_URL_TIDSSERIE}/temporal/entities?type=SewerOverflowModelB&attrs=overflowVolumeM3&limit=1&${TS_TID}")"
+if ! echo "${TS_HUV}" | grep -qi "publik-vy"; then ok "tidsseriens JSON-svar har inget internt värdnamn i svarshuvudena"; else no "tidsseriens JSON-svar nämner publik-vy i svarshuvudena"; fi
+# Besökarens egen Link-header (JSON-LD-kontext) ersätts av vår: svaret är detsamma och Mintaka hämtar aldrig besökarens adress.
+KOD_L="$(curl -s -o "${TMP:-/tmp}/ts-link.json" -w '%{http_code}' --max-time 30 -H 'Link: <http://lank-prov.invalid/x.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' "${PUBLIK_URL_TIDSSERIE}/temporal/entities?type=SewerOverflowModelB&attrs=overflowVolumeM3&limit=1&${TS_TID}")"
+NB_L="$(antal_typ "${TMP:-/tmp}/ts-link.json" SewerOverflowModelB)"
+{ [ "${KOD_L}" = 200 ] || [ "${KOD_L}" = 206 ]; } && [ "${NB_L}" -ge 1 ] && ! docker logs "${SVADA_PREFIX:-svada}-mintaka" 2>&1 | grep -q "lank-prov.invalid" \
+  && ok "besökarens Link-header ersätts av datamodellens kontext (${KOD_L}); Mintaka hämtar aldrig besökarens adress" \
+  || no "besökarens Link-header påverkade svaret (${KOD_L}, ${NB_L} B-entiteter) eller Mintaka försökte hämta den"
 KOD="$(ts_hamta "/urn:ngsi-ld:SewerOverflowModelA:SSO1_01-4526?${TS_TID}")"
 [ "${KOD}" = 403 ] && ok "enskild A-entitet på tidsserien nekas (403)" || no "enskild A-entitet gav ${KOD}, väntade 403"
 grep -q "Only the open distribution (B)" "${TMP:-/tmp}/ts-prov.json" && grep -q "Bara den öppna distributionen (B)" "${TMP:-/tmp}/ts-prov.json" \
@@ -393,7 +411,14 @@ else
 fi
 D1="$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "${PUBLIK_URL_BRUNNAR}/docs")"
 D2="$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "${PUBLIK_URL_BRUNNAR}/openapi.json")"
-{ [ "${D1}" = 404 ] && [ "${D2}" = 404 ]; } && ok "brunnar: /docs och /openapi.json är stängda (404)" || no "brunnar /docs=${D1}, /openapi.json=${D2} (väntade 404)"
+# /docs (interaktiv sida) är stängd; /openapi.json är medvetet öppen sedan MIM0 R1.3 (handskriven beskrivning av de tre publika sökvägarna, utan interna detaljer).
+OA="$(curl -s --max-time 10 "${PUBLIK_URL_BRUNNAR}/openapi.json")"
+OA_STAD="$(printf '%s' "${OA}" | python3 -c 'import json,sys; d=json.load(sys.stdin); print("ja" if d.get("openapi")=="3.1.0" and sorted(d["paths"])==["/brunnar","/brunnar/{id}","/health"] else "nej")' 2>/dev/null || echo nej)"
+{ [ "${D1}" = 404 ] && [ "${D2}" = 200 ] && [ "${OA_STAD}" = ja ]; } && ok "brunnar: /docs är stängd (404) och /openapi.json är den öppna beskrivningen (3.1.0, tre sökvägar)" || no "brunnar /docs=${D1}, /openapi.json=${D2}, beskrivning ok=${OA_STAD} (väntade 404, 200, ja)"
+
+# Datamodellens UTKAST på brunnsvyns adress (docs/modell): sidan, filerna och varje term går att slå upp, och allt är märkt som utkast
+if python3 -I tests/modell_http.py "${PUBLIK_URL_BRUNNAR}" > "${TMP:-/tmp}/modell-http.log" 2>&1; then ok "brunnar /modell: datamodellens utkast är uppslagbart och märkt som utkast ($(grep -c '\[OK\]' "${TMP:-/tmp}/modell-http.log") kontroller)"
+else no "brunnar /modell: $(grep -c FEL "${TMP:-/tmp}/modell-http.log") fel, se ${TMP:-/tmp}/modell-http.log"; grep FEL "${TMP:-/tmp}/modell-http.log" | head -5; fi
 
 # --- 9.10 Hastighetsbegränsning (K3/K4) -------------------------------
 # Testas mot kontrollrummets POST-zon: en okänd åtgärd har ingen sidoeffekt
@@ -416,7 +441,7 @@ fi
 # Demon ska inte indexeras eller spridas före lanseringen: hela ingången
 # ligger bakom ett gemensamt lösenord (Caddyfile, snippet "inloggning").
 # "curl -q" = utan .curlrc, alltså UTAN tillträdeskakan.
-if [ "${DEMO_GATE:-on}" = "off" ]; then
+if [ "${DEMO_GATE:-off}" = "off" ]; then
   section "9.11 Lösenordsgrinden (avstängd)"
   ok "9.11 lösenordsgrinden är avstängd (DEMO_GATE=off): inloggningsproven hoppas över"
 else

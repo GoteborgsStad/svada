@@ -53,6 +53,10 @@ KATALOG = {
     "jobb.batch": {"sv": "FCF producerade batch {batch} för modellerat dygn {dygn} ({antal} poster)",
                    "en": "FCF produced batch {batch} for modelled day {dygn} ({antal} records)"},
     "jobb.underlag": {"sv": "underlag: {kalla}", "en": "basis: {kalla}"},
+    "jobb.leverantor_registret": {"sv": "staden hittade leverantören {namn} i samordnarens deltagarregister",
+                                  "en": "the City found the provider {namn} in the orchestrator's participant directory"},
+    "jobb.leverantor_konfig": {"sv": "staden hittade ingen leverantör i deltagarregistret (eller nådde det inte) och använder den konfigurerade leverantören",
+                               "en": "the City found no provider in the participant directory (or could not reach it) and uses the configured provider"},
     "jobb.katalograd": {"sv": "{asset} – {namn} ({klass}, {atkomst}): {villkor}",
                         "en": "{asset} – {namn} ({klass}, {atkomst}): {villkor}"},
     "jobb.forh_startad": {"sv": "förhandling {id} startad om Distribution {dist}",
@@ -287,6 +291,8 @@ KATALOG = {
     "audit.felinj_automatisk": {"sv": "Felinjektionen slogs av automatiskt (den publika demon låter den inte stå kvar)",
                                 "en": "Fault injection was switched off automatically (the public demo does not leave it on)"},
     "audit.felinj_nollstalld": {"sv": "Felinjektionen nollställd", "en": "Fault injection reset"},
+    "audit.nedladdning": {"sv": "Nedladdning: {fil|fil} ({filnamn}, {bytes} byte, SHA-256 {sha})",
+                          "en": "Download: {fil|fil} ({filnamn}, {bytes} bytes, SHA-256 {sha})"},
     "audit.ingest_avvisad": {"sv": "AVVISAD ({orsak|orsak}): {detalj}", "en": "REJECTED ({orsak|orsak}): {detalj}"},
     "audit.kallfel_forhandlingar": {"sv": "consumerns förhandlings-API: {fel}",
                                     "en": "the consumer's negotiation API: {fel}"},
@@ -310,8 +316,12 @@ KATALOG = {
     # ---- stadens mottagning (ingest-service) --------------------------------------------------
     "ingest.auktoriserad": {"sv": "engångsnyckel utfärdad för Distribution {dist}",
                             "en": "one-time key issued for Distribution {dist}"},
-    "ingest.levererad": {"sv": "Distribution {dist}, batch {batch} -> {entiteter} entiteter i stadens dataplattform",
-                         "en": "Distribution {dist}, batch {batch} -> {entiteter} entities in the city data platform"},
+    "ingest.levererad": {"sv": "Distribution {dist}, batch {batch} -> {entiteter} entiteter i stadens dataplattform. Schemakontroll mot datamodellens utkast ({schema}): {godkanda} av {poster} godkända",
+                         "en": "Distribution {dist}, batch {batch} -> {entiteter} entities in the city's data platform. Schema check against the draft data model ({schema}): {godkanda} of {poster} passed"},
+    "ingest.levererad_utan_schema": {"sv": "Distribution {dist}, batch {batch} -> {entiteter} entiteter i stadens dataplattform. Schemakontrollen kunde inte köras (schemat saknas)",
+                                     "en": "Distribution {dist}, batch {batch} -> {entiteter} entities in the city's data platform. The schema check could not run (the schema is missing)"},
+    "ingest.schema_avvikelse": {"sv": "leveransen följer inte datamodellens schema ({schema}): {godkanda} av {poster} poster godkändes",
+                                "en": "the delivery does not follow the data model's schema ({schema}): {godkanda} of {poster} records passed"},
     "ingest.edc_otillganglig": {"sv": "kunde inte nå stadens EDC ({url}): {fel}",
                                 "en": "could not reach the city's EDC ({url}): {fel}"},
     "ingest.edc_http": {"sv": "stadens EDC svarade HTTP {http} vid avtalsuppslag",
@@ -355,14 +365,14 @@ KATALOG = {
     "ingest.gis_i_b": {
         "sv": "AVTALSBROTT: Distribution B innehåller brunns-GIS ({falt|lista}) i {antal} av {totalt} poster – "
               "leveransen avvisas i sin helhet",
-        "en": "BREACH OF CONTRACT: Distribution B contains well GIS ({falt|lista}) in {antal} of {totalt} "
+        "en": "BREACH OF CONTRACT: Distribution B contains chamber GIS ({falt|lista}) in {antal} of {totalt} "
               "records – the delivery is rejected as a whole"},
     "ingest.schema_avviker": {
         "sv": "schemat avviker från dataproduktavtalet i {antal} av {totalt} poster (omdöpta eller uteblivna fält)",
         "en": "the schema deviates from the data product agreement in {antal} of {totalt} records (renamed or "
               "missing fields)"},
     "ingest.orion_skrivfel": {"sv": "kunde inte skriva till stadens dataplattform: {fel}",
-                              "en": "could not write to the city data platform: {fel}"},
+                              "en": "could not write to the city's data platform: {fel}"},
     "ingest.exempel_gis": {"sv": "{id} bär {falt|lista}", "en": "{id} carries {falt|lista}"},
     "ingest.exempel_saknar": {"sv": "{id} saknar {falt|lista}", "en": "{id} is missing {falt|lista}"},
 
@@ -407,7 +417,7 @@ KATALOG = {
     "gateway.okand_token": {"sv": "okänd åtkomsttoken", "en": "unknown access token"},
     "gateway.token_utgangen": {"sv": "åtkomsttoken har gått ut", "en": "the access token has expired"},
     "gateway.ogiltig_json": {"sv": "kroppen är inte giltig JSON", "en": "the body is not valid JSON"},
-    "gateway.cip_otillganglig": {"sv": "kunde inte nå stadens dataplattform", "en": "could not reach the city data platform"},
+    "gateway.cip_otillganglig": {"sv": "kunde inte nå stadens dataplattform", "en": "could not reach the city's data platform"},
 
     # ---- fcf-sim ------------------------------------------------------------------------------
     "fcf.schemadrift": {"sv": "döper om {byten}", "en": "renames {byten}"},
@@ -512,6 +522,13 @@ DELTAGARE = {"dhi": ("DHI", "DHI"), "stad": ("staden", "the city")}
 
 
 def _filter(namn, varde, sprak, v_ra):
+    if namn == "fil":
+        try:
+            import nedladdning                              # sent: nedladdning.py importerar audit, som importerar den här modulen
+        except ImportError:                                 # utan resten av tjänsten (till exempel i ett enhetsprov) visas id:t
+            return str(varde)
+        post = nedladdning.PER_ID.get(str(varde))
+        return post["en" if sprak == "en" else "sv"][0] if post else str(varde)
     if namn == "deltagare":
         delar = v_ra if isinstance(v_ra, (list, tuple)) else [v_ra]
         i = 1 if sprak == "en" else 0

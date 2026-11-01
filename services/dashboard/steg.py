@@ -99,12 +99,29 @@ def _d1():
     ]
 
 
+_STATUS_SV = {"valid": "giltigt", "revoked": "återkallat"}
+
+
+def _deltagare_i_registret():
+    """Deltagarna i samordnarens register, utan DID och adress (de innehåller interna värdnamn och visas inte)."""
+    try:
+        return [p for p in (kallor.deltagarregister().get("participants") or []) if p.get("name")]
+    except kallor.KallFel:
+        return []
+
+
 def _d2():
     kat = kallor.dsp_katalog()
     dataset = kat.get("dcat:dataset") or kat.get("dataset") or []
     if isinstance(dataset, dict):
         dataset = [dataset]
-    rader = [("Datamängder i DSP-katalogen", len(dataset))]
+    lev = kallor.valj_leverantor()
+    rader = [("Leverantör hittad via", "deltagarregistret" if lev["kalla"] == "registret" else "inställningen (ingen leverantör i registret, eller registret nåddes inte)")]
+    for p in _deltagare_i_registret():
+        rader.append(("Deltagare i registret: %s" % p["name"],
+                      "medlemskap %s, deltagande %s" % (_STATUS_SV.get(p["membership"]["status"], "okänt"),
+                                                        _STATUS_SV.get(p["participation"]["status"], "okänt"))))
+    rader.append(("Datamängder i DSP-katalogen", len(dataset)))
     for d in dataset:
         policyer = d.get("odrl:hasPolicy") or d.get("hasPolicy") or []
         if isinstance(policyer, dict):
@@ -307,7 +324,11 @@ _P[2] = {
         " källan anges. Distribution B har licensen CC BY 4.0, och "
         "erbjudandet uttrycker motsvarande villkor i ODRL. Den skyddade "
         "distributionen A får bara användas av Göteborgs Stad, får inte "
-        "spridas och kräver att KoV godkänner. Staden får bara läsa "
+        "spridas och kräver att KoV godkänner. Staden slår först upp DHI i "
+        "deltagarregistret, en lista som dataspacets samordnare (Svadas "
+        "utfärdare) håller över vilka som är med, om medlemskapet gäller och "
+        "var deras connector nås (men inte vilka roller de har). En inställd "
+        "adress används bara som reserv. Sedan frågar staden DHI:s katalog. Staden får bara läsa "
         "katalogen om den bevisar vem den är med ett verifierbart intyg.",
         "**What we do in the PoC.** DHI's connector (Eclipse EDC) shows a "
         "catalogue of what DHI offers. Each distribution has an offer with"
@@ -317,7 +338,12 @@ _P[2] = {
         "credited. Distribution B is licensed CC BY 4.0, and the offer "
         "expresses the corresponding terms in ODRL. The protected "
         "distribution A may only be used by the City of Gothenburg, may not"
-        " be shared, and requires KoV's approval. The city can only read "
+        " be shared, and requires KoV's approval. The City first looks DHI up in "
+        "the participant directory, a list kept by the data space's "
+        "orchestrator (Svada's issuer) of who takes part, whether the "
+        "membership is valid and where their connector can be reached (but "
+        "not their roles). A configured address is used only as a fallback. "
+        "Then the City asks DHI's catalogue. The city can only read "
         "the catalogue if it proves who it is with a verifiable "
         "credential."),
     "varfor": _t(
@@ -573,7 +599,7 @@ _P[3] = {
             "titta": _t(
                 "Jobbet (knapptrycket) är klart när begäran har kommit "
                 "fram. Avtalet är inte klart: loggen visar att begäran "
-                "väntar hos DHI (VANTANDE). Avtalet blir klart (FINALIZED) "
+                "väntar hos DHI (statuskoden VANTANDE). Avtalet blir klart (FINALIZED) "
                 "först när någon fattar beslut som KoV.",
                 "The job (the button press) is done once the request has "
                 "arrived. The agreement is not: the log shows the request "
@@ -913,30 +939,30 @@ _P[6] = {
     "vad": _t(
         "Nu används data. Vyn nedan rangordnar de 91 brunnarna efter "
         "modellerad bräddvolym och pekar ut vilka som bör inspekteras "
-        "först. Med den öppna distributionen B går det att se vilka "
-        "vattendrag som tar emot mest bräddning. Med den skyddade "
-        "distributionen A, som kräver ett gällande avtal, går det att peka "
-        "ut vilka brunnar det gäller och lägga dem på en karta. Raden "
+        "först. Med den öppna distributionen B ser man brunnarnas namn och "
+        "vilka vattendrag som tar emot mest bräddning, men inga positioner. "
+        "Med den skyddade distributionen A, som kräver ett gällande avtal, "
+        "får man också brunnarnas positioner och kan lägga dem på en karta. Raden "
         "ovanför tabellen visar vilket avtal, vilken batch och vilken "
         "distribution analysen bygger på.",
         "Now the data is used. The view below ranks the 91 chambers by "
         "modelled overflow volume and points out which to inspect first. "
-        "With the open distribution B it shows which watercourses receive "
-        "the most overflow. With the protected distribution A, which "
-        "requires a current agreement, it can point out which chambers are "
-        "concerned and place them on a map. The line above the table shows "
+        "With the open distribution B it shows the chambers' names and which "
+        "watercourses receive the most overflow, but no positions. With the "
+        "protected distribution A, which requires a current agreement, it "
+        "also gives the chambers' positions and can place them on a map. The line above the table shows "
         "the agreement, the batch and the distribution the analysis is "
         "based on."),
     "varfor": _t(
         "Ett dataspace handlar inte bara om att flytta data utan om att "
         "data kommer till användning. Här syns varför avtalet och "
         "klassningen spelar roll: med öppna data ser staden var bräddningen "
-        "är störst, med skyddade data vilka brunnar som ska inspekteras, "
+        "är störst, med skyddade data var brunnarna ligger, "
         "och den delen fungerar bara så länge avtalet gäller.",
         "A data space is not only about moving data but about the data "
         "being used. This shows why the agreement and the classification "
         "matter: with open data the city sees where overflow is greatest, "
-        "with protected data which chambers to inspect, and that part only "
+        "with protected data where the chambers are, and that part only "
         "works as long as the agreement is valid."),
     "dataspace": _t(
         "Användningen sker under avtalet. Hävs avtalet för A slutar den "
@@ -1456,6 +1482,7 @@ _DETALJ_EN = {
     "Brunnar i modellen": "Chambers in the model",
     "Felinjektion": "Fault injection",
     "Datamängder i DSP-katalogen": "Datasets in the DSP catalogue",
+    "Leverantör hittad via": "Provider found through",
     "Förhandlingar (consumer)": "Negotiations (consumer)",
     "Förhandlingstillstånd (consumer)": "Negotiation states (consumer)",
     "A-förhandlingar hos KoV (alla hittills)": "A negotiations at KoV (all so far)",
@@ -1479,6 +1506,7 @@ _DETALJ_EN = {
     "Gällande avtal om A": "Current agreement for A",
 }
 _DETALJ_EN_DEL = (
+    ("Deltagare i registret: ", "Participant in the directory: "),
     (" – datamängder", " – datasets"),
     (" – distributioner", " – distributions"),
     (" – bortfiltrerade (accessRights)", " – filtered out (accessRights)"),
@@ -1499,7 +1527,12 @@ def oversatt_detalj(etikett, varde, sprak="sv"):
     if varde in ("av", "inga"):
         varde = "off" if varde == "av" else "none"
     elif isinstance(varde, str):
-        for sv, eng in (("ODRL-offert(er)", "ODRL offer(s)"), ("PÅ (x", "ON (x")):
+        for sv, eng in (("ODRL-offert(er)", "ODRL offer(s)"), ("PÅ (x", "ON (x"),
+                        ("medlemskap giltigt", "membership valid"), ("medlemskap återkallat", "membership revoked"),
+                        ("deltagande giltigt", "participation valid"), ("deltagande återkallat", "participation revoked"),
+                        ("medlemskap okänt", "membership unknown"), ("deltagande okänt", "participation unknown"),
+                        ("inställningen (ingen leverantör i registret, eller registret nåddes inte)", "the configuration (no provider in the directory, or the directory was not reachable)"),
+                        ("deltagarregistret", "the participant directory")):
             varde = varde.replace(sv, eng)
         import i18n
         # Statuskoder och meddelanden från mottagningen ("Senaste": AUKTORISATION-NEKAD avtalet …).

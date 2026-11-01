@@ -136,6 +136,9 @@ def http(metod, sokvag, kropp=None):
     if data:
         req.add_header("Content-Type", "application/json; charset=utf-8")
     req.add_header("Accept", "application/json")
+    kontext = os.environ.get("MODELL_KONTEXT_URL", "")
+    if kontext:    # datamodellens kontext: attributen lagras under modellens adresser
+        req.add_header("Link", '<%s>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' % kontext)
     try:
         with urllib.request.urlopen(req, timeout=30) as svar:
             return svar.status, svar.read().decode("utf-8", "replace")

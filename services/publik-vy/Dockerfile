@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir \
       "uvicorn==${UVICORN_VERSION}"
 
 WORKDIR /app
-COPY vy.py main.py aterstall.py ./
+COPY vy.py main.py aterstall.py modell.py mim.py mimsida.py ordlista.py filer.py ./
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8085

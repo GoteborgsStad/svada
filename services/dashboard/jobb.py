@@ -131,7 +131,8 @@ def _tillstand(session):
 def _notera(jobb):
     """Bokför ett avslutat jobb i besökarens tillstånd (inte ur jobblistan, som rensas efter 40 jobb och delas av alla besökare).
     A-kedjan är en liten tillståndsmaskin: begärd -> godkänd -> levererad; ett avslag, en hävning eller en nekad eller felad
-    leverans av A tar besökaren tillbaka till början av A-kedjan (ny förhandling); ett misslyckat beslut ändrar inget."""
+    leverans av A tar besökaren tillbaka till början av A-kedjan (ny förhandling); ett misslyckat beslut och ett driftfel vid leveransen
+    (tjänsten nere, tidsgräns) ändrar inget: avtalet gäller, så nästa är att leverera igen."""
     t = _tillstand(jobb.session)
     ok = jobb.status == "klar" and not jobb.utfall
     a = jobb.atgard
@@ -148,7 +149,12 @@ def _notera(jobb):
             t.a_laget = "godkant"
             t.a_forut = None
     elif a == "transfer-a":
-        t.a_laget = "levererat" if ok else None
+        if ok:
+            t.a_laget = "levererat"
+        elif jobb.status == "fel" and jobb.utfall != "nekad":
+            pass            # driftfel (tjänsten nere, tidsgräns): avtalet gäller fortfarande, så "Nästa" föreslår att leverera igen
+        else:
+            t.a_laget = None
     elif a == "kov-avsla":
         if jobb.status == "klar":          # ett misslyckat beslut (401, tjänsten nere) ändrar inget
             havda = (jobb.resultat or {}).get("havdaAvtal") if isinstance(getattr(jobb, "resultat", None), dict) else None
@@ -247,6 +253,11 @@ def _katalog_eller_nekad():
 
 
 def _hamta_katalog(jobb):
+    lev = kallor.valj_leverantor()
+    if lev["kalla"] == "registret":
+        jobb.logg("jobb.leverantor_registret", namn=lev["namn"])
+    else:
+        jobb.logg("jobb.leverantor_konfig")
     katalog = _katalog_eller_nekad()
     for asset in (kallor.ASSET_B, kallor.ASSET_A):
         d = kedjan.dataset_for(katalog, asset)
