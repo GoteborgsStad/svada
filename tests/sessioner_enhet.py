@@ -332,5 +332,30 @@ kolla(jobbmodul._senaste_avtal("tillgang", ag) == ("avtal-A", "stad-A") and jobb
       "'senaste avtalet' är besökarens eget; utan session det senaste överhuvudtaget; en besökare utan avtal får inget")
 jobbmodul.kallor.forhandlingar = verklig
 
+# planerad uppdatering: spärren är inkopplad i jobbstarten (VARSEL_FIL), ger rätt felkod och slår inte före argumentkontrollen
+import datetime as _dt
+import json as _json
+import tempfile as _tmp
+_vf = os.path.join(_tmp.mkdtemp(), "varsel.json")
+def _varsel(min_fram):
+    with open(_vf, "w", encoding="utf-8") as f:
+        _json.dump({"tid": (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(minutes=min_fram)).isoformat(), "typ": "uppdatering"}, f)
+    jobbmodul.aterstall._CACHE["t"] = None
+os.environ["VARSEL_FIL"] = _vf
+_varsel(1)
+try:
+    jobbmodul.starta("kor-batch"); _kod = None
+except jobbmodul.Upptaget as e:
+    _kod = e.kod if hasattr(e, "kod") else str(e)
+kolla(_kod is not None and "uppdatering_strax" in str(_kod), "en minut före en planerad uppdatering nekas ett nytt jobb med fel.uppdatering_strax (spärren är inkopplad)")
+try:
+    jobbmodul.starta("finns-inte"); _kod2 = None
+except jobbmodul.Jobbfel as e:
+    _kod2 = str(getattr(e, "kod", e))
+kolla(_kod2 is not None and "okand_atgard" in _kod2 and "uppdatering_strax" not in _kod2, "en okänd åtgärd ger fortfarande sitt eget fel (argumentkontrollen kommer före spärren)")
+os.environ.pop("VARSEL_FIL", None)
+jobbmodul.aterstall._CACHE["t"] = None
+kolla("fel.uppdatering_strax" in jobbmodul.meddelanden.KATALOG if hasattr(jobbmodul.meddelanden, "KATALOG") else True, "felkoden finns i meddelandekatalogen")
+
 print("FEL: %d" % fel if fel else "OK: alla prov gröna")
 sys.exit(1 if fel else 0)

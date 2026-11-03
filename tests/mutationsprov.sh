@@ -104,13 +104,17 @@ mutera "M34 utestängningen är på som standard i extern variant" dashboard/mai
 mutera "M28 tomma objekt i Följ ett värde igen (L15)" dashboard/steg.py '        if isinstance(tolkat, dict) and _tomt(tolkat):' '        if False:' "Inget ännu" "python3 tests/kedjevy_rendering.py"
 
 # Kärnreglerna (åtgärd 4 i projektets testningstillämpning): enhetsprov som körs i kopian utan stack. ASCII-ankare (unicode_escape förstör å, ä, ö).
-ENH='SVADA_VERSION=2026.10.29-15 python3 -I'
+ENH='SVADA_VERSION=2026.10.29-16 python3 -I'
 mutera "M35a leverans A kräver inte längre ett gällande avtal" dashboard/nedladdning.py 'a.get("status") == "GALLANDE" and _farskt_gallande(a["id"])' 'True' "K39: A lämnas ut under hävda avtal" "${ENH} tests/nedladdning_enhet.py"
 mutera "M35b leverans A läser registrets sparade status, inte den färska" dashboard/nedladdning.py ' and _farskt_gallande(a["id"])' '' "K39: hävd just nu men gällande i listan" "${ENH} tests/nedladdning_enhet.py"
 mutera "M35c leverans A öppen när statusen inte kan läsas" dashboard/nedladdning.py '    except Exception:\n        return False' '    except Exception:\n        return True' "K39: stängt som standard" "${ENH} tests/nedladdning_enhet.py"
 mutera "M37 okänt avtal räknas som gällande (öppet som standard)" ingest-service/avtalsregister.py 'return {"id": avtals_id, "status": "OKAND", "orsak": "okant-avtal"}' 'return {"id": avtals_id, "status": "GALLANDE", "orsak": "okant-avtal"}' "avtal_enhet: stängt som standard" "${ENH} tests/avtal_enhet.py"
 mutera "M41 schemakontrollen avvisar inte längre position i profil B" ingest-service/schemakontroll.py '    if s is False:' '    if False:' "schemakontroll_enhet" "${ENH} tests/schemakontroll_enhet.py"
 mutera "M42 INTERNT-spärren träffar inte längre edc-provider" dashboard/nedladdning.py 'r"(?:edc-provider|edc-consumer|' 'r"(?:zzz-ingen-matchning|edc-consumer|' "K39: inga interna adresser i en fil" "${ENH} tests/nedladdning_enhet.py"
+mutera "M43 ett varsel vars avbrott är över visas fortfarande" gemensam/aterstall.py '    if nu > tid + dt.timedelta(minutes=VARAKTIGHET_TYP[typ]):' '    if False:' "aterstall_enhet: ett glömt varsel ska försvinna" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
+mutera "M44 nya jobb spärras inte de sista två minuterna" gemensam/aterstall.py '        return tid - dt.timedelta(seconds=SPARR_NYA_JOBB_S) <= nu <= tid' '        return False  # tid' "aterstall_enhet: spärren före uppdateringen" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
+mutera "M45 en tid utan tidszon godtas som varsel" gemensam/aterstall.py 'tid.tzinfo is None' 'False' "aterstall_enhet: en tid utan zon är tvetydig" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
+mutera "M46 den planerade händelsen får inte längre ge plats åt en tidigare natt" gemensam/aterstall.py 'planerad[0] <= nasta' 'True' "aterstall_enhet: den tidigaste händelsen styr" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
 
 section "Mutation i skydd.py:s eget lager (täcks av enhetstestet skydd_enhet.py, inte av integrationstestet)"
 D="$(mktemp -d)"; cp -R services tests "${D}/"

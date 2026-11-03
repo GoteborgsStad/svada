@@ -126,6 +126,15 @@ for fil in ("services/dashboard/mimsida.py", "services/dashboard/ordlista.py", "
     traffar = re.findall(r"(?<![A-Za-zåäöÅÄÖ])[Dd]atat\b", re.sub(r"(?m)^\s*#.*$", "", kalla))
     kolla(not traffar, "%s: 'datat' ska vara 'data' (K19)%s" % (fil, "" if not traffar else " – %r" % traffar[:3]))
 kolla(True, "stegtexterna är genomsökta (%d texter)" % len(alla))
+# Sidans skript ska vara giltig JavaScript. En oescapad apostrof i en engelsk text dödade hela skriptet utan att något enhetsprov märkte det
+# (varselbannern, 2026-11-03); bara de långa webbläsarproven föll. Kräver node, annars hoppas kontrollen över här (webbläsarproven täcker det).
+import shutil as _sh, subprocess as _sp, tempfile as _tf
+if _sh.which("node"):
+    for _namn, _kod in (("dashboardens skript", vy.SKRIPT),):
+        _fil = os.path.join(_tf.mkdtemp(), "skript.js")
+        open(_fil, "w", encoding="utf-8").write(_kod)
+        _r = _sp.run(["node", "--check", _fil], capture_output=True, text=True)
+        kolla(_r.returncode == 0, "%s är giltig JavaScript%s" % (_namn, "" if _r.returncode == 0 else ": " + _r.stderr.strip().splitlines()[-1][:160]))
 # Samordnarens utestängning (steg 3): intern variant har knapparna, extern har ett inspelat exempel, och flaggan `utestangning` tvingar det ena
 # eller andra oavsett variant (granskningsfynd 2026-10-20: ingen kontroll visade att den interna varianten behåller knapparna).
 _med = lambda **kw: vy.sida(steg.STEG, KOMP, kallor.PORTAR, "localhost", 0.5, PUBLIKA, sprak="sv", **kw)

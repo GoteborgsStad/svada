@@ -329,7 +329,7 @@ async def http_fel(begaran: Request, fel: StarletteHTTPException):
 def api_aterstallning():
     """Nästa nattliga återställning (UTC) och serverns tid, för nedräkningen. Tomt svar lokalt."""
     import aterstall
-    return aterstall.som_svar(os.environ.get("DEMO_ATERSTALL_KL", ""), os.environ.get("TZ", "UTC")) or {"nastaUtc": None}
+    return aterstall.som_svar(os.environ.get("DEMO_ATERSTALL_KL", ""), os.environ.get("TZ", "UTC"), varselfil=os.environ.get("VARSEL_FIL", "")) or {"nastaUtc": None}
 
 
 def _openapi_beskrivning():

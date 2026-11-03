@@ -1458,6 +1458,7 @@ button.kor.bekrafta { outline: 2px solid var(--a); outline-offset: 2px; }
 @keyframes aterpuls { 0%, 100% { box-shadow: 0 0 0 0 rgba(179,38,30,.55); } 50% { box-shadow: 0 0 0 6px rgba(179,38,30,0); } }
 @media (prefers-reduced-motion: no-preference) { .aterstall.sista { animation: aterpuls 1.2s ease-in-out infinite; } }
 .aterstallremsa { margin: 0 0 .6rem; padding: .45rem .8rem; border-radius: 8px; font-size: .9rem; font-weight: 650; background: #fbeeec; color: #8a1c16; border: 2px solid #8a1c16; }
+.aterstallremsa.snart { background: #fff4d6; color: #6b4b00; border-color: #c98a00; }
 .aterstallremsa[hidden], .aterstall[hidden] { display: none; }
 .aterstallrad { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
 .aterstallinfo { width: 1.5rem; height: 1.5rem; padding: 0; border-radius: 50%; border: 1.5px solid var(--dov); background: transparent; color: var(--dov); font: 700 .85rem/1 system-ui, sans-serif; cursor: pointer; }
@@ -2309,7 +2310,7 @@ async function kor(atgard, argument, val) {
     if (status === 429) hamtaSkydd();
     laddaStatus();                    // låser upp igen om inget jobb kör (annars står knapparna kvar tills jobbet är klart)
     /* 409 (ett jobb kör redan) försvinner av sig själv när jobbet är klart, även i en annan flik (L3). */
-    if (plats) plats.innerHTML = `<p class="felrad${status === 409 ? ' upptagetfel' : ''}">${esc(fmt(TX.jobbFelStart, {fel}))}</p>`;
+    if (plats) plats.innerHTML = `<p class="felrad${status === 409 && data.kod !== 'fel.uppdatering_strax' ? ' upptagetfel' : ''}">${esc(fmt(TX.jobbFelStart, {fel}))}</p>`;
     else lanknotis(fmt(TX.jobbFelStart, {fel}));      // F2: en rad i sidan, aldrig en dialog som låser fliken
     return;
   }
@@ -2879,14 +2880,16 @@ async function hamtaAterstall() {
   const sim = new URLSearchParams(location.search).get('aterstall');
   if (sim !== null && sim.trim() !== '' && !isNaN(Number(sim))) {
     const nu = Date.now();
+    const upd = new URLSearchParams(location.search).get('typ') === 'uppdatering';    /* ?aterstall=12&typ=uppdatering simulerar en planerad uppdatering */
     aterstallInfo = {nastaUtc: new Date(nu + Number(sim) * 60000).toISOString(), nuUtc: new Date(nu).toISOString(),
-                     klockslag: '04:00', varaktighetMin: 10, simulerad: true};
+                     klockslag: '04:00', varaktighetMin: upd ? 3 : 10, typ: upd ? 'uppdatering' : 'nollstallning', simulerad: true};
     aterstallForskjutning = 0;
     uppdateraAterstall();
     return;
   }
   const {ok, data} = await api('/api/aterstallning');
-  if (!ok || !data || !data.nastaUtc) { aterstallInfo = null; uppdateraAterstall(); return; }
+  if (!ok || !data) return;           /* hämtningen misslyckades, som medan dashboard byggs om: behåll det senast kända läget, så remsan "pågår" ligger kvar */
+  if (!data.nastaUtc) { aterstallInfo = null; uppdateraAterstall(); return; }
   aterstallInfo = data;
   aterstallForskjutning = Date.parse(data.nuUtc) - Date.now();
   uppdateraAterstall();
@@ -2916,6 +2919,15 @@ function oppnaAterstallInfo() {
   if (r.pausS) delar.push([`efter ett jobb väntar du ${r.pausS} s så att andra besökare också hinner före`, `after a job you wait ${r.pausS} s so other visitors get their turn`]);
   const regler = delar.length ? `<li>${esc(L('Några saker städar sig själva under dagen: ' + delar.map(d => d[0]).join(', ') + '.',
     'A few things clean up by themselves during the day: ' + delar.map(d => d[1]).join(', ') + '.'))}</li>` : '';
+  if (aterstallInfo.typ === 'uppdatering') {
+    $('#aterstalldialogrubrik').textContent = L('Varför uppdateras demon?', 'Why is the demo being updated?');
+    $('#aterstalldialogtext').innerHTML = `<p>${esc(L(`Nästa uppdatering är ${nar}.`, `The next update is ${nar}.`))}</p><ul>
+      <li>${esc(L('Demon uppdateras med en ny version. Det tar normalt några sekunder till ett par minuter.', 'The demo is updated to a new version. It normally takes a few seconds to a couple of minutes.'))}</li>
+      <li>${esc(L('Det som händer: pågående körningar avbryts och sidan kan vara otillgänglig en kort stund; ladda om den sedan. Plattformens data finns kvar, men din egen vy kan börja om och du kan behöva starta om det du höll på med. De sista två minuterna före uppdateringen, och medan den pågår, startas inga nya körningar.', 'What happens: runs in progress are cancelled and the page may be unavailable for a short while; reload it afterwards. The platform\'s data stays, but your own view may start over and you may need to restart what you were doing. In the last two minutes before the update, and while it runs, no new runs are started.'))}</li>
+      <li>${esc(L('Inget du gör här påverkar riktig data. Allt är en demo med modellerade värden.', 'Nothing you do here affects real data. Everything is a demo with modelled values.'))}</li></ul>`;
+    $('#aterstalldialog').showModal();
+    return;
+  }
   $('#aterstalldialogrubrik').textContent = L('Varför nollställs demon?', 'Why is the demo reset?');
   $('#aterstalldialogtext').innerHTML = `<p>${esc(L(`Nästa nollställning är ${nar}, och sedan varje natt.`, `The next reset is ${nar}, and then every night.`))}</p><ul>
     <li>${esc(L('Demon är delad: alla besökare ser samma kedja. Därför återställs den varje natt, så att nästa besökare börjar rent.', 'The demo is shared: all visitors see the same chain. It is therefore reset every night so the next visitor starts clean.'))}</li>
@@ -2951,21 +2963,33 @@ function uppdateraAterstall() {
   el.hidden = false;
   el.className = 'aterstall' + (tillstand === 'snart' ? ' snart' : (tillstand === 'nu' || tillstand === 'pagar') ? ' nu' : '') + (tillstand === 'nu' && kvar <= 60000 ? ' sista' : '');
   const kl = aterstallTid(new Date(aterstallInfo.nastaUtc));    // besökarens egen klocka
+  const upd = aterstallInfo.typ === 'uppdatering';              // planerad uppdatering (varselfilen): fasta texter, data finns kvar
+  const infoNamn = upd ? L('Om uppdateringen', 'About the update') : L('Om nollställningen', 'About the reset');
+  info.setAttribute('aria-label', infoNamn); info.setAttribute('title', infoNamn);
+  remsa.classList.toggle('snart', upd && tillstand === 'snart');
   if (pagar) {
-    el.textContent = L('Nollställning pågår', 'Reset in progress');
+    el.textContent = upd ? L('Uppdatering pågår', 'Update in progress') : L('Nollställning pågår', 'Reset in progress');
     remsa.hidden = false;
-    $('#aterstallremsatext').textContent = L('Demon nollställs just nu. Sidan kan vara otillgänglig i upp till tio minuter; ladda om den sedan.',
-      'The demo is being reset right now. The page may be unavailable for up to ten minutes; reload it afterwards.');
+    $('#aterstallremsatext').textContent = upd
+      ? L('Demon uppdateras just nu. Sidan kan vara otillgänglig i upp till tre minuter; ladda om den sedan. Plattformens data finns kvar.',
+          'The demo is being updated right now. The page may be unavailable for up to three minutes; reload it afterwards. The platform\'s data stays.')
+      : L('Demon nollställs just nu. Sidan kan vara otillgänglig i upp till tio minuter; ladda om den sedan.',
+          'The demo is being reset right now. The page may be unavailable for up to ten minutes; reload it afterwards.');
   } else {
     const sim = aterstallInfo.simulerad ? ` <small>(${esc(L('simulering', 'simulation'))})</small>` : '';
+    const verb = upd ? L('Uppdateras', 'Updates') : L('Nollställs', 'Resets');
     el.innerHTML = tillstand === 'nu'
-      ? `${esc(L('Nollställs om', 'Resets in'))} ${esc(aterstallMmss(kvar))}${sim}`      // röd och stor: minuter och sekunder
-      : `<span class="lang">${esc(L('Nollställs', 'Resets'))} ${esc(kl)} · </span>${esc(L('om', 'in'))} ${esc(aterstallRest(min))}${sim}`;
-    el.setAttribute('title', L(`Demon nollställs varje natt klockan ${kl} (din tid). Allt data raderas och du börjar om från steg 1.`,
-      `The demo is reset every night at ${kl} (your time). All data is deleted and you start over from step 1.`));
-    remsa.hidden = tillstand !== 'nu';
+      ? `${esc(upd ? L('Uppdateras om', 'Updates in') : L('Nollställs om', 'Resets in'))} ${esc(aterstallMmss(kvar))}${sim}`      // röd och stor: minuter och sekunder
+      : `<span class="lang">${esc(verb)} ${esc(kl)} · </span>${esc(L('om', 'in'))} ${esc(aterstallRest(min))}${sim}`;
+    el.setAttribute('title', upd
+      ? L(`Demon uppdateras klockan ${kl} (din tid). Pågående körningar avbryts; plattformens data finns kvar.`, `The demo is updated at ${kl} (your time). Runs in progress are cancelled; the platform's data stays.`)
+      : L(`Demon nollställs varje natt klockan ${kl} (din tid). Allt data raderas och du börjar om från steg 1.`,
+          `The demo is reset every night at ${kl} (your time). All data is deleted and you start over from step 1.`));
+    remsa.hidden = !(tillstand === 'nu' || (upd && tillstand === 'snart'));        // en uppdatering kommer med kort varsel: remsan redan vid 15 minuter
     const resten = kvar < 60000 ? L('mindre än en minut', 'less than a minute') : aterstallRest(min);   // 0:28 i raden ska inte stå som "1 min" i bannern
-    if (tillstand === 'nu') $('#aterstallremsatext').textContent = L(`Demon nollställs om ${resten}. Pågående körningar avbryts och allt data raderas; efteråt börjar du om från steg 1.`,
+    if (upd && !remsa.hidden) $('#aterstallremsatext').textContent = L(`Demon uppdateras om ${resten} (kl. ${kl}). Pågående körningar avbryts och du kan behöva börja om; plattformens data finns kvar. ${tillstand === 'nu' ? 'Avsluta det du gör.' : 'De sista två minuterna startas inga nya körningar.'}`,
+      `The demo is updated in ${resten} (at ${kl}). Runs in progress are cancelled and you may need to start over; the platform's data stays. ${tillstand === 'nu' ? 'Finish what you are doing.' : 'In the last two minutes no new runs are started.'}`);
+    else if (tillstand === 'nu') $('#aterstallremsatext').textContent = L(`Demon nollställs om ${resten}. Pågående körningar avbryts och allt data raderas; efteråt börjar du om från steg 1.`,
       `The demo is reset in ${resten}. Runs in progress are cancelled and all data is deleted; afterwards you start over from step 1.`);
   }
   /* En skärmläsare får besked bara när tillståndet ändras, inte varje minut. */
@@ -2981,7 +3005,7 @@ setInterval(uppdateraAterstall, 1000);
 setInterval(tickaSkydd, 1000);
 setInterval(hamtaSkydd, 3000);
 hamtaSkydd();
-setInterval(hamtaAterstall, 600000);
+setInterval(hamtaAterstall, 60000);      /* en minut: ett varsel som sätts med 15 minuters varsel syns inom en minut */
 
 /* ---- KoV-beslutet i steg 3 (K4) ---- */
 async function laddaKovRuta() {

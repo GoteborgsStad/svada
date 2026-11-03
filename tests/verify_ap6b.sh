@@ -434,10 +434,11 @@ fi
 MONT=$(docker inspect ${SVADA_PREFIX:-svada}-dashboard \
   --format '{{range .Mounts}}{{.Destination}}:{{.RW}} {{end}}' 2>/dev/null)
 # Enda tillåtna monteringar (användningsstatistik): Caddys åtkomstlogg SKRIVSKYDDAD och
-# katalogen data/ där bara dagssummor (tal) och händelseräknaren sparas. Allt annat, eller att loggen blir skrivbar, är ett fel.
+# katalogen data/ där bara dagssummor (tal) och händelseräknaren sparas, och varselfilen för planerad uppdatering, SKRIVSKYDDAD (dashboarden läser bara
+# tid och typ). Allt annat, eller att loggen eller varselkatalogen blir skrivbar, är ett fel.
 MONT_SORT="$(echo "${MONT}" | tr ' ' '\n' | sed '/^$/d' | sort | tr '\n' ' ')"
-if [ "${MONT_SORT}" = "/statistik/data:true /statistik/logg:false " ]; then
-  ok "6b.9 bara statistikens två monteringar: loggen skrivskyddad och data/ med dagssummor (inga data ur kedjan lagras)"
+if [ "${MONT_SORT}" = "/statistik/data:true /statistik/logg:false /varsel:false " ]; then
+  ok "6b.9 bara tre monteringar: statistikens logg (skrivskyddad) och data/ med dagssummor, och varselfilen (skrivskyddad); inga data ur kedjan lagras"
 else
   no "6b.9 oväntade monteringar: '${MONT}'"
 fi

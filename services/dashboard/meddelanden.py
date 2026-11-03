@@ -173,6 +173,8 @@ KATALOG = {
     "fel.jobb_argument": {"sv": "åtgärden {atgard} kräver ett giltigt id", "en": "the action {atgard} requires a valid id"},
     "fel.upptaget": {"sv": "ett jobb kör redan – kedjan körs ett steg i taget",
                      "en": "a job is already running – the chain runs one step at a time"},
+    "fel.uppdatering_strax": {"sv": "Demon uppdateras strax. Nya körningar startas inte nu; vänta tills uppdateringen är klar och ladda om sidan.",
+                              "en": "The demo is about to be updated. New runs are not started now; wait until the update is done and reload the page."},
     "fel.okant_jobb": {"sv": "okänt jobb", "en": "unknown job"},
     "fel.okand_handelse": {"sv": "okänd händelse", "en": "unknown event"},
     "fel.inte_din_forhandling": {"sv": "Den här förhandlingen är inte din: du kan bara fatta beslut om förhandlingar du själv har startat.",

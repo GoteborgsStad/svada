@@ -13,6 +13,10 @@ MONSTER = re.compile(r"^\d{4}\.\d{2}\.\d{2}-\d+$")
 
 # Nyast överst. (version, datum, [(svenska, engelska), ...])
 NYHETER = [
+    ("2026.10.29-16", "2026-11-03", [
+        ("Du varnas nu innan en planerad uppdatering av demon. Markeringen uppe till höger och en remsa överst visar nedräkningen från 15 minuter före, med klockslag i din tid, och förklarar att pågående körningar avbryts men att plattformens data finns kvar. De sista två minuterna startas inga nya körningar. Brunnsvyn visar samma varsel.",
+         "You are now warned before a planned update of the demo. The marker at the top right and a strip at the top show the countdown from 15 minutes before, with the time in your time zone, and explain that runs in progress are cancelled but the platform's data stays. In the last two minutes no new runs are started. The well view shows the same notice."),
+    ]),
     ("2026.10.29-15", "2026-11-02", [
         ("Första gången du kommer in visas en kort ruta som förklarar att det här är en teknisk demo där kedjan körs på riktigt, att du kan låta demon guida dig med knappen Nästa, och att vi utgår från DSSC Blueprint v3.0 och bedömer oss mot OASC:s MIM:ar. Märkena visar vår egen bedömning: grön bock där vi följer och orange bock där vi följer med förbehåll. Språket går att byta direkt i rutan. Rutan öppnas igen med knappen Om demon.",
          "The first time you arrive, a short box explains that this is a technical demo where the chain runs for real, that you can let the demo guide you with the Next button, and that we take DSSC Blueprint v3.0 as our starting point and assess ourselves against OASC's MIMs. The badges show our own assessment: a green tick where we follow and an orange tick where we follow with reservations. The language can be switched right in the box. The box opens again with the About the demo button."),

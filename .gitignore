@@ -57,3 +57,6 @@ statistik/rapport/*
 !statistik/rapport/.gitkeep
 statistik/data/*
 !statistik/data/.gitkeep
+
+# Planerad uppdatering: varselfilen skrivs på servern av tools/server/varsla.sh och hör inte hemma i git.
+varsel/varsel.json

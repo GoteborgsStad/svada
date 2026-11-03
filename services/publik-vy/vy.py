@@ -108,13 +108,17 @@ function rita(){if(!info){el.hidden=true;kn.hidden=true;return}
 var kvar=Date.parse(info.nastaUtc)-(Date.now()+fs),m=Math.ceil(kvar/60000),
 pagar=kvar<=0&&kvar>-info.varaktighetMin*60000,nu=!pagar&&kvar<=300000,snart=!pagar&&!nu&&kvar<=900000;el.hidden=false;kn.hidden=false;
 el.className="aterstall"+(pagar||nu?" nu":snart?" snart":"")+(nu&&kvar<=60000?" sista":"");
-var sim=info.sim?" <small>("+T("simulering","simulation")+")</small>":"",kl=tid(new Date(info.nastaUtc));
-if(pagar)el.textContent=T("Demon nollställs just nu. Sidan kan vara otillgänglig i några minuter; ladda om den sedan.","The demo is being reset right now. The page may be unavailable for a few minutes; reload it afterwards.");
-else if(nu)el.innerHTML=T("Demon nollställs om ","The demo is reset in ")+mmss(kvar)+T(". Allt data raderas.",". All data is deleted.")+sim;
-else el.innerHTML=T("Nollställs ","Resets ")+kl+" · "+T("om ","in ")+rest(m)+sim;
+var sim=info.sim?" <small>("+T("simulering","simulation")+")</small>":"",kl=tid(new Date(info.nastaUtc)),upd=info.typ==="uppdatering",nm=upd?T("Om uppdateringen","About the update"):T("Om nollställningen","About the reset");kn.setAttribute("aria-label",nm);kn.setAttribute("title",nm);
+if(pagar)el.textContent=upd?T("Demon uppdateras just nu. Sidan kan vara otillgänglig i upp till tre minuter; ladda om den sedan.","The demo is being updated right now. The page may be unavailable for up to three minutes; reload it afterwards."):T("Demon nollställs just nu. Sidan kan vara otillgänglig i några minuter; ladda om den sedan.","The demo is being reset right now. The page may be unavailable for a few minutes; reload it afterwards.");
+else if(nu)el.innerHTML=upd?T("Demon uppdateras om ","The demo is updated in ")+mmss(kvar)+T(". Plattformens data finns kvar.",". The platform's data stays.")+sim:T("Demon nollställs om ","The demo is reset in ")+mmss(kvar)+T(". Allt data raderas.",". All data is deleted.")+sim;
+else el.innerHTML=(upd?T("Uppdateras ","Updates "):T("Nollställs ","Resets "))+kl+" · "+T("om ","in ")+rest(m)+sim;
 if(kvar<=-info.varaktighetMin*60000&&!info.sim)hamta()}
 function oppna(){if(!info)return;var d=new Date(info.nastaUtc),tz=info.tz||"Europe/Stockholm",lokal=tid(d),server=tid(d,tz),lika=lokal===server&&zon(d)===zon(d,tz);
 var nar=lika?T("klockan "+server+" ("+zon(d,tz)+")","at "+server+" ("+zon(d,tz)+")"):T("klockan "+lokal+" i din tidszon ("+zon(d)+"), det vill säga "+server+" svensk tid","at "+lokal+" in your time zone ("+zon(d)+"), which is "+server+" Swedish time");
+if(info.typ==="uppdatering"){document.getElementById("adr").textContent=T("Varför uppdateras demon?","Why is the demo being updated?");
+document.getElementById("adt").innerHTML="<p>"+T("Nästa uppdatering är ","The next update is ")+nar+".</p><ul><li>"
++T("Demon uppdateras med en ny version. Det tar normalt några sekunder till ett par minuter, och sidan kan vara otillgänglig en kort stund; ladda om den sedan.","The demo is updated to a new version. It normally takes a few seconds to a couple of minutes, and the page may be unavailable for a short while; reload it afterwards.")+"</li><li>"
++T("Den här vyn bara läser data; data i demon finns kvar efter uppdateringen.","This view only reads data; the data in the demo stays after the update.")+"</li></ul>";dlg.showModal();return}
 document.getElementById("adr").textContent=T("Varför nollställs demon?","Why is the demo reset?");
 document.getElementById("adt").innerHTML="<p>"+T("Nästa nollställning är ","The next reset is ")+nar+T(", och sedan varje natt.", ", and then every night.")+"</p><ul><li>"
 +T("Demon är delad och återställs varje natt så att nästa besökare börjar rent. Den här vyn bara läser data; du kan inte ändra något här.","The demo is shared and reset every night so the next visitor starts clean. This view only reads data; you cannot change anything here.")+"</li><li>"
@@ -123,10 +127,10 @@ dlg.showModal()}
 kn.addEventListener("click",oppna);
 dlg.addEventListener("click",function(e){if(e.target===dlg||e.target.id==="aterstallstang")dlg.close()});
 function hamta(){var q=new URLSearchParams(location.search).get("aterstall");
-if(q!==null&&q.trim()!==""&&!isNaN(Number(q))){info={nastaUtc:new Date(Date.now()+Number(q)*60000).toISOString(),klockslag:"04:00",tz:"Europe/Stockholm",varaktighetMin:10,sim:true};fs=0;rita();return}
+if(q!==null&&q.trim()!==""&&!isNaN(Number(q))){info={nastaUtc:new Date(Date.now()+Number(q)*60000).toISOString(),klockslag:"04:00",tz:"Europe/Stockholm",varaktighetMin:new URLSearchParams(location.search).get("typ")==="uppdatering"?3:10,typ:new URLSearchParams(location.search).get("typ")==="uppdatering"?"uppdatering":"nollstallning",sim:true};fs=0;rita();return}
 fetch("/api/aterstallning").then(function(r){return r.json()}).then(function(d){
 if(!d||!d.nastaUtc){info=null}else{info=d;fs=Date.parse(d.nuUtc)-Date.now()}rita()}).catch(function(){})}
-hamta();setInterval(rita,1000);setInterval(hamta,600000)})();"""
+hamta();setInterval(rita,1000);setInterval(hamta,60000)})();"""
 
 
 def _s(sprak, sv, en):

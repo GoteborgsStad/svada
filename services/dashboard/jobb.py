@@ -27,6 +27,8 @@ import threading
 import time
 from collections import deque
 
+from gemensam import aterstall
+
 import audit
 import kallor
 import kedjan
@@ -509,6 +511,8 @@ def starta(atgard, argument=None):
         raise Jobbfel("fel.okand_atgard", atgard=atgard)
     if atgard in _KRAVER_ID and not (isinstance(argument, dict) and isinstance(argument.get("id"), str) and _ID.match(argument["id"])):
         raise Jobbfel("fel.jobb_argument", atgard=atgard)
+    if aterstall.sparr_nya_jobb(os.environ.get("VARSEL_FIL", "")):      # planerad uppdatering strax: ingen ska börja en kedja som ändå avbryts
+        raise Upptaget("fel.uppdatering_strax")
     etikett_kod, steg, funktion = ATGARDER[atgard]
     s = sessioner.aktuell()
     with _LAS:

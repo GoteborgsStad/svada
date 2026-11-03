@@ -893,6 +893,66 @@ await p.goto(`${DASH}/?lang=sv#steg-1`); await stilla(p, 1500);
   kolla(!/edc-|ingest-service|orion-|docker|localhost/i.test(lacka), 'nedräkning och banner nämner inga interna namn');
   await te.close();
 }
+{ // Planerad uppdatering (varselfilen): samma element som nattens nedräkning men med uppdateringens fasta texter. Remsan visas redan vid 15 minuter (orange).
+  const nu = Date.now();
+  const svar = min => ({nastaUtc: new Date(nu + min * 60000).toISOString(), nuUtc: new Date(nu).toISOString(), klockslag: '20:05', tz: 'Europe/Stockholm', varaktighetMin: 3, typ: 'uppdatering'});
+  const lagen = [
+    ['snart', 14, /(Uppdateras|Updates) \d\d:\d\d/, 'snart', true, /uppdateras om|updated in/i],
+    ['nu', 4, /(Uppdateras om|Updates in) [34]:\d\d/, 'nu', true, /Avsluta det du gör|Finish what you are doing/],
+    ['pagar', -1, /Uppdatering pågår|Update in progress/, 'nu', true, /uppdateras just nu|being updated right now/],
+  ];
+  for (const sp of ['sv', 'en']) for (const bredd of [1280, 400]) for (const [namn, min, mon, klass, remsa, remsamon] of lagen) {
+    const t = await ny(`uppdatering-${namn}-${sp}-${bredd}`, { viewport: { width: bredd, height: 900 } });
+    await t.route('**/api/aterstallning', r => r.fulfill({json: svar(min)}));
+    await t.goto(`${DASH}/?lang=${sp}`); await t.waitForSelector('#aterstall:not([hidden])', { timeout: 15000 }).catch(() => {});
+    const d = await t.evaluate(() => {
+      const e = document.querySelector('#aterstall'), r = document.querySelector('#aterstallremsa');
+      return {text: e.textContent, klass: e.className, remsaSyns: !r.hidden, remsaText: r.textContent, remsaKlass: r.className,
+        sidscroll: document.documentElement.scrollWidth > document.documentElement.clientWidth, inom: e.getBoundingClientRect().right <= window.innerWidth + 0.5};
+    });
+    const rubrik = `${namn}/${sp}/${bredd}px`;
+    kolla(mon.test(d.text), `uppdatering ${rubrik}: raden säger uppdatering, inte nollställning ("${d.text.trim()}")`);
+    kolla(d.klass.includes(klass), `uppdatering ${rubrik}: färgläge ${klass}`);
+    kolla(d.remsaSyns && remsamon.test(d.remsaText) && !/raderas|deleted/.test(d.remsaText), `uppdatering ${rubrik}: remsan visas, säger uppdatering och lovar inte att data raderas`);
+    if (namn === 'snart') kolla(d.remsaKlass.includes('snart'), `uppdatering ${rubrik}: remsan är orange vid 15 minuter (röd först de sista fem)`);
+    kolla(!d.sidscroll && d.inom, `uppdatering ${rubrik}: ingen sidledsrullning, ligger inom bilden`);
+    await t.close();
+  }
+  // Förklaringsdialogen säger uppdatering, att data finns kvar och spärren de sista två minuterna.
+  for (const sp of ['sv', 'en']) {
+    const t = await ny(`uppdatering-dialog-${sp}`, { viewport: { width: 1280, height: 900 } });
+    await t.route('**/api/aterstallning', r => r.fulfill({json: svar(10)}));
+    await t.goto(`${DASH}/?lang=${sp}`); await t.waitForSelector('#aterstallinfo:not([hidden])', { timeout: 15000 }).catch(() => {});
+    await t.click('#aterstallinfo');
+    const rubrikText = await t.evaluate(() => document.querySelector('#aterstalldialogrubrik').textContent + ' | ' + document.querySelector('#aterstalldialogtext').textContent);
+    kolla(sp === 'sv' ? /Varför uppdateras demon\?/.test(rubrikText) && /Plattformens data finns kvar/.test(rubrikText) && /två minuterna/.test(rubrikText)
+                      : /Why is the demo being updated\?/.test(rubrikText) && /platform's data stays/.test(rubrikText) && /two minutes/.test(rubrikText), `uppdatering: dialogen förklarar (${sp})`);
+    await t.close();
+  }
+  { // Knappens namn följer typen (skärmläsare), spärrens felrad ligger kvar, och en misslyckad hämtning släcker inte läget "pågår".
+    const t = await ny('uppdatering-knapp-och-fel', { viewport: { width: 1280, height: 900 } });
+    let antal = 0;
+    await t.route('**/api/aterstallning', r => { antal++; return antal === 1 ? r.fulfill({json: svar(-1)}) : r.fulfill({status: 503, contentType: 'text/html', body: '<h1>nere</h1>'}); });
+    await t.route('**/api/atgard/**', r => r.fulfill({status: 409, json: {fel: 'Demon uppdateras strax.', kod: 'fel.uppdatering_strax'}}));
+    await t.goto(`${DASH}/?lang=sv#steg-1`); await t.waitForSelector('#aterstallremsa:not([hidden])', { timeout: 15000 }).catch(() => {});
+    kolla(/uppdater/i.test(await t.getAttribute('#aterstallinfo', 'aria-label') || ''), 'uppdatering: knappen "?" heter Om uppdateringen, inte Om nollställningen');
+    await t.evaluate(() => hamtaAterstall()); await stilla(t, 800);
+    kolla(await t.evaluate(() => !document.querySelector('#aterstallremsa').hidden), 'en misslyckad hämtning (503) släcker inte remsan medan uppdateringen pågår');
+    const kb = t.locator('button.kor[data-atgard]:not([disabled])').first();
+    if (await kb.count()) {
+      await kb.click(); await stilla(t, 6500);
+      kolla(await t.evaluate(() => /uppdateras strax/i.test(document.body.textContent) && !!document.querySelector('.felrad') && !document.querySelector('.upptagetfel')),
+        'spärrens felrad ("Demon uppdateras strax") ligger kvar efter 6 s och räknas inte som "ett jobb kör"');
+    } else kolla(false, 'uppdatering: ingen körknapp att pröva spärren med');
+    await t.close();
+  }
+  // En nollställning som typ i svaret beter sig som nattens (inga ändrade texter): skyddar mot att typen läses fel.
+  const tn = await ny('uppdatering-typ-nollstallning', { viewport: { width: 1280, height: 900 } });
+  await tn.route('**/api/aterstallning', r => r.fulfill({json: {...svar(4), typ: 'nollstallning', varaktighetMin: 10}}));
+  await tn.goto(`${DASH}/?lang=sv`); await tn.waitForSelector('#aterstallremsa:not([hidden])', { timeout: 15000 }).catch(() => {});
+  kolla(/nollställs om/i.test(await tn.evaluate(() => document.querySelector('#aterstallremsatext').textContent)), 'planerad nollställning (typ nollstallning) visar nollställningens text');
+  await tn.close();
+}
 { // Tickande tider i den publika demon (skydd.py): utestängd part, felinjektionens slut och väntan efter ett jobb.
   for (const sp of ['sv', 'en']) for (const bredd of [1280, 400]) {
     const t = await ny(`skydd-${sp}-${bredd}`, { viewport: { width: bredd, height: 900 } });

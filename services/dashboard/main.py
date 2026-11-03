@@ -530,7 +530,7 @@ async def api_handelse(begaran: Request):
 @app.get("/api/aterstallning")
 def api_aterstallning():
     """Nästa nattliga återställning (UTC) och serverns nuvarande tid, för nedräkningen. Tomt svar lokalt (ingen nattlig återställning)."""
-    svar = aterstall.som_svar(os.environ.get("DEMO_ATERSTALL_KL", ""), os.environ.get("TZ", "UTC"))
+    svar = aterstall.som_svar(os.environ.get("DEMO_ATERSTALL_KL", ""), os.environ.get("TZ", "UTC"), varselfil=os.environ.get("VARSEL_FIL", ""))
     return svar or {"nastaUtc": None}
 
 

@@ -96,6 +96,8 @@ services:
       DASH_SESSIONER: ${DASH_SESSIONER:-}
       # Klockslaget för den nattliga återställningen (nedräkningen på sidan). Tomt = ingen nedräkning (lokalt).
       DEMO_ATERSTALL_KL: ${DEMO_ATERSTALL_KL:-}
+      # Planerad uppdatering: tid och typ i en liten fil på värden (katalogen ./varsel); texterna är fasta i sidan.
+      VARSEL_FIL: /varsel/varsel.json
       # Skydd i den publika demon (services/dashboard/skydd.py); sekunder.
       DASH_UTESTANGNING_S: ${DASH_UTESTANGNING_S:-180}
       DASH_FELINJEKTION_S: ${DASH_FELINJEKTION_S:-300}
@@ -122,6 +124,7 @@ services:
     volumes:
       - ./statistik/logg:/statistik/logg:ro
       - ./statistik/data:/statistik/data
+      - ./varsel:/varsel:ro                 # varselfilen för planerad uppdatering
     restart: ${SVADA_RESTART:-unless-stopped}
   # -------------------------------------------------------------------
   # caddy – PUBLIK INGÅNG (publik demo). Den enda porten en extern
