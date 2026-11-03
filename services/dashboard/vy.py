@@ -230,6 +230,7 @@ TEXTER = {
         "skickade": "Skickade mätvärden (exempel):",
         "flikar": ["Kedjan 1–6", "Följ ett värde", "Auditlogg", "Suveränitet: KoV & ODRL", "Felinjektion", "Jobb"],
         "introH": "Följ data från modellen till stadens beslut",
+        "banaRub": "Guidad bana", "flodeRub": "Flödet", "introVisa": "Visa introduktionen", "introDolj": "Dölj introduktionen",
         "intro1": (
                 "Ett dataspace är ett sätt för organisationer att dela data "
                 "utan en gemensam databas. Data ligger kvar hos den som äger "
@@ -593,6 +594,7 @@ TEXTER = {
         "skickade": "Readings sent (example):",
         "flikar": ["Chain 1–6", "Follow a value", "Audit log", "Sovereignty: KoV & ODRL", "Fault injection", "Jobs"],
         "introH": "Follow data from the model to the city's decision",
+        "banaRub": "Guided path", "flodeRub": "The flow", "introVisa": "Show the introduction", "introDolj": "Hide the introduction",
         "intro1": (
                 "A data space is a way for organisations to share data without "
                 "a shared database. The data stays with whoever holds it and is"
@@ -1236,6 +1238,20 @@ nav { display: flex; flex-wrap: wrap; gap: .4rem; }
 
 /* intro */
 .intro { display: block; margin-bottom: 1.2rem; }
+.intro > summary { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; cursor: pointer; list-style: none; margin-bottom: .5rem; }
+.intro > summary::-webkit-details-marker { display: none; }
+.intro .introrub { font-size: 1.6rem; font-weight: 700; }
+.intro .introknapp { border: 1px solid var(--ds); color: var(--ds); border-radius: 999px; padding: .15rem .75rem; font-size: .85rem; font-weight: 600; white-space: nowrap; }
+.intro .introknapp::before { content: "▸ "; }
+.intro[open] .introknapp::before { content: "▾ "; }
+.intro > summary:hover .introknapp { background: var(--ds-ton); }
+.intro > summary:focus-visible { outline: 3px solid var(--fokus); outline-offset: 3px; border-radius: 6px; }
+.intro .id, .intro[open] .iv { display: none; }
+.intro[open] .id { display: inline; }
+.intro:not([open]) { margin-bottom: .6rem; }
+.intro:not([open]) > summary { margin-bottom: 0; }
+.intro:not([open]) .introrub { font-size: 1.1rem; }
+.sektionrub { font-size: 1.05rem; margin: 0 0 .4rem; flex-basis: 100%; }
 .intro .ingress { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: .2rem 2rem; align-items: start; }
 .intro .ingress h2 { grid-column: 1 / -1; }
 .intro .ingress .omlank { grid-column: 1; justify-self: start; }
@@ -1486,6 +1502,43 @@ dialog.jobb .jhuvud button { margin-left: auto; border: 1px solid var(--ram); ba
 dialog.jobb .jkropp { padding: .8rem 1rem 1rem; display: grid; gap: .6rem; }
 dialog.jobb .jkropp p { margin: 0; font-size: .85rem; color: var(--dov); }
 dialog.jobb .logg { max-height: 50vh; overflow: auto; }
+
+/* Välkomstrutan (första besöket) och märkena för Blueprint och MIM:arna. Ikon + ord, aldrig bara färg. */
+dialog.jobb.valkomst { width: min(40rem, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+dialog.jobb.valkomst .jkropp p { font-size: .92rem; color: var(--fg); }
+.valkomst .vtips { background: var(--kedja-ton); border-left: 4px solid var(--kedja); border-radius: 6px; padding: .55rem .8rem; }
+dialog.jobb .jkropp ul.vmarken { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; font-size: .8rem; }
+.valkomst .vmerke { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--ram); border-radius: 999px; padding: .2rem .65rem .2rem .4rem;
+  font-size: .8rem; color: var(--fg); text-decoration: none; background: var(--yta); }
+.valkomst a.vmerke:hover { background: var(--kod); }
+.valkomst .vikon { display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; color: #fff; font-size: .75rem; font-weight: 700; flex: none; }
+.valkomst .vmerke.ok .vikon, .valkomst .vikon.ok { background: #1b6b2a; }
+.valkomst .vmerke.delvis .vikon, .valkomst .vikon.delvis { background: #fff; color: #8a5a00; box-shadow: inset 0 0 0 2px #8a5a00; }
+.valkomst .vsr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.valkomst .vforklaring { font-size: .8rem; color: var(--dov); }
+.valkomst .vblueprint { border: 1px solid var(--ds-ram); background: var(--ds-ton); border-radius: 10px; padding: .6rem .9rem; }
+.valkomst .vblueprint h3 { margin: 0 0 .3rem; font-size: 1rem; display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.valkomst .vblueprint h3 small { font-weight: 400; color: var(--dov); }
+.valkomst .vikon.bp { background: var(--ds); }
+.valkomst .vblueprint p { margin: 0 0 .35rem; }
+.valkomst .vtekniker { margin: 0; padding-left: 1.1rem; display: grid; gap: .3rem; font-size: .88rem; }
+.valkomst .vbockar { font-size: .85rem; }
+.valkomst .vbockar summary { cursor: pointer; color: var(--ds); font-weight: 600; }
+.valkomst .vbockar p { margin: .35rem 0 0; color: var(--dov); }
+.valkomst .vbockar summary:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; border-radius: 4px; }
+.valkomst .vforklaring .vikon { width: 1.1rem; height: 1.1rem; font-size: .65rem; vertical-align: middle; }
+.valkomst .vmerke.bp .vikon { background: var(--ds); }
+.valkomst .vmerke small { color: var(--dov); }
+.valkomst .vknappar { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .3rem; }
+.valkomst .vknappar button { border: 1px solid var(--ram); background: var(--yta); color: var(--fg); border-radius: 8px; padding: .5rem 1rem; font: inherit; cursor: pointer; }
+.valkomst .vknappar button.primar { background: var(--ds); border-color: var(--ds); color: #fff; font-weight: 600; }
+.valkomst .vknappar button:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; }
+.omlank.valkomstlank { margin-left: .5rem; }
+dialog.jobb.valkomst .jhuvud .sprak { margin-left: auto; }
+dialog.jobb.valkomst .jhuvud .sprak button { margin-left: 0; border: 0; border-radius: 0; padding: .25rem .7rem; }
+dialog.jobb.valkomst .jhuvud .sprak button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+dialog.jobb.valkomst .jhuvud > button { margin-left: .6rem; }
+.nod, #ordning { scroll-margin-top: 3.6rem; }
 
 .analys { border: 1px solid var(--ram); border-radius: 10px; padding: .8rem 1rem; margin-top: 1rem; background: var(--yta); }
 .analys h3, .analys h4 { margin: .6rem 0 .3rem; }
@@ -2210,9 +2263,7 @@ function kovKnappar() {
        (aria-disabled): ett klick på den visar en kort ruta som förklarar varför, och orsaken står också som mouseover och
        som rad till höger om knappen. */
     const brist = !jobbAktivtNu && !behov;
-    /* Knappens namn är alltid dess text; orsaken ligger i title och är bara en beskrivning (annars blir orsaken knappens namn). */
-    if (!b.dataset.namn) b.dataset.namn = b.textContent.trim();
-    b.setAttribute('aria-label', b.dataset.namn);
+    /* Knappens namn är dess synliga text (även under bekräftelsen "Klicka igen …"); orsaken ligger i title, som bara är en beskrivning. */
     b.disabled = jobbAktivtNu;
     const orsakKort = brist ? (b.dataset.kovbeslut === 'hav' ? L('Inget gällande avtal om A att häva.', 'There is no current agreement for A to revoke.')
                                        : L('Ingen förfrågan väntar på beslut.', 'No request is waiting for a decision.')) : '';
@@ -2384,8 +2435,9 @@ async function foljJobb(jid, plats) {
   plats.innerHTML = `<p class="meta">${esc(TX.jobbStartar)}</p>`;
   for (let forsok = 0; forsok < 400; forsok++) {
     if (!minRuta()) return;
-    const {ok, data} = await api('/api/jobb/' + jid);
+    const {ok, status, data} = await api('/api/jobb/' + jid);
     if (!minRuta()) return;
+    if (!ok && status === 0 && forsok < 399) { await sov(1500); continue; }   // nätavbrott: jobbet kan ha gått klart, fråga igen
     if (!ok) {
       plats.innerHTML = `<p class="felrad">${esc(fmt(TX.jobbSvararInte, {fel: data.fel || ''}))}</p>`;
       return;
@@ -2677,7 +2729,7 @@ function forvarmaKarta() {
   document.head.appendChild(l);
 }
 
-function oppna(nr, flytta, kovFokus) {
+function oppna(nr, flytta, kovFokus, tillNod) {
   if (!(nr >= 1 && nr <= 6)) return;
   if (nr !== valt && harRort) handelse('steg_' + nr);
   valt = nr;
@@ -2692,7 +2744,12 @@ function oppna(nr, flytta, kovFokus) {
   const panel = document.getElementById('steg-' + nr);
   $$('.kovruta').forEach(r => r.classList.toggle('fokus', !!kovFokus));
   if (kovFokus) { const r = $('#kovruta'); if (r) setTimeout(() => r.scrollIntoView({block: 'nearest'}), 50); }
-  else if (flytta) panel.scrollIntoView({behavior: lugnt() ? 'auto' : 'smooth', block: 'start'});
+  else if (flytta) {
+    /* Från remsan "Guidad bana" och Nästa (tillNod): scrolla till stegets nod i bilden, inte till panelen. På bred skärm ligger panelen under hela
+       bilden och på smal direkt under noden, så i båda fallen syns noden överst och panelen strax under. Stegraden och klick i bilden går till panelen. */
+    const mal = (tillNod && document.getElementById('nod-' + nr)) || panel;
+    mal.scrollIntoView({behavior: lugnt() ? 'auto' : 'smooth', block: 'start'});
+  }
 }
 
 /* Bred skärm: panelen ligger under bilden. Smal skärm: direkt under det
@@ -3318,7 +3375,7 @@ async function laddaBrunnJamforelse() {
         [L('Mottagare', 'Recipient'), esc(r.recipient || '–')],
         [L('Position (bredd, längd)', 'Position (lat, lon)'), k === 'A' ? `<b>${pos}</b>` : `<i>${pos}</i>`],
         [L('Distribution och klass', 'Distribution and class'), `${esc(r.distribution || k)} (${esc(r.klass || '–')})`],
-        [L('Avtal', 'Agreement'), r.avtal ? `<a href="/avtal/${esc(r.avtal)}?lang=${SPRAK}"><code>${esc(String(r.avtal).slice(0, 8))}…</code></a>` : '–'],
+        [L('Avtal', 'Agreement'), r.avtal ? `<a href="/avtal/${esc(r.avtal)}?lang=${SPRAK}"><code>${esc(String(r.avtal).slice(0, 8))}…</code></a>` : L('inte ett avtal du har tecknat (data kan komma från en annan besökares körning)', "not an agreement you made (the data may come from another visitor's run)")],
         ['Batch', `<code>${esc(r.batch || '–')}</code>`]];
       inne = `<table>${rader.map(([a, b]) => `<tr><th scope="row">${a}</th><td>${b}</td></tr>`).join('')}</table>`;
     }
@@ -3525,10 +3582,10 @@ document.addEventListener('click', e => {
   if (nod) { oppna(nod.id === 'nod-kov' ? 3 : +nod.dataset.steg, true, nod.id === 'nod-kov'); return; }
   const hopp = e.target.closest('[data-hopp]');
   if (hopp) {
-    oppna(+hopp.dataset.hopp, true, hopp.dataset.kov === '1');
+    oppna(+hopp.dataset.hopp, true, hopp.dataset.kov === '1', true);
     /* "Nästa" flyttar fokus till knappen som ska tryckas, så att den syns och går att aktivera med tangentbordet. */
     if (!hopp.dataset.fokus && hopp.id === 'nastaknapp') setTimeout(() => { const p = document.getElementById('steg-' + hopp.dataset.hopp); if (p) { p.tabIndex = -1; p.focus({preventScroll: true}); } }, 250);
-    if (hopp.dataset.fokus) setTimeout(() => { const b = $(hopp.dataset.fokus); if (b && !ejAktiv(b)) { b.scrollIntoView({block: 'center', behavior: lugnt() ? 'auto' : 'smooth'}); b.focus({preventScroll: true}); } }, 250);
+    if (hopp.dataset.fokus) setTimeout(() => { const b = $(hopp.dataset.fokus); if (b && !ejAktiv(b)) { b.scrollIntoView({block: 'nearest', behavior: lugnt() ? 'auto' : 'smooth'}); b.focus({preventScroll: true}); } }, 250);   /* 'nearest': syns knappen redan efter hoppet till stegets nod rör sidan sig inte mer */
     return;
   }
   const hoppid = e.target.closest('[data-hoppid]');
@@ -3637,8 +3694,54 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft' && valt > 1) oppna(valt - 1, false);
 }, true);
 
+/* Välkomstrutan: visas första gången (minnet i webbläsaren), inte vid djuplänk, inte i testläge (kakan svada-test) och inte för styrd webbläsare
+   (navigator.webdriver), så att automatiska prov inte får en ruta framför sig. ?valkomst=1 tvingar fram den; knappen "Om demon" öppnar den igen. */
+/* Introduktionen: öppen första gången, hopfälld vid senare besök (webbläsaren minns), och ett klick öppnar den igen. Testläge och styrd
+   webbläsare får den alltid öppen om inget annat är sparat, så att prov ser samma sida varje gång. */
+function introInit() {
+  const d = document.getElementById('intro');
+  if (!d) return;
+  let lage = null; try { lage = localStorage.getItem('svada-intro'); } catch (e) {}
+  const test = /(?:^|; )svada-test=1(?:;|$)/.test(document.cookie) || navigator.webdriver === true;
+  if (lage === 'hopfalld') d.open = false;
+  else if (lage === null && !test) { try { localStorage.setItem('svada-intro', 'hopfalld'); } catch (e) {} }
+  d.addEventListener('toggle', () => { try { localStorage.setItem('svada-intro', d.open ? 'oppen' : 'hopfalld'); } catch (e) {} });
+}
+function valkomstInit(harHash) {
+  const d = document.getElementById('valkomstdialog');
+  if (!d || typeof d.showModal !== 'function') return;
+  /* Språkbyte inifrån rutan laddar om sidan: rutan öppnas då igen på det nya språket (flaggan gäller en omladdning). */
+  let igen = false; try { igen = sessionStorage.getItem('svada-valkomst-igen') === '1'; sessionStorage.removeItem('svada-valkomst-igen'); } catch (e) {}
+  const tvinga = igen || /[?&]valkomst=1(?:&|$)/.test(location.search);
+  let sedd = false; try { sedd = localStorage.getItem('svada-valkomst') === '1'; } catch (e) {}
+  const test = /(?:^|; )svada-test=1(?:;|$)/.test(document.cookie) || navigator.webdriver === true;
+  if (tvinga || (!sedd && !test && !harHash)) valkomstOppna();
+}
+function valkomstOppna() {
+  const d = document.getElementById('valkomstdialog');
+  if (!d || d.open) return;
+  try { localStorage.setItem('svada-valkomst', '1'); } catch (e) {}
+  d.showModal();
+}
+document.addEventListener('click', e => {
+  const d = document.getElementById('valkomstdialog');
+  if (!d) return;
+  const sb = e.target.closest('#valkomstdialog .sprak button');
+  if (sb) { if (sb.dataset.lang !== SPRAK) { try { sessionStorage.setItem('svada-valkomst-igen', '1'); } catch (x) {} } return; }
+  if (e.target.closest('[data-valkomst-oppna]')) { valkomstOppna(); return; }
+  if (e.target.closest('[data-valkomst-start]')) {
+    /* Den guidade banan är remsan "Prova i den här ordningen" överst: visa den och lägg fokus på Nästa, så att nästa tryck tar dig till steg 1. */
+    d.close();
+    const rem = document.getElementById('ordning'); if (rem) rem.scrollIntoView({behavior: lugnt() ? 'auto' : 'smooth', block: 'start'});
+    setTimeout(() => { const n = document.getElementById('nastaknapp'); (n && !n.hidden ? n : document.querySelector('#ordning button'))?.focus({preventScroll: true}); }, 300);
+    return;
+  }
+  if (e.target.closest('[data-valkomst-stang]') || e.target === d) d.close();
+});
+
 window.addEventListener('DOMContentLoaded', () => {
   if (synkaSprak()) return;
+  const harHash0 = !!location.hash.slice(1);
   document.body.appendChild(tips);
   markeraAllt();
   /* Startvy: #steg-N, annars steget som var öppet senast, annars steg 6.
@@ -3650,6 +3753,8 @@ window.addEventListener('DOMContentLoaded', () => {
     start = sp === 'stangd' ? 'kedjan' : 'steg-' + (+sp >= 1 && +sp <= 6 ? +sp : 3);
   }
   visa(start);
+  introInit();
+  valkomstInit(harHash0);
   /* Webbläsaren har redan hoppat till fragmentet innan JS hann köra – rulla
      tillbaka så att sidhuvudet syns. */
   window.scrollTo(0, 0);
@@ -3953,30 +4058,115 @@ def _sidhuvud(t, sprak):
 </header>"""
 
 
-def _intro(t, antal):
+_VALKOMST = {
+    "sv": {
+        "rub": "Välkommen till en teknisk demo",
+        "p1": "Det här är en teknisk proof of concept för ett dataspace med vattendata: från mätning i en bräddbrunn till en tjänst som använder data, i sex steg. "
+              "Kedjan körs på riktigt, med riktiga mjukvaror och protokoll. Vattendata är modellerad och delvis syntetisk, och det som är förenklat eller simulerat säger vi öppet i stegen.",
+        "tips": "Tips: låt demon guida dig. Tryck på knappen Nästa under Guidad bana, så går du igenom hela kedjan ett steg i taget.",
+        "bpnamn": "DSSC Blueprint v3.0",
+        "bpin": "Vi utgår från DSSC Blueprint v3.0 och dess grundtekniker. Så här visar demon dem, på riktigt:",
+        "bp1": "<b>Dataspace Protocol (DSP):</b> parterna hittar katalogen, förhandlar avtal och startar överföringen (steg 2–4).",
+        "bp2": "<b>ODRL:</b> villkoren i avtalet, till exempel att Distribution A kräver KoV:s godkännande och inte får spridas (steg 3).",
+        "bp3": "<b>Verifierbara intyg och DCP:</b> varje part bevisar vem den är med intyg som den andra parten kontrollerar (steg 2–4).",
+        "bp4": "<b>Connector:</b> Eclipse EDC hos både DHI och staden sköter protokollen åt sina parter: katalog, avtal och överföring (steg 2–4).",
+        "mimin": "Vi bedömer oss också mot OASC:s MIM:ar (version 9.0). Märkena är vår egen bedömning, inte en certifiering. Klicka på ett MIM för att se vad vi gör och vad som fattas.",
+        "bockrub": "Vad betyder bockarna?",
+        "ordforkl": "Orange bock betyder att vi följer MIM:en men att något fattas, främst för att detta är en teknisk PoC och till exempel saknar styrning (governance), avtalsmallar och regelverk. MIM7 har inga numrerade krav att bedöma mot, så vi redovisar vad vi gör.",
+        "start": "Starta den guidade banan", "sjalv": "Utforska själv", "stang": "Stäng", "oppna": "Om demon",
+        "ok": "Grön bock: följs", "delvis": "Orange bock: följs med förbehåll",
+        "ny": "öppnas i ny flik", "mimlista": "Bedömning mot MIM:ar", "mimlank": "Läs mer om MIM:arna (OASC)",
+    },
+    "en": {
+        "rub": "Welcome to a technical demo",
+        "p1": "This is a technical proof of concept for a data space with water data: from a measurement in an overflow chamber to a service that uses the data, in six steps. "
+              "The chain runs for real, with real software and protocols. The water data is modelled and partly synthetic, and what is simplified or simulated is stated openly in the steps.",
+        "tips": "Tip: let the demo guide you. Press the Next button under Guided path to go through the whole chain one step at a time.",
+        "bpnamn": "DSSC Blueprint v3.0",
+        "bpin": "We take DSSC Blueprint v3.0 and its core technologies as our starting point. This is how the demo shows them, for real:",
+        "bp1": "<b>Dataspace Protocol (DSP):</b> the parties find the catalogue, negotiate an agreement and start the transfer (steps 2–4).",
+        "bp2": "<b>ODRL:</b> the terms of the agreement, for example that Distribution A needs KoV's approval and must not be distributed (step 3).",
+        "bp3": "<b>Verifiable credentials and DCP:</b> each party proves who it is with credentials that the other party checks (steps 2–4).",
+        "bp4": "<b>Connector:</b> Eclipse EDC at both DHI and the City handles the protocols for its party: catalogue, agreement and transfer (steps 2–4).",
+        "mimin": "We also assess ourselves against OASC's MIMs (version 9.0). The badges are our own assessment, not a certification. Click a MIM to see what we do and what is missing.",
+        "bockrub": "What do the ticks mean?",
+        "ordforkl": "An orange tick means we follow the MIM but something is missing, mainly because this is a technical PoC and, for example, lacks governance, contract templates and regulation. MIM7 has no numbered requirements to assess against, so we state what we do.",
+        "start": "Start the guided path", "sjalv": "Explore on my own", "stang": "Close", "oppna": "About the demo",
+        "ok": "Green tick: followed", "delvis": "Orange tick: followed with reservations",
+        "ny": "opens in a new tab", "mimlista": "Assessment against the MIMs", "mimlank": "Read more about the MIMs (OASC)",
+    },
+}
+_VALKOMST_MIM = ("MIM0", "MIM1", "MIM2", "MIM3", "MIM6", "MIM7")
+
+
+def _valkomst(sprak):
+    """Rutan som visas första gången någon kommer in. Först Blueprint och dess grundtekniker, sedan märkena för MIM:arna. Märkena följer mim.MIM:
+    grön bock där nivån är ok, orange (ring) där något fattas; bockarnas förklaring ligger bakom ett klick. Inget märke säger mer än bedömningen."""
+    v = _VALKOMST[sprak]
+    marken = []
+    for nyckel in _VALKOMST_MIM:
+        kort, n_sv, n_en, _vs, _ve, _sida, _ss, _se, niva = mim.MIM[nyckel]
+        namn = n_sv if sprak == "sv" else n_en
+        status = _ss if sprak == "sv" else _se          # MIM-sidans egen statusrad: den säger det som är sant för just den MIM:en
+        marken.append(f'<li><a class="vmerke {niva}" href="/mim?lang={sprak}" title="{e(status)}"><span class="vikon" aria-hidden="true">✓</span>'
+                      f'<span><b>{e(kort)}</b> {e(namn)}<span class="vsr"> – {e(status)}</span></span></a></li>')
+    tekniker = "".join(f"<li>{v[k]}</li>" for k in ("bp1", "bp2", "bp3", "bp4"))
+    sprakknappar = "".join(
+        '<button type="button" data-lang="%s" aria-pressed="%s">%s</button>'
+        % (sp, "true" if sp == sprak else "false", sp.upper()) for sp in SPRAK)
     return f"""
-  <div class="intro">
+  <dialog class="jobb valkomst" id="valkomstdialog" aria-labelledby="valkomstrubrik">
+    <div class="jhuvud"><h2 id="valkomstrubrik">{e(v['rub'])}</h2>
+      <div class="sprak" role="group" aria-label="Språk / Language">{sprakknappar}</div>
+      <button type="button" data-valkomst-stang>{e(v['stang'])}</button></div>
+    <div class="jkropp">
+      <p>{e(v['p1'])}</p>
+      <section class="vblueprint" aria-labelledby="vbprub">
+        <h3 id="vbprub"><span class="vikon bp" aria-hidden="true">◆</span>
+          <a href="https://blueprint.dssc.eu" target="_blank" rel="noopener noreferrer">{e(v['bpnamn'])}</a> <small>({e(v['ny'])})</small></h3>
+        <p>{e(v['bpin'])}</p>
+        <ul class="vtekniker">{tekniker}</ul>
+      </section>
+      <p class="vtips">{e(v['tips'])}</p>
+      <p>{e(v['mimin'])}</p>
+      <ul class="vmarken" aria-label="{e(v['mimlista'])}">{''.join(marken)}</ul>
+      <details class="vbockar"><summary>{e(v['bockrub'])}</summary>
+        <p><span class="vikon ok" aria-hidden="true">✓</span> {e(v['ok'])}. <span class="vikon delvis" aria-hidden="true">✓</span> {e(v['delvis'])}.</p>
+        <p>{e(v['ordforkl'])}</p></details>
+      <p class="vforklaring"><a href="https://mims.oascities.org/" target="_blank" rel="noopener noreferrer">{e(v['mimlank'])}</a> ({e(v['ny'])})</p>
+      <div class="vknappar">
+        <button type="button" class="primar" data-valkomst-start>{e(v['start'])}</button>
+        <button type="button" data-valkomst-stang>{e(v['sjalv'])}</button>
+      </div>
+    </div>
+  </dialog>"""
+
+
+def _intro(t, antal, sprak):
+    return f"""
+  <details class="intro" id="intro" open>
+    <summary><span class="introrub">{e(t['introH'])}</span>
+      <span class="introknapp"><span class="iv">{e(t['introVisa'])}</span><span class="id">{e(t['introDolj'])}</span></span></summary>
     <div class="ingress">
-      <h2>{e(t['introH'])}</h2>
       <p>{e(t['ingress'])}</p>
       <ul class="fakta">
         <li><span class="fikon f-ds">◆</span><span>{t['fakta1']}</span></li>
         <li><span class="fikon f-akta">✓</span><span>{_mall(t['faktaAkta'], a=antal['akta'], f=antal['forenklad'], r=antal['simulerad'])}</span></li>
         <li><span class="fikon f-gps">⌖</span><span>{t['fakta3']}</span></li>
       </ul>
-      <button type="button" class="omlank" data-flik="om">{e(t['omLank'])} →</button>
+      <button type="button" class="omlank" data-flik="om">{e(t['omLank'])} →</button><button type="button" class="omlank valkomstlank" data-valkomst-oppna>{e(_VALKOMST[sprak]['oppna'])}</button>
     </div>
-  </div>"""
+  </details>"""
 
 
 def _ordningsremsa(t):
     knappar = ['<button type="button" data-hopp="%d"%s><span class="snr">%d</span>%s</button>'
                % (hopp, ' data-kov="1"' if i == 4 else "", hopp, e(namn))
                for i, (hopp, namn) in enumerate(zip(_ORDNING_HOPP, t["ordning"]))]
-    return ('<div class="ordning" id="ordning"><div class="ordningtopp"><span class="etikett">%s</span></div>'
+    return ('<div class="ordning" id="ordning"><h2 class="sektionrub" id="rubrik-bana">%s</h2><div class="ordningtopp"><span class="etikett">%s</span></div>'
             '<div class="ordningsteg">%s<button type="button" class="nastaknapp" id="nastaknapp" hidden></button>'
             '<span class="nastaslut" id="nastaslut" role="status" hidden></span></div></div>'
-            % (e(t["ordningEtikett"]), '<span class="pil">→</span>'.join(knappar)))
+            % (e(t["banaRub"]), e(t["ordningEtikett"]), '<span class="pil">→</span>'.join(knappar)))
 
 
 # ---------------------------------------------------------------------------
@@ -4494,11 +4684,13 @@ def sida(steg, komponenter, portar, vard, troskel, publika=None,
     kropp = f"""
 {_stegrad(steg, t, sprak)}
 {_sidhuvud(t, sprak)}
+{_valkomst(sprak)}
 <main>
 
 <section id="kedjan" class="flik aktiv">
-  {_intro(t, antal)}
+  {_intro(t, antal, sprak)}
   {_ordningsremsa(t)}
+  <h2 class="sektionrub" id="rubrik-flode">{e(t['flodeRub'])}</h2>
   {_bild(steg, t, sprak)}
   <div id="paneler">{panelerna}</div>
   {_ingangar(portar, vard, publika, t, sprak, variant)}

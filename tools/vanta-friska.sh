@@ -7,14 +7,14 @@
 # sågs 2026-10-14 (edc-consumer utan avtals-API:t). Docker markerar containern "unhealthy" först efter
 # start_period + retries x interval (ca 4-5 minuter), så det går inte att vänta på Dockers status.
 # Skriptet kör i stället containerns EGEN hälsokontroll (samma kommando som compose-filen anger) direkt, och
-# startar om containern en gång per misslyckat försök. Efter hälsokontrollen prövas också de vägar kedjan använder (se vagar() nedan):
+# startar om containern en gång per misslyckat försök (utom identity-hub-*: de startas aldrig om ensamma, se nedan). Efter hälsokontrollen prövas också de vägar kedjan använder (se vagar() nedan):
 # en tjänst med frisk hälsa men saknad route räknas som inte frisk.
 #
 #   bash tools/vanta-friska.sh edc-provider edc-consumer identity-hub-dhi identity-hub-stad
 #
 # Namnen är tjänstenamn utan prefix; prefixet läses ur SVADA_PREFIX (som i övriga skript).
 # SEKUNDER = väntetid per försök (standard 60), FORSOK = antal försök (standard 3).
-# Slutstatus 0 om alla blev friska, annars 1. Rör ingenting utom att starta om en container som inte svarar.
+# Slutstatus 0 om alla blev friska, annars 1. Rör ingenting utom att starta om en container som inte svarar (aldrig en identitetstjänst ensam).
 set -uo pipefail
 
 PREFIX="${SVADA_PREFIX:-svada}"
@@ -78,6 +78,10 @@ for namn in "$@"; do
     done
     [ "${friska}" = ja ] && break
     if [ "${forsok}" -lt "${FORSOK}" ]; then
+      case "${namn}" in
+        identity-hub-*)       # nya nycklar vid varje start: en hubb som startas om ensam ger tyst 401 hos connectorerna (se verify_ap8_fas3.sh)
+          echo "  ${namn}: inte frisk efter ${SEKUNDER} s; startas INTE om ensam (nya nycklar kräver att connectorerna startas om efter)"; break;;
+      esac
       echo "  ${namn}: inte frisk efter ${SEKUNDER} s; startar om (försök ${forsok}/${FORSOK})"
       docker restart "${c}" >/dev/null 2>&1
     fi

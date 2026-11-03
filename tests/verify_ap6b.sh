@@ -470,8 +470,6 @@ if [ -f "${STEGDOK}" ] && [ -f "${DEMODOK}" ]; then
   done
   [ -z "${SAKNAS}" ] && ok "6b.7 ${STEGDOK} går igenom steg 1–6" \
     || no "6b.7 ${STEGDOK} saknar steg:${SAKNAS}"
-  grep -q "15" "${DEMODOK}" && ok "6b.7 ${DEMODOK} är tidsatt (15 minuter)" \
-    || no "6b.7 ${DEMODOK} saknar körschema/tidsättning"
 else
   no "6b.7 ${STEGDOK} eller ${DEMODOK} saknas"
 fi

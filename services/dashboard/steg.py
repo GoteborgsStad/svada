@@ -992,7 +992,7 @@ _P[6] = {
         "has been revoked."),
     "forenklat": _t(
         "Analysen är medvetet enkel: en rangordning efter modellerad "
-        "bräddvolym, där du väljer hur många brunnar som pekas ut. Datat är delvis "
+        "bräddvolym, där du väljer hur många brunnar som pekas ut. Data är delvis "
         "syntetiskt (90 av 91 brunnar) och bräddtiden är lika för alla "
         "brunnar i modellen, så den används inte. Vyn visar hur ett beslut "
         "kan stödjas av data som kommit genom ett avtal, inte att modellen "

@@ -42,6 +42,8 @@ referenced control for the purpose of that MIM, not holding the certificate.
 | MIM7 | Geospatial data | **Cannot be assessed**: v9.0 publishes no numbered requirements; we describe what we do (points on a map, only in A) | [mim7-geospatial-data.md](mim7-geospatial-data.md) |
 | MIM6 | Securing data | **Followed** (self-assessed), with PoC limitations | [mim6-securing-data.md](mim6-securing-data.md) |
 
+In the welcome box MIM7 has a green tick (the step boxes show a green left edge), since v9.0 gives no numbered requirements to fall short of; its status line says so openly (decision 2026-11-02).
+
 We started with MIM6, then MIM0, MIM1, MIM2 and MIM3, and looked at MIM7. MIM4 (Personal data) and MIM8 (Local digital twins) are listed in v9.0 but are not assessed yet. What we would have to change to follow the MIMs better is kept in [forbattringar.md](forbattringar.md). The MIM names above come from the page addresses in v9.0 and are not confirmed against the
 specification text. Other MIMs are not assessed yet; we do not claim anything about them.
 
@@ -51,4 +53,4 @@ MIM:arna är OASC:s minimikrav för interoperabilitet mellan städer och dataspa
 inte följer och varför. Varje krav får en av tre statusar: **Följs**, **PoC-begränsning** (kravet kan inte följas fullt ut bara för att det här är en PoC
 och inte en riktig verksamhet; redovisas men påverkar inte om vi säger att vi följer MIM:en) och **Följs inte** (vi har valt bort det, med skäl). Vi säger
 att vi följer en MIM när inget krav har statusen *Följs inte*. Bedömningen är vår egen: MIM:arna har inget konformitetsprov, och v9.0 var ute på remiss
-till 31 maj 2026 (slutligt läge inte bekräftat). Vi har bedömt MIM6, MIM0, MIM1, MIM2 och MIM3, och tittat på MIM7 (inga numrerade krav i v9.0, så den går inte att bedöma; vi redovisar vad vi gör). Vad vi skulle behöva ändra för att följa MIM:arna bättre finns i [forbattringar.md](forbattringar.md). Två statusar till: **Gäller inte** (villkorat krav vars villkor inte uppfylls av vårt användningsfall) och **Ej bedömd** (hänger på en MIM vi inte bedömt).
+till 31 maj 2026 (slutligt läge inte bekräftat). Vi har bedömt MIM6, MIM0, MIM1, MIM2 och MIM3, och tittat på MIM7 (inga numrerade krav i v9.0, så den går inte att bedöma; vi redovisar vad vi gör; i välkomstrutan har MIM7 grön bock, beslut 2026-11-02). Vad vi skulle behöva ändra för att följa MIM:arna bättre finns i [forbattringar.md](forbattringar.md). Två statusar till: **Gäller inte** (villkorat krav vars villkor inte uppfylls av vårt användningsfall) och **Ej bedömd** (hänger på en MIM vi inte bedömt).

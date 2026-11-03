@@ -39,7 +39,8 @@ for nyckel, v in mim.MIM.items():
     kolla(kan_inte == v[6].startswith("Inga numrerade krav") and (kan_inte or (v[6].startswith("Följs inte ännu") == inte_annu and (inte_annu or v[6].startswith("Följs")))),
           "%s: rutans status (%s) stämmer med översikten (%s)" % (nyckel, v[6], re.sub(r"[*]", "", doc).strip()[:48]))
     kolla(v[7].startswith("Not yet followed") == inte_annu and v[7].startswith("No numbered requirements") == kan_inte, "%s: engelska statusen följer samma linje" % nyckel)
-    kolla(("delvis" if ("modell" in v[6] or "PoC" in v[6] or kan_inte) else ("nej" if inte_annu else "ok")) == v[8], "%s: färgnivån stämmer med texten" % nyckel)
+    # MIM7 "går inte att bedöma" har nivån ok (beslut 2026-11-02): vi följer allt som går att bedöma, och v9.0 har inga numrerade krav att missa. Texten säger det öppet.
+    kolla(("delvis" if ("modell" in v[6] or "PoC" in v[6]) else ("nej" if inte_annu else "ok")) == v[8], "%s: färgnivån stämmer med texten" % nyckel)
 
 # Rutor på stegen och sidorna, båda språken, rätt länk, inget internt
 ALLT = {**mim.STEG_MIM, **mim.SIDA_MIM}
@@ -92,6 +93,21 @@ for sprak in ("sv", "en"):
     kolla("\\u003c" not in ordlista.js_ord(sprak).__repr__() and "</script>" not in ordlista.tillagg(sprak, "/x#{id}").replace("</script>", "", 1), "ordlistemotorn: inget </script> inne i skriptet (%s)" % sprak)
     kolla(len(ordlista.sida(sprak)) > 5000 and "Version" in ordlista.sida(sprak), "/ordlista (%s): sidan har alla begrepp och en versionsrad" % sprak)
 kolla("li > span" in mim.CSS and ".mimruta span {" not in mim.CSS, "MIM-rutan: blockregeln gäller bara rutans egna rader, inte understrukna ord")
+
+print("== Välkomstrutans märken (vy.py) ==")
+sys.path.insert(0, os.path.join(ROT, "services"))
+import vy  # noqa: E402
+for sprak in ("sv", "en"):
+    h = vy._valkomst(sprak)
+    for nyckel in vy._VALKOMST_MIM:
+        niva = mim.MIM[nyckel][8]
+        kolla(re.search(r'class="vmerke %s"[^>]*><span class="vikon" aria-hidden="true">%s</span><span><b>%s</b>' % (niva, "✓", nyckel), h) is not None,
+              "%s (%s): märket har nivån %s ur mim.MIM och en bock (orden finns för skärmläsare, titel och förklaringsrad)" % (nyckel, sprak, niva))
+    kolla(h.count('class="vmerke ok"') == sum(1 for k in vy._VALKOMST_MIM if mim.MIM[k][8] == "ok"), "välkomstrutan (%s): lika många gröna märken som MIM:ar med nivån ok" % sprak)
+    kolla('class="vforklaring"' in h and 'class="vsr"' in h and 'title="' in h, "välkomstrutan (%s): förklaringsraden, text för skärmläsare och titel finns, så färgen inte är ensam signal" % sprak)
+    kolla('href="https://mims.oascities.org/" target="_blank" rel="noopener noreferrer"' in h, "välkomstrutan (%s): länk till MIM:arna i allmänhet, extern med noopener" % sprak)
+    kolla("Blueprint v3.0" in h and 'rel="noopener noreferrer"' in h and "<script" not in h, "välkomstrutan (%s): Blueprint v3.0, extern länk med noopener, inget skript" % sprak)
+kolla(set(vy._VALKOMST["sv"]) == set(vy._VALKOMST["en"]), "välkomstrutan: svenska och engelska har samma nycklar")
 
 print("OK: alla prov gröna" if fel == 0 else "FEL: %d" % fel)
 sys.exit(1 if fel else 0)

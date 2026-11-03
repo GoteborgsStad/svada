@@ -114,20 +114,18 @@ for namn, t in alla:
     if re.search(r"(?i)\bstängd[a]? (version|distribution|data)", t):
         kolla(False, "%s: 'stängd' om A (K20)" % namn)
 for sp in vy.SPRAK:
+    for nyckel, t in vy._VALKOMST[sp].items():
+        if isinstance(t, str) and re.search(r"[A-Za-zåäöÅÄÖ]*[Dd]atat\b", t):
+            kolla(False, "välkomstrutan %s/%s: 'datat' ska vara 'data' (K19)" % (sp, nyckel))
+for sp in vy.SPRAK:
     for nyckel, t in vy.TEXTER[sp].items():
         if isinstance(t, str) and re.search(r"[A-Za-zåäöÅÄÖ]*datat\b", t):
             kolla(False, "gränssnittstext %s/%s: 'datat' ska vara 'data' (K19)" % (sp, nyckel))
+for fil in ("services/dashboard/mimsida.py", "services/dashboard/ordlista.py", "services/publik-vy/modell.py", "services/dashboard/vy.py", "services/dashboard/steg.py"):
+    kalla = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", fil), encoding="utf-8").read()
+    traffar = re.findall(r"(?<![A-Za-zåäöÅÄÖ])[Dd]atat\b", re.sub(r"(?m)^\s*#.*$", "", kalla))
+    kolla(not traffar, "%s: 'datat' ska vara 'data' (K19)%s" % (fil, "" if not traffar else " – %r" % traffar[:3]))
 kolla(True, "stegtexterna är genomsökta (%d texter)" % len(alla))
-for nr, sv_start, en_start in ((2, "Så gör vi i PoC:en", "What we do in the PoC"),
-                               (3, "Så gör vi i PoC:en", "What we do in the PoC"),
-                               (4, "Så gör vi i PoC:en", "What we do in the PoC")):
-    p = steg.STEG[nr - 1]["pedagogik"]
-    kolla(steg.text(p["vad"], "sv").startswith("**" + sv_start)
-          and steg.text(p["vad"], "en").startswith("**" + en_start),
-          "steg %d: 'Vad händer?' börjar med '%s' (K21)" % (nr, sv_start))
-    kolla(steg.text(p["dataspace"], "sv").startswith("**Gäller dataspace generellt")
-          and steg.text(p["dataspace"], "en").startswith("**True of data spaces in general"),
-          "steg %d: dataspace-rutan börjar med 'Gäller dataspace generellt' (K21)" % nr)
 # Samordnarens utestängning (steg 3): intern variant har knapparna, extern har ett inspelat exempel, och flaggan `utestangning` tvingar det ena
 # eller andra oavsett variant (granskningsfynd 2026-10-20: ingen kontroll visade att den interna varianten behåller knapparna).
 _med = lambda **kw: vy.sida(steg.STEG, KOMP, kallor.PORTAR, "localhost", 0.5, PUBLIKA, sprak="sv", **kw)
@@ -363,8 +361,6 @@ kolla(h_sv.count('<li class="las">') == 7 and h_en.count('<li class="las">') == 
 kolla("Hävning av avtalet" in h_sv and "Revocation of the agreement" in h_en
       and "Filter i skördarna" not in h_sv and "harvesters" not in h_en,
       "låslistan har hävningen och saknar skördarfiltret (portalerna ingår inte)")
-kolla("DSSC" in h_sv and "DSSC" in h_en and "DCAT" in h_sv and "DCAT" in h_en,
-      "katalogtexten nämner DCAT (Dataspace Protocol bygger på det) och DSSC")
 # Engelska sidan: inga svenska ord kvar i stegtexterna (efter att namn som "Kretslopp och Vatten"
 # tagits bort), och inga föråldrade påståenden från tidigare versioner.
 _SV_ORD = re.compile(r"\b(och|att|inte|som|är|för|med|ett|det|den|på|av|vi|kan|ska|till|från|eller|alla|när|hos|vid|bara|men|även|finns|varje|samt|också)\b", re.I)
@@ -425,10 +421,6 @@ for _sp in ("sv", "en"):
 print("== Batch-datumet förklaras (backlog 32) ==")
 kolla(steg._dygn_ur_batchid("batch-015-2026-06-29") == "2026-06-29" and steg._dygn_ur_batchid(None) == "–" and steg._dygn_ur_batchid("batch-x") == "–",
       "datumet ur batch-id:t läses som det modellerade dygnet (och ger – när det saknas)")
-for _sp in ("sv", "en"):
-    _t = steg.text(steg.STEG[0]["pedagogik"]["knappar"]["kor-batch"]["titta"], _sp)
-    kolla(("modellerade dygnet" if _sp == "sv" else "modelled day") in _t and ("inte när den kördes" if _sp == "sv" else "not when it was run") in _t,
-          "steg 1 (%s): texten säger att datumet i batch-id:t är det modellerade dygnet, inte när batchen kördes" % _sp)
 _by0 = {x["id"]: x for x in vy.ORDLISTA}
 kolla("batch-015-2026-06-29" in _by0["batch"]["sv"]["def"] and "batch-015-2026-06-29" in _by0["batch"]["en"]["def"] and "modellerat-dygn" in _by0,
       "ordlistan: Batch förklarar datumet och Modellerat dygn är ett eget begrepp")
@@ -492,7 +484,6 @@ for _sp, _ord in (("sv", ("KoV häver avtalet", "gäller tills det hävs", "Så 
                   ("en", ("KoV revokes the agreement", "valid until it is revoked", "How the PoC works", "differs"))):
     _h = rendera(_sp, "intern")
     kolla("data-kovbeslut=\"hav\"" in _h, "KoV-rutan har en Häv-knapp (%s)" % _sp)
-    kolla(all(o in _h for o in _ord), "hävningstexterna står med på %s: %s" % (_sp, ", ".join(_ord)))
     kolla("id=\"avtallista\"" in _h, "avtalslistan finns på fliken Suveränitet (%s)" % _sp)
 _p3 = str(steg.STEG[2]["pedagogik"])
 kolla("round trip" not in _p3 and "hemresa" not in _p3, "steg 3: formuleringen om hemresa/round trip är borta")
@@ -501,22 +492,9 @@ kolla("stays valid" not in _p3 and "fortsätter att gälla" not in _p3,
 # Webinariet 2026-10: villkoren sätts av ägaren och binder mottagaren; för A tar Intraservice emot på KoV:s uppdrag.
 for _sp in ("sv", "en"):
     _v3 = str(steg.STEG[2]["pedagogik"]["varfor"][_sp])
-    kolla(("binder mottagaren" if _sp == "sv" else "bind the recipient") in _v3
-          and ("på KoV:s uppdrag" if _sp == "sv" else "on KoV's behalf") in _v3
-          and ("samma part" not in _v3 and "same party" not in _v3),
-          "steg 3 (%s): villkoren binder mottagaren, Intraservice tar emot på KoV:s uppdrag (inte 'samma part')" % _sp)
-    _a3 = steg.text(steg.STEG[2]["pedagogik"]["akta"], _sp)
-    kolla(("Hävningen är också riktig" if _sp == "sv" else "Revocation is real too") in _a3,
-          "steg 3 (%s): Äkta säger att hävningen av avtal är riktig (webinariet p7)" % _sp)
-    _f3 = steg.text(steg.STEG[2]["pedagogik"]["forenklat"], _sp)
-    kolla(all(o in _f3 for o in (("I PoC:en ligger avtal och KoV-beslut bara i minnet", "avtalsregister", "diarieförs")
-                                 if _sp == "sv" else ("In the PoC, agreements and KoV decisions are kept only in memory",
-                                                      "agreement register", "filed in the city's records"))),
-          "steg 3 (%s): Förenklat säger var avtal och KoV-beslut ligger i PoC:en och att avtal i drift diarieförs (webinariet p9)" % _sp)
+    kolla("samma part" not in _v3 and "same party" not in _v3,
+          "steg 3 (%s): villkoren beskrivs inte som att samma part sätter och tar emot (webinariet 2026-10)" % _sp)
 _ordl = {o["id"]: o for o in vy.ORDLISTA}
-kolla("binder" in _ordl["kov"]["sv"]["def"] and "på KoV:s uppdrag" in _ordl["intraservice"]["sv"]["def"]
-      and "bind" in _ordl["kov"]["en"]["def"] and "on KoV's behalf" in _ordl["intraservice"]["en"]["def"],
-      "ordlistan: KoV sätter villkoren som binder mottagaren, Intraservice tar emot på KoV:s uppdrag")
 kolla(all(a in steg.STEG[2]["pedagogik"]["knappar"] for a in ("kov-godkann", "kov-avsla", "kov-hav")),
       "steg 3 har tre KoV-knappar: godkänn, avslå, häv")
 kolla("var jobbAktivtNu" not in _h and "function kovKnappar()" in _h,

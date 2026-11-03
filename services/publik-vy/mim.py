@@ -30,7 +30,7 @@ MIM = {
     "MIM7": ("MIM7", "Geodata", "Geospatial data",
              "Geodata ska gå att föra över och integrera mellan system, med bestående identifierare.",
              "Geospatial data can be transferred and integrated between systems, with persistent identifiers.",
-             "geospatial-data", "Inga numrerade krav i v9.0 (går inte att bedöma); vi redovisar vad vi gör", "No numbered requirements in v9.0 (cannot be assessed); we state what we do", "delvis"),
+             "geospatial-data", "Inga numrerade krav i v9.0 (går inte att bedöma); vi redovisar vad vi gör", "No numbered requirements in v9.0 (cannot be assessed); we state what we do", "ok"),
     "MIM6": ("MIM6", "Säkerhet", "Securing data",
              "Åtkomst styrs, parterna identifieras säkert och kryptografi används på rätt sätt.",
              "Access is controlled, parties are identified securely and cryptography is used properly.",

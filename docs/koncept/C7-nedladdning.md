@@ -39,7 +39,7 @@
 | 6 | analysen för B (CSV, JSON) och för A (CSV, GeoJSON) |
 | Ordlistan | ordlistan och MIM-bedömningen (JSON) |
 | Brunnsvyn | `/brunnar?format=csv\|json`, `/brunnar/<id>?format=csv\|json` |
-| `/modell` | `utkast.zip` (alla filer, `MANIFEST.json` med SHA-256 per fil och en LÄS-MIG som säger utkast), `termlista.csv` |
+| `/modell` | `utkast.zip` (alla filer, `MANIFEST.json` med SHA-256 per fil och en LÄS-MIG som säger utkast), `termlista.csv`. De genererade filerna heter `svada-<bas>-<version>-<UTC-tidsmärke>.<ändelse>` (`filer.filnamn`), de råa modellfilerna (`termer.json` m.fl.) behåller sina namn |
 
 Koden: `services/dashboard/nedladdning.py` (registret `POSTER`, API:t `/api/ladda-ned/{id}`),
 `services/publik-vy/filer.py` och `services/publik-vy/modell.py` (`genererad`),

@@ -367,10 +367,39 @@ HS=$(grep -i '^x-content-sha256:' "${TMP}/nd-en.h" | tr -d '\r' | awk '{print $2
 [ "$(jq 'length' "${TMP}/nd-cip-b.body")" -ge 91 ] && ok "K40 stadens plattform (B) har minst 91 poster" || no "K40 cip-b har färre än 91 poster"
 ! head -1 "${TMP}/nd-analys-b-csv.body" | grep -qi 'position\|lon\|lat' && ok "K40 analysen för B saknar positioner" || no "K40 analys-b-csv har positioner"
 curl -s --max-time 30 "${DASH}/api/audit" | jq -e '[.handelser[]? | select(.typ=="nedladdning")] | length > 0' >/dev/null && ok "K40 nedladdningarna syns i auditloggen" || no "K40 nedladdningar saknas i auditloggen"
-for A in leverans-a cip-a analys-a-csv analys-a-geojson; do                  # A: 200 eller 403 med förklaring, aldrig ett serverfel
+# A följer avtalet: finns inget GÄLLANDE A-avtal i stadens register ska varje A-fil nekas med exakt 403; finns ett får svaret vara 200 (eller 409 när
+# ingen leverans är mottagen än), aldrig 403 av fel skäl eller ett serverfel. (Förr godkändes 200, 403 och 409 oavsett, så en fil som lämnades ut utan avtal gav grönt.)
+GALLANDE_A=$(curl -s --max-time 30 "${DASH}/api/avtal" | jq '[.avtal[]? | select(.distribution=="A" and .status=="GALLANDE")] | length')
+for A in leverans-a cip-a analys-a-csv analys-a-geojson; do
   KOD=$(curl -s --max-time 60 -o "${TMP}/nd-a.body" -w '%{http_code}' "${DASH}/api/ladda-ned/${A}")
-  case "${KOD}" in 200|403|409) ok "K40 ${A}: ${KOD} (A följer avtalet)";; *) no "K40 ${A}: ${KOD}";; esac
+  if [ "${GALLANDE_A:-0}" -eq 0 ]; then
+    [ "${KOD}" = "403" ] && ok "K40 ${A}: 403 utan gällande A-avtal" || no "K40 ${A}: ${KOD} men inget gällande A-avtal finns (förväntat 403)"
+  else
+    case "${KOD}" in 200|409) ok "K40 ${A}: ${KOD} med gällande A-avtal";; *) no "K40 ${A}: ${KOD} med gällande A-avtal (förväntat 200 eller 409)";; esac
+  fi
 done
+# Efter en hävning: webbläsartestet strax före lämnar ett gällande A-avtal, så grenen "403 utan avtal" ovan körs annars nästan aldrig. Här häver vi
+# alla gällande A-avtal (testtillstånd; senare skript förhandlar nya) och kräver exakt 403 på varje A-fil, även leverans-a som läser ur ingest.
+# Hävningen är ett jobb och kedjan kör ett jobb i taget: häv ett avtal, vänta tills jobbet är klart, ta nästa.
+for _ in $(seq 1 12); do
+  DHI=$(curl -s --max-time 30 "${DASH}/api/avtal" | jq -r '[.avtal[]? | select(.distribution=="A" and .status=="GALLANDE" and .dhiAvtalId) | .dhiAvtalId][0] // empty')
+  [ -z "${DHI}" ] && break
+  JID=$(curl -s --max-time 60 -X POST "${DASH}/api/kov/avtal/${DHI}/hav" | jq -r '.id // empty')
+  [ -z "${JID}" ] && { sleep 3; continue; }      # upptaget: ett annat jobb kör, försök igen
+  for _ in $(seq 1 30); do [ "$(curl -s --max-time 10 "${DASH}/api/jobb/${JID}" | jq -r '.status')" != "kör" ] && break; sleep 2; done
+done
+for _ in $(seq 1 30); do     # hävningen är ett jobb: vänta tills registret säger att inget A-avtal gäller
+  GALLANDE_EFTER=$(curl -s --max-time 30 "${DASH}/api/avtal" | jq '[.avtal[]? | select(.distribution=="A" and .status=="GALLANDE")] | length')
+  [ "${GALLANDE_EFTER:-1}" -eq 0 ] && break; sleep 2
+done
+if [ "${GALLANDE_EFTER:-1}" -eq 0 ]; then
+  for A in leverans-a cip-a analys-a-csv analys-a-geojson; do
+    KOD=$(curl -s --max-time 60 -o "${TMP}/nd-a.body" -w '%{http_code}' "${DASH}/api/ladda-ned/${A}")
+    [ "${KOD}" = "403" ] && ok "K40 ${A}: 403 efter att alla A-avtal hävts" || no "K40 ${A}: ${KOD} efter hävning (förväntat 403)"
+  done
+else
+  no "K40 kunde inte häva A-avtalen (${GALLANDE_EFTER} gäller fortfarande), så nekandet efter hävning är inte prövat"
+fi
 [ "$(curl -s -o /dev/null -w '%{http_code}' "${DASH}/api/ladda-ned/finns-inte")" = "404" ] && ok "K40 en okänd fil ger 404" || no "K40 okänd fil ger inte 404"
 # Brunnsvyn: CSV, JSON med summa, datamodellen som zip med manifest och termlistan som CSV
 curl -s --max-time 30 -D "${TMP}/pv.h" -o "${TMP}/pv.csv" "${PUBV}/brunnar?format=csv"

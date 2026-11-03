@@ -19,6 +19,9 @@ const HTML = execFileSync('python3', [new URL('rendera_sida.py', import.meta.url
 const HTML_UTE = execFileSync('python3', [new URL('rendera_sida.py', import.meta.url).pathname, 'sv', 'utestangning']).toString();
 const HTML_UTE_EN = execFileSync('python3', [new URL('rendera_sida.py', import.meta.url).pathname, 'en', 'utestangning']).toString();
 const ELAKA = ["x');window.__a2=1;//", 'x");window.__a2=2;//', "x\\');window.__a2=3;//", "x'\n;window.__a2=4;//"];
+// Väntan på ett villkor (aldrig en fast paus): kollar var 25:e ms och ger upp efter `ms`.
+const vanta = async (villkor, ms = 3000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (villkor()) return true; await new Promise(r => setTimeout(r, 25)); } return villkor(); };
+const klickaIgen = (p, sel) => p.waitForFunction(s => /Klicka igen/.test(document.querySelector(s)?.textContent || ''), sel, { timeout: 1500 }).catch(() => {});
 const b = await chromium.launch({ executablePath: CHROME, headless: true });
 for (const id of ELAKA) {
   const p = await b.newPage({ locale: 'sv-SE' });
@@ -38,11 +41,11 @@ for (const id of ELAKA) {
   const syns = await p.waitForSelector('#kovlista button.godkann', { timeout: 15000 }).then(() => true).catch(() => false);
   kolla(syns, `fixtur: Godkänn-knappen ritas för id ${JSON.stringify(id)}`);
   if (syns) {
-    await p.click('#kovlista button.godkann'); await p.waitForTimeout(400);
+    await p.click('#kovlista button.godkann'); await vanta(() => anrop.some(a => /\/godkann$/.test(a)));
     await p.goto('about:blank'); await p.goto('http://fixtur.test/?lang=sv#suveranitet');   // godkännandet flyttar till fliken Jobb
     await p.waitForSelector('#avtallista button.fara', { timeout: 10000 }).catch(() => {});
-    await p.click('#avtallista button.fara').catch(() => {}); await p.waitForTimeout(200);
-    await p.click('#avtallista button.fara').catch(() => {}); await p.waitForTimeout(400);   // M2: hävning kräver ett andra klick
+    await p.click('#avtallista button.fara').catch(() => {}); await klickaIgen(p, '#avtallista button.fara');
+    await p.click('#avtallista button.fara').catch(() => {}); await vanta(() => anrop.some(a => /\/hav$/.test(a)), 1500);   // M2: hävning kräver ett andra klick
   }
   const satt = await p.evaluate(() => window.__a2);
   kolla(satt === undefined, `id ${JSON.stringify(id)} kördes inte som kod vid klick (window.__a2=${satt})`);
@@ -89,20 +92,20 @@ for (const id of ELAKA) {
   });
   await p.goto('http://fixtur.test/?lang=sv#suveranitet');
   await p.waitForSelector('#avtallista button.fara', { timeout: 15000 }).catch(() => {});
-  await p.click('#avtallista button.fara').catch(() => {}); await p.waitForTimeout(300);
+  await p.click('#avtallista button.fara').catch(() => {}); await klickaIgen(p, '#avtallista button.fara');
   // F15: knappen får en kort text och förklaringen står under den (bekrafta-info), så att den inte täcker texten bredvid.
   const efterEtt = { anrop: anrop.length, text: (await p.textContent('#avtallista button.fara').catch(() => '')) || '', info: (await p.textContent('#avtallista .bekrafta-info').catch(() => '')) || '' };
   kolla(efterEtt.anrop === 0 && /Klicka igen/.test(efterEtt.text) && !/nytt avtal/.test(efterEtt.text) && /nytt avtal kan tecknas/.test(efterEtt.info),
         `M2: ett klick på KoV häver skickar inget och förklarar att ett nytt avtal kan tecknas ('${efterEtt.text.slice(0, 60)}')`);
-  await p.click('#avtallista button.fara', { timeout: 3000 }).catch(() => {}); await p.waitForTimeout(300);
+  await p.click('#avtallista button.fara', { timeout: 3000 }).catch(() => {}); await vanta(() => anrop.includes('/api/kov/avtal/d-1/hav'), 1500);
   kolla(anrop.includes('/api/kov/avtal/d-1/hav'), 'M2: det andra klicket inom 15 s häver');
   await p.goto('about:blank'); anrop.length = 0; await p.goto('http://fixtur.test/?lang=sv#suveranitet');
   await p.waitForSelector('#kovlista button.fara', { timeout: 15000 }).catch(() => {});
-  await p.click('#kovlista button.fara', { timeout: 3000 }).catch(() => {}); await p.waitForTimeout(300);
+  await p.click('#kovlista button.fara', { timeout: 3000 }).catch(() => {}); await klickaIgen(p, '#kovlista button.fara');
   kolla(anrop.length === 0, 'M2: ett klick på Avslå skickar inget');
   await p.goto('about:blank'); anrop.length = 0; await p.goto('http://fixtur.test/?lang=sv#suveranitet');
   await p.waitForSelector('#kovlista button.godkann', { timeout: 15000 }).catch(() => {});
-  await p.click('#kovlista button.godkann', { timeout: 3000 }).catch(() => {}); await p.waitForTimeout(300);
+  await p.click('#kovlista button.godkann', { timeout: 3000 }).catch(() => {}); await vanta(() => anrop.includes('/api/kov/f-1/godkann'), 1500);
   kolla(anrop.includes('/api/kov/f-1/godkann'), 'M2: Godkänn kräver bara ett klick');
   await p.close();
 }
@@ -124,13 +127,13 @@ for (const id of ELAKA) {
       beskrivning: { schemadrift: 'a', saknade_parametrar: 'b', gis_i_b: 'c' } } });
     return r.fulfill({ json: {} });
   });
-  await p.goto('http://fixtur.test/?lang=sv#jobb-1'); await p.waitForTimeout(500);          // ett tidigare jobb visas
-  await p.evaluate(() => visa('felinjektion')); await p.waitForTimeout(400);
+  await p.goto('http://fixtur.test/?lang=sv#jobb-1'); await p.waitForFunction(() => /GAMMALT JOBB/.test(document.getElementById('jobblogg')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});          // ett tidigare jobb visas
+  await p.evaluate(() => visa('felinjektion')); await p.waitForFunction(() => document.querySelector('section.flik.aktiv')?.id === 'felinjektion', null, { timeout: 3000 }).catch(() => {});
   await p.click('#felinjektion button[onclick="kor(\'kor-batch\')"]', { timeout: 5000 }).catch(() => {});
-  await p.waitForTimeout(900);
+  await p.waitForFunction(() => /NYTT JOBB/.test(document.getElementById('jobblogg')?.textContent || ''), null, { timeout: 1500 }).catch(() => {});   // provets krav: inom 1 s
   const logg = await p.textContent('#jobblogg');
   kolla(/NYTT JOBB/.test(logg) && !/GAMMALT JOBB/.test(logg), `M3: efter hoppet visar Jobb det nya jobbets logg inom 1 s fast kön svarar efter 4 s ('${logg.trim().slice(0, 40)}')`);
-  await p.goBack(); await p.waitForTimeout(400);
+  await p.goBack(); await p.waitForFunction(() => location.hash === '#felinjektion', null, { timeout: 1500 }).catch(() => {});
   const tillbaka = await p.evaluate(() => ({ hash: location.hash, aktiv: document.querySelector('section.flik.aktiv')?.id }));
   kolla(tillbaka.aktiv === 'felinjektion' && tillbaka.hash === '#felinjektion', `M3: webbläsarens Bakåt går tillbaka till Felinjektion (${JSON.stringify(tillbaka)})`);
   await p.close();
@@ -149,7 +152,7 @@ print(vy.brunn("urn:ngsi-ld:SewerOverflowModelB:SSO1_01-4526", serie, "http://ti
     const p = await b.newPage({ locale: 'sv-SE', viewport: { width: 560, height: 900 } });
     await p.route('**/*', r => { const u = new URL(r.request().url()); if (u.hostname !== 'fixtur.test') return r.abort();
       if (u.pathname === '/') return r.fulfill({ contentType: 'text/html; charset=utf-8', body: html }); return r.fulfill({ json: {} }); });
-    await p.goto('http://fixtur.test/'); await p.waitForTimeout(500);
+    await p.goto('http://fixtur.test/'); await p.waitForFunction(() => document.readyState === 'complete', null, { timeout: 3000 });
     const bred = await p.evaluate(() => ({ sida: document.documentElement.scrollWidth, vy: document.documentElement.clientWidth }));
     kolla(bred.sida <= bred.vy + 1, `L6: publika vyn (${namn}) rullar inte i sidled vid 560 px (${bred.sida} mot ${bred.vy})`);
     await p.close();
@@ -192,10 +195,10 @@ print(vy.brunn("urn:ngsi-ld:SewerOverflowModelB:SSO1_01-4526", serie, "http://ti
         'ett pågående jobb låser åtgärdsknapparna men inte samordnarens knappar');
   jobbPagar = false;
   await p.evaluate(() => { document.querySelector('#svadatabell button[data-svada]').dataset.markerad = '1'; });
-  await p.waitForTimeout(3600);
+  await p.waitForTimeout(3600);   // MEDVETEN fast tid: provet gäller att något INTE händer, så en pollningsperiod (5 s-takten) måste gå; det finns inget villkor att vänta på
   kolla(await p.evaluate(() => document.querySelector('#svadatabell button[data-svada]').dataset.markerad === '1'), 'samordnarens knappar byts inte ut vid varje avfrågning (inga tappade klick)');
   nasta502 = true;
-  await p.click('#svadatabell button[data-svada="stad"]'); await p.waitForTimeout(2200);
+  await p.click('#svadatabell button[data-svada="stad"]'); await p.waitForFunction(() => document.querySelectorAll('#svadatabell button[data-svada]:disabled').length === 0, null, { timeout: 4000 }).catch(() => {});
   kolla(await p.evaluate(() => document.querySelectorAll('#svadatabell button[data-svada]:disabled').length) === 0, 'efter ett misslyckat anrop (502) är knapparna aktiva igen');
   kolla(await p.evaluate(() => !/UTESTÄNGD/.test(document.querySelector('#svadatabell').textContent)), 'ett misslyckat anrop ändrar inte medlemskapet');
   nasta502 = false;

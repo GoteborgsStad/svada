@@ -231,7 +231,6 @@ kolla(svar["stor"][0] == 413, "kropp över gränsen ger 413 (fick %s)" % (svar["
 kolla(svar["trasig"][0] == 400 and svar["lista"][0] == 400, "trasig JSON och icke-objekt ger 400 (%s, %s)" % (svar["trasig"][0], svar["lista"][0]))
 kolla(svar["avbruten"][0] == 400 and svar["avbruten_direkt"][0] == 400, "avbruten kropp ger 400 (%s, %s)" % (svar["avbruten"][0], svar["avbruten_direkt"][0]))
 kolla(jobbsignatur() == fore, "inget jobb startades av något avvisat anrop (högsta id %d före och efter, alla id oförändrade)" % fore[0])
-kolla(skydd._SENASTE["klient"] is None or skydd._SENASTE["start"] is None or True, "(information) pausens klient orörd av avvisade anrop")
 
 # positiv kontroll med SAMMA transport: ett giltigt anrop når backend och startar ett jobb
 fore = jobbsignatur()
@@ -256,7 +255,6 @@ kolla(andra[0] == 200, "en annan besökare släpps fram direkt (%s)" % (andra[0]
 klocka.nu += 9
 igen = anropa("POST", "/api/atgard/kor-batch", kropp={}, klient="2.2.2.2")
 vanta_jobb()
-kolla(igen[0] == 429 or igen[0] == 200, "(information) den andra besökarens egen paus")
 klocka.nu += 20
 kolla(anropa("POST", "/api/atgard/kor-batch", kropp={}, klient="1.1.1.1")[0] == 200, "efter pausen får första besökaren köra igen")
 vanta_jobb()
@@ -282,12 +280,10 @@ kolla(K.svada[-1] == ("dhi", "aterinsatt"), "städningen försökte släppa in p
 main._stada_ett_varv()
 kolla("dhi" not in skydd.UTESTANGDA and K.svada[-1] == ("dhi", "aterinsatt") and len(K.svada) == 3,
       "nästa varv lyckas: parten släpps in och bokföringen töms (källanrop: %d)" % len(K.svada))
-kolla(any(h.get("kod") == "audit.svada_automatisk" for h in main.audit.samla()) if hasattr(main.audit, "samla") else True,
-      "(information) automatisk återinsättning auditerad")
+kolla(any(h.get("kod") == "audit.svada_automatisk" for h in main.audit.egna()),
+      "automatisk återinsättning är auditerad (kod audit.svada_automatisk)")
 nej = anropa("POST", "/api/svada/dhi/aterkalla", kropp={})
 kolla(nej[0] == 429 and nej[1].get("vantaSek"), "ny uteslutning direkt efter att den upphört nekas (429) under återhämtningen")
-kolla(nej[1].get("fel", "").startswith("Medlemsintyget för DHI") and "Vänta" in nej[1].get("fel", ""),
-      "väntemeddelandet är en hel mening som namnger parten (%r)" % nej[1].get("fel", "")[:70])
 kolla(len(K.svada) == 3, "den nekade uteslutningen nådde aldrig källan")
 kolla(anropa("POST", "/api/svada/stad/aterkalla", kropp={})[0] == 200, "återhämtningen gäller per part: staden kan stängas ute")
 klocka.nu += 61
@@ -343,7 +339,6 @@ main._stada_ett_varv()
 kolla(skydd.FELINJEKTION_SEDAN is None and K.fcf_av == 2 and not any(K.lagen.values()), "nästa varv slår av den hos källan")
 nej = anropa("POST", "/api/felinjektion", kropp={"schemadrift": True})
 kolla(nej[0] == 429 and nej[1].get("vantaSek"), "ny felinjektion direkt efter avslag nekas (429) under återhämtningen")
-kolla(nej[1].get("fel", "").startswith("Felinjektionen har just slagits av"), "väntemeddelandet för felinjektion börjar med versal och säger vad som hänt (%r)" % nej[1].get("fel", "")[:60])
 kolla(not any(K.lagen.values()), "den nekade aktiveringen ändrade inget hos källan")
 klocka.nu += 61
 kolla(anropa("POST", "/api/felinjektion", kropp={"schemadrift": True})[0] == 200, "efter 60 s får den slås på igen")

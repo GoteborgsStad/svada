@@ -114,7 +114,7 @@ exakt det en människa kan nå med curl.
 | 9 | `dashboard` | – | 8800 → 38800 | Kontrollrummet, inklusive steg 6 |
 | 10 | `identity-hub-svada` | Svada (DSGA 0.1) | 39595–39598 | Simulerad utfärdare av medlems- och deltagarintyg, med statuslista för återkallelse (medveten förenkling: inte eIDAS, listan i minnet) |
 | 11 | `identity-hub-dhi` / `identity-hub-stad` | DHI / Staden | 39195–39198 / 39395–39399 | Egen IdentityHub per part: DID, nycklar, STS och partens eget rollintyg |
-| 12 | `caddy` | – | 80/443 → 38080/38443 lokalt, 80/443 på servern | Publik ingång; lösenordsgrind finns som brytare (`DEMO_GRIND`, av som standard) |
+| 12 | `caddy` | – | 80/443 → 38080/38443 lokalt, 80/443 på servern | Publik ingång; lösenordsgrind finns som brytare (`DEMO_GATE`, av som standard) |
 
 Värdportarna står i portkartan i `.env` (`*_PORT`); `verify_docs.sh` G kontrollerar att körbara exempel använder dem.
 

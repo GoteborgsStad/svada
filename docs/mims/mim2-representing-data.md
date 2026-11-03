@@ -86,7 +86,7 @@ with definitions (R1.2b). That is what the improvement list calls F1 to F3.
 
 | Req. | What it says | Status | What we do, and what is missing |
 |---|---|---|---|
-| R4.1 | Application profiles that extend a model do not affect the original model or its users. | Not applicable | The capability is conditional ("when useful"). We have no application profile. Distributions A and B are separate entity types with their own data, not profiles of one model. |
+| R4.1 | Application profiles that extend a model do not affect the original model or its users. | Not applicable | The capability is conditional ("when useful"). A and B are profiles of one model (see `SPEC.md`), but B is a restriction of A (it leaves terms out) and adds nothing, so there is no extension to document or to keep compatible. |
 | R4.2 | Extensions are documented separately from the base model. | Not applicable | As above. |
 
 ## The draft model: a temporary model made for the PoC

@@ -284,6 +284,7 @@ done
 section "4a.5b Bevakaren registrerar om katalogen efter en omstart av providern"
 docker restart "${SVADA_PREFIX:-svada}-edc-provider" >/dev/null 2>&1
 vanta_health "$PROV_API" 120 >/dev/null 2>&1
+SVADA_PREFIX="${SVADA_PREFIX:-svada}" bash tools/vanta-friska.sh edc-provider >/dev/null 2>&1 || true    # en väg som saknas efter omstarten
 LAKT=nej
 for _ in $(seq 1 30); do
   if curl -s --max-time 10 -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" "${PROV_MGMT}/v3/assets/${EDC_ASSET_B_ID}" | grep -q "${EDC_ASSET_B_ID}" \

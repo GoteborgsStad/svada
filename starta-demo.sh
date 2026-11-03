@@ -54,7 +54,7 @@ if [ -n "${PUBLIK_URL_KONTROLLRUM:-}" ]; then
 fi
 docker compose -f compose.kontrollrum.yml --profile dashboard --profile publik-ingang up -d --build
 
-echo "== 4b. Kontroll: connectorer och identitetstjänster är friska (annars en omstart per försök) =="
+echo "== 4b. Kontroll: connectorer och identitetstjänster är friska (annars en omstart per försök, utom för identitetstjänsterna) =="
 # En EDC-/IdentityHub-container startar ibland med en route som saknas (hälsovägen 404, ingen felrad; 5 av 180 omstarter under CPU-last,
 # 0 av 80 utan last; mätt 2026-11-01). Dockers egen status hinner inte avslöja det på flera minuter, så kör containrarnas egna hälsokontroller nu.
 bash tools/vanta-friska.sh edc-provider edc-consumer identity-hub-dhi identity-hub-stad \
