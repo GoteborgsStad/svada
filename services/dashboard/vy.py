@@ -1735,7 +1735,8 @@ nav button.aktiv { background: var(--fg); color: var(--bg); border-color: var(--
 .stegrad button[aria-current="step"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .stegrad button[aria-current="step"] .si { color: inherit; }
 /* vägvalet: guiden är huvudvalet, med en flytande "Börja här!"-bubbla som pekar på knappen */
-.vagval { margin: 4.4rem 0 1.2rem; }   /* luft mot introduktionen ovanför; rubriken hör till korten under */
+.vagval { margin: 1.8rem 0 1.2rem; }   /* liten luft mot introduktionen när bubblan är stängd */
+.vagval:has(.borjabubbla:not([hidden])) { margin-top: 3.4rem; }   /* medan bubblan syns ligger rubriken närmare korten än introduktionen */
 .vagval .vagvalrub { font-size: 1.35rem; margin: 0 0 .6rem; color: var(--fg); font-weight: 700; }   /* minst lika stor som knappen Starta guidad bana (1,05 rem) */
 .vagvalkort:has(.borjabubbla:not([hidden])) { margin-top: 3rem; }   /* plats över kortet för bubblan, bara medan den syns */
 .vagvalkort { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1rem; margin-top: 0; }
