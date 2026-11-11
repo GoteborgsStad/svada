@@ -81,10 +81,15 @@ for sprak in vy.SPRAK:
               "%s/%s: ingen extern resurs (skript, stilmall, bild, ram)" % (sprak, variant))
         kolla("@import" not in h and not re.search(r"url\(\s*[\"']?https?:", h),
               "%s/%s: inga externa typsnitt eller importer" % (sprak, variant))
+        kolla(h.count("https://github.com/GoteborgsStad/svada") >= 2 and 'id="omkallkod"' in h,
+              "%s/%s: källkoden går att hitta: Om-fliken har en ruta och sidfoten en länk (adressen står i både omtexten och sidfoten)" % (sprak, variant))
     h = rendera(sprak, "extern")
     sida_text = re.sub(r"<style>.*?</style>", "", h, flags=re.S)
     # K10 ska gälla texten besökaren ser. Skriptets tryckta texter ingår
     # (de skrivs i sidan), men inte identifierare; de har inga träffar.
+    # Undantag (Niklas Fjellman 2026-11-05): upphovsraden på Om-sidan får nämna Målarkitektur version 1.92. Bara de två fraserna tas bort här;
+    # varje annan träff på målarkitekturen i den externa varianten är fortfarande rött.
+    sida_text = sida_text.replace("enligt Målarkitektur version 1.92", "").replace("Target Architecture (Målarkitektur) version 1.92", "")
     for monster, namn in FORBJUDET:
         traffar = re.findall(monster, sida_text)
         kolla(not traffar, "%s/extern: inget om %s (K10)%s" % (
@@ -125,7 +130,6 @@ for fil in ("services/dashboard/mimsida.py", "services/dashboard/ordlista.py", "
     kalla = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", fil), encoding="utf-8").read()
     traffar = re.findall(r"(?<![A-Za-zåäöÅÄÖ])[Dd]atat\b", re.sub(r"(?m)^\s*#.*$", "", kalla))
     kolla(not traffar, "%s: 'datat' ska vara 'data' (K19)%s" % (fil, "" if not traffar else " – %r" % traffar[:3]))
-kolla(True, "stegtexterna är genomsökta (%d texter)" % len(alla))
 # Sidans skript ska vara giltig JavaScript. En oescapad apostrof i en engelsk text dödade hela skriptet utan att något enhetsprov märkte det
 # (varselbannern, 2026-11-03); bara de långa webbläsarproven föll. Kräver node, annars hoppas kontrollen över här (webbläsarproven täcker det).
 import shutil as _sh, subprocess as _sp, tempfile as _tf
@@ -433,7 +437,7 @@ kolla(steg._dygn_ur_batchid("batch-015-2026-06-29") == "2026-06-29" and steg._dy
 _by0 = {x["id"]: x for x in vy.ORDLISTA}
 kolla("batch-015-2026-06-29" in _by0["batch"]["sv"]["def"] and "batch-015-2026-06-29" in _by0["batch"]["en"]["def"] and "modellerat-dygn" in _by0,
       "ordlistan: Batch förklarar datumet och Modellerat dygn är ett eget begrepp")
-kolla("Modellerat dygn (datumet i batch-id:t)" in steg._ENG if hasattr(steg, "_ENG") else True, "raden för det modellerade dygnet har en engelsk etikett")
+kolla("Modellerat dygn (datumet i batch-id:t)" in steg._DETALJ_EN, "raden för det modellerade dygnet har en engelsk etikett")
 print("== Stadens gateway (cip.): avslagssidan på två språk ==")
 import importlib.util
 _sp = importlib.util.spec_from_file_location("gateway_vy", os.path.join(os.path.dirname(__file__), "..", "services", "stad-gateway", "vy.py"))
@@ -479,6 +483,16 @@ for _sp, _ord in (("sv", ("Arbetet sker inom Vattendatalabbet", "https://vattend
               and 'href="https://dssc.eu/"' in _om and "vinnova.se/en/p/the-swedish-water-data-lab-svada" in _om,
               "Om-sidan (%s, %s): projektet SVADA, finansiärer, upphovspersoner, Blueprint 3.0 och länkarna" % (_sp, _var))
         kolla(all(('rel="noopener"' in x) for x in re.findall(r'<a [^>]*target="_blank"[^>]*>', _om)), "Om-sidan (%s, %s): externa länkar har rel=noopener" % (_sp, _var))
+        _ruta = _om[_om.find('id="omkallkod"'):]
+        _ruta = _ruta[:_ruta.find("</div>")]
+        kolla(0 < _ruta.find("Niklas Fjellman") < _ruta.find("Björn Hagström")
+              and ("originaluppsättning" if _sp == "sv" else "original setup") in _ruta
+              and all(x in _ruta for x in (("Målarkitektur version 1.92", "dataspaceprotokollen", "global kommunikation och begriplighet") if _sp == "sv"
+                                           else ("Target Architecture (Målarkitektur) version 1.92", "data space protocol support", "global communication and clarity"))),
+              "Om-sidan (%s, %s): Niklas Fjellman står först och rollerna anges" % (_sp, _var))
+        kolla("https://github.com/GoteborgsStad/svada" in _ruta and "Apache-2.0" in _ruta and '<svg class="gh"' in _ruta
+              and not re.search(r"<img[^>]+github", _om),
+              "Om-sidan (%s, %s): källkodslänken med GitHub-ikon (infogad, ingen bild utifrån) och licensen står i samma ruta som upphovet" % (_sp, _var))
 
 print("== MIM-rutor på stegen ==")
 for _sp in ("sv", "en"):
@@ -576,5 +590,58 @@ for _sp, _ord in (("sv", "får användas …"), ("en", "may be used …")):
           "%s: steg 5 visar värdets contractAgreementId bredvid avtalet med id, distribution, status och villkor i klartext" % _sp)
 kallor.orion_stad_brunn, kallor.avtal, kallor.avtalsregister = _g
 kolla("ursprung?lang=" in vy.SKRIPT, "sidan ber om avtalets klartext på sitt eget språk")
+
+# Källkodslänken ska finnas på varje fristående sida (nyheter, MIM, ordlistan), på båda språken.
+import mimsida      # noqa: E402
+import nyheter      # noqa: E402
+import ordlista     # noqa: E402
+for _sp in ("sv", "en"):
+    for _namn, _sida in (("/nyheter", nyheter.sida(_sp)), ("/ordlista", ordlista.sida(_sp)), ("/mim", mimsida.sida(_sp))):
+        kolla("https://github.com/GoteborgsStad/svada" in _sida, "%s (%s): länk till källkoden" % (_namn, _sp))
+
+print("== Visa mer: det centrala syns, det som fördjupar ligger hopfällt (steg 1–6) ==")
+for _sp in ("sv", "en"):
+    for _var in ("intern", "extern"):
+        _h = rendera(_sp, _var)
+        for _nr in range(1, 7):
+            _p0 = _h.find('<div class="panel" id="steg-%d"' % _nr)
+            _p1 = _h.find('<div class="panel" id="steg-%d"' % (_nr + 1)) if _nr < 6 else _h.find("</section>", _p0)
+            _pan = _h[_p0:_p1 if _p1 > _p0 else len(_h)]
+            # "Visa mer om steget" är en grupp (<section class="visamer">) med egna hopfällda delar, var och en med egen rubrik.
+            _v0 = _pan.find('<section class="visamer"')
+            _v1 = _pan.find("</section>", _v0) if _v0 >= 0 else -1
+            _inne, _ute = (_pan[_v0:_v1], _pan[:_v0] + _pan[_v1:]) if _v0 >= 0 else ("", _pan)
+            _delar = re.findall(r'<details class="lasmer" data-visamer><summary>(.*?)</summary>', _inne, re.S)
+            kolla(_pan.count('<section class="visamer"') == 1 and len(_delar) >= 3 and len(set(_delar)) == len(_delar) and _inne.count('<details class="teknik"') == 1,
+                  "steg %d (%s, %s): Visa mer är en grupp med minst tre egna delar med unika rubriker, plus Mer teknik (%d st)" % (_nr, _sp, _var, len(_delar)))
+            kolla(all(k in _inne for k in ('class="teknikruta"', 'class="mimruta"', 'class="nedladdning"', '<details class="teknik"')) and 'class="dsruta' in _ute and 'class="prova"' in _ute,
+                  "steg %d (%s, %s): teknik, MIM och nedladdning ligger i Visa mer; Prova själv och dataspace-idén ligger utanför" % (_nr, _sp, _var))
+            kolla(not re.search(r"<details[^>]*\sopen[\s>]", _pan.replace('<details class="teknik"', '')), "steg %d (%s, %s): ingen del är uppfälld i HTML:en (öppnandet styrs av skriptet)" % (_nr, _sp, _var))
+            # Varför ligger i en egen hopfälld "Läs mer" under Vad händer; byggblock och styrning i en under dataspace-idén. Ingen av dem i Visa mer-gruppen.
+            _las = [m.start() for m in re.finditer('<details class="lasmer" data-visamer>', _ute)]
+            def _i_las(_nal):
+                _k = _ute.find(_nal)
+                _f = max([x for x in _las if x < _k], default=-1)
+                return _k >= 0 and _f >= 0 and "</details>" not in _ute[_f:_k]
+            kolla('class="byggblock"' not in _inne and 'class="styrning"' not in _inne and len(_las) >= 1
+                  and all(_i_las(_n) for _n in ('class="byggblock"', 'class="styrning"') if _n in _ute)
+                  and ("<summary>Varför?</summary>" if _sp == "sv" else "<summary>Why?</summary>") in _ute,
+                  "steg %d (%s, %s): varför, byggblock och styrning ligger i hopfällda Läs mer-delar, inte i Visa mer och inte öppna" % (_nr, _sp, _var))
+        _p1 = _h[_h.find('<div class="panel" id="steg-1"'):_h.find('<div class="panel" id="steg-2"')]
+        _vad = _p1[_p1.find("<h3>"):_p1.find('<details class="lasmer"')]
+        kolla(_vad.count("<ul>") == 1 and _vad.count("<li>") == 2 and "<li><b>Distribution A</b>" in _vad and "<li><b>Distribution B</b>" in _vad,
+              "steg 1 (%s, %s): distributionerna står som en punktlista med två punkter i Vad händer" % (_sp, _var))
+        kolla(('<span class="namn">Modellerad bräddata</span>.' in _p1) if _sp == "sv" else ('<span class="namn">Modelled overflow data</span>.' in _p1),
+              "steg 1 (%s, %s): dataproduktens namn är markerat som ett namn (span.namn; citattecken och vikt kommer ur CSS)" % (_sp, _var))
+        _utan = re.sub(r"<(?:style|script)\b.*?</(?:style|script)>", "", _h, flags=re.S)
+        kolla('{{' not in _utan and '}}' not in _utan,
+              "(%s, %s): ingen namnmarkering {{…}} har blivit kvar som text i sidan" % (_sp, _var))
+        kolla("Själva modellen" not in _p1 and "The model itself" not in _p1 and (("Att paketera data som en produkt" in _p1) if _sp == "sv" else ("Packaging data as a product" in _p1)),
+              "steg 1 (%s, %s): dataspace-idén börjar med 'Att paketera' (inte med modellen)" % (_sp, _var))
+        _p3 = _h[_h.find('<div class="panel" id="steg-3"'):_h.find('<div class="panel" id="steg-4"')]
+        kolla(_p3.find('id="svadaruta"') > _p3.find('<section class="visamer"') > 0, "steg 3 (%s, %s): Samordnaren ligger i Visa mer, som egen del" % (_sp, _var))
+        _p2 = _h[_h.find('<div class="panel" id="steg-2"'):_h.find('<div class="panel" id="steg-3"')]
+        kolla(_p2.find('class="sehur"') > _p2.find('<section class="visamer"') > 0 and _p2.find('class="odrlruta"') < _p2.find('<section class="visamer"'),
+              "steg 2 (%s, %s): ODRL i klartext ligger öppet, exempel på JSON är en egen del i Visa mer" % (_sp, _var))
 
 sys.exit(min(fel, 99))

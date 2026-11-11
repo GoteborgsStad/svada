@@ -151,6 +151,20 @@ Ett avtal om A gäller **tills det hävs**, inte bara för en enda datahämtning
   i `SvadaOdrlExtension` men utvärderas av ingen funktion: det är en deklaration som hör till
   datadelningsavtalet. En obunden regel hade tagits bort tyst av EDC:s scope-filter.
 
+## Scenario: betrodd organisation (2026-11-04)
+
+Normalt pausar gaten varje A-förhandling tills KoV beslutat. Scenariot **betrodd organisation** visar en annan styrningsmodell: KoV (rättighetsinnehavaren) pekar i förväg ut en part som betrodd, och providern skriver då avtalet direkt.
+
+* **Providern avgör (regel 7).** `KovGate.test()` slår upp förhandlingens `counterPartyId` i providerns eget register (`KovGate.betrodda`). Ett påstående från consumern räknas aldrig.
+* **Bara KoV delegerar.** `POST /management/kov/betrodda?did=…&sek=…` och `DELETE` kräver KoV-rollintyget, som ett godkännande. Utan det: 401.
+* **Bara framåt.** En utpekning gäller bara förhandlingar som skapats EFTER den (`getCreatedAt() >= fran`): en förhandling som redan finns, till exempel en annan besökares som gaten ännu inte hunnit pröva, omfattas aldrig. Kontrollrummet väntar dessutom in att gaten prövat redan väntande förhandlingar (`pending`) innan det pekar ut, och städar en kvarlämnad utpekning före varje A-förhandling. Medveten begränsning: ingen deterministisk test av createdAt-regeln finns (fönstret går inte att framkalla på begäran); den bygger på koden och granskningen 2026-11-04.
+* **Kort och märkt.** En utpekning gäller högst 600 s (`BETRODD_MAX_SEK`) och rensas när den gått ut. Beslutet får `beslutsfattare` = "betrodd organisation (automatiskt, ingen KoV-prövning)", förhandlingen `betroddAutomatiskt=true` och avtalet `tillkomst=betrodd-organisation` (avtalslistan och `avtalsstatus`). Avtalssidan och auditloggen visar det, så att det aldrig kan förväxlas med ett KoV-godkännande.
+* **Besökarens eget val.** Kontrollrummet (`jobb.py`, `_egen_betrodd`) pekar ut staden strax före besökarens egen A-förhandling (120 s) och tar bort utpekningen direkt efteråt, även vid fel. Jobben körs ett i taget, så ingen annan besökares förhandling omfattas. Går utpekningen inte att göra avbryts jobbet.
+* **Hävning** fungerar som vanligt: ett betrott avtal kan hävas hos providern.
+* **Medveten förenkling:** en simulering, inte hur Svada fungerar i dag. Utpekningen ligger i providerns minne och nollställs vid omstart.
+
+Prov: `tests/betrodd_enhet.py` (K41) och `verify_ap4b.sh` 4b.7.
+
 ## Förenkling → produktion
 
 **Medveten förenkling:** sedan de nyckelskyddade management-API:erna och DCP-identiteten kräver management-API:t en nyckel (`X-Api-Key`) och

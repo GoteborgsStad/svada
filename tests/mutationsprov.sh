@@ -27,6 +27,7 @@ if kor "${KOPIA}"; then ok "omutat kod: grönt (${KOPIA##*/})"; else no "omutat 
 mutera() {  # mutera <namn> <fil under services/> <gammal text> <ny text> <förväntat rött avsnitt> [testkommando i kopian]
   local namn="$1" fil="$2" gammal="$3" ny="$4" vilken="$5" prov="${6:-}" d
   d="$(mktemp -d)"; cp -R services tests datamodell "${d}/"
+  mkdir -p "${d}/edc" && cp -R edc/bootstrap "${d}/edc/"      # renderingsprovet läser policyerna ur edc/bootstrap
   if ! python3 - "${d}/services/${fil}" "${gammal}" "${ny}" <<'PY'
 import sys
 p, gammal, ny = sys.argv[1], sys.argv[2].encode().decode("unicode_escape"), sys.argv[3].encode().decode("unicode_escape")
@@ -104,7 +105,7 @@ mutera "M34 utestängningen är på som standard i extern variant" dashboard/mai
 mutera "M28 tomma objekt i Följ ett värde igen (L15)" dashboard/steg.py '        if isinstance(tolkat, dict) and _tomt(tolkat):' '        if False:' "Inget ännu" "python3 tests/kedjevy_rendering.py"
 
 # Kärnreglerna (åtgärd 4 i projektets testningstillämpning): enhetsprov som körs i kopian utan stack. ASCII-ankare (unicode_escape förstör å, ä, ö).
-ENH='SVADA_VERSION=2026.10.29-16 python3 -I'
+ENH='SVADA_VERSION=2026.11.04-1 python3 -I'
 mutera "M35a leverans A kräver inte längre ett gällande avtal" dashboard/nedladdning.py 'a.get("status") == "GALLANDE" and _farskt_gallande(a["id"])' 'True' "K39: A lämnas ut under hävda avtal" "${ENH} tests/nedladdning_enhet.py"
 mutera "M35b leverans A läser registrets sparade status, inte den färska" dashboard/nedladdning.py ' and _farskt_gallande(a["id"])' '' "K39: hävd just nu men gällande i listan" "${ENH} tests/nedladdning_enhet.py"
 mutera "M35c leverans A öppen när statusen inte kan läsas" dashboard/nedladdning.py '    except Exception:\n        return False' '    except Exception:\n        return True' "K39: stängt som standard" "${ENH} tests/nedladdning_enhet.py"
@@ -115,6 +116,13 @@ mutera "M43 ett varsel vars avbrott är över visas fortfarande" gemensam/aterst
 mutera "M44 nya jobb spärras inte de sista två minuterna" gemensam/aterstall.py '        return tid - dt.timedelta(seconds=SPARR_NYA_JOBB_S) <= nu <= tid' '        return False  # tid' "aterstall_enhet: spärren före uppdateringen" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
 mutera "M45 en tid utan tidszon godtas som varsel" gemensam/aterstall.py 'tid.tzinfo is None' 'False' "aterstall_enhet: en tid utan zon är tvetydig" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
 mutera "M46 den planerade händelsen får inte längre ge plats åt en tidigare natt" gemensam/aterstall.py 'planerad[0] <= nasta' 'True' "aterstall_enhet: den tidigaste händelsen styr" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
+mutera "M47 staden pekas inte längre ut som betrodd före förhandlingen" dashboard/jobb.py '    kallor.kov_betrodd_satt(kallor.STAD_DID, BETRODD_SEK)' '    pass' "betrodd_enhet: med val" "${ENH} tests/betrodd_enhet.py"
+mutera "M48 utpekningen som betrodd tas inte bort efter förhandlingen" dashboard/jobb.py '        kallor.kov_betrodd_bort(kallor.STAD_DID)' '        pass' "betrodd_enhet: direkt efteråt" "${ENH} tests/betrodd_enhet.py"
+mutera "M49 ett avtal som skrevs direkt tar inte besökaren förbi KoV-steget" dashboard/jobb.py 'res.get("betrodd") and res.get("avtal")' 'False' "betrodd_enhet: ett avtal som skrevs direkt" "${ENH} tests/betrodd_enhet.py"
+mutera "M50 Visa mer finns inte längre som grupp i stegpanelerna" dashboard/vy.py '<section class="visamer" aria-labelledby="vm-{nr}">' '<div class="visamer" aria-labelledby="vm-{nr}">' "Visa mer: en grupp med egna delar per steg" "python3 tests/kedjevy_rendering.py"
+mutera "M51 en del i Visa mer är uppfälld i HTML:en (rörigheten är tillbaka)" dashboard/vy.py '<details class="lasmer" data-visamer><summary>%s</summary>' '<details class="lasmer" data-visamer open><summary>%s</summary>' "Visa mer: hopfälld i HTML:en" "python3 tests/kedjevy_rendering.py"
+mutera "M52 Samordnaren ligger utanför Visa mer" dashboard/vy.py "        mer_delar.append(_las(e(t['samordnaren']), _svadaruta(t, sprak, utestangning)))" '        extra_ruta = _svadaruta(t, sprak, utestangning)' "Visa mer: Samordnaren som egen del" "python3 tests/kedjevy_rendering.py"
+mutera "M53 produktnamnet i steg 1 är vanlig löptext, inte markerat som namn" dashboard/steg.py 'som dataprodukten {{Modellerad br' 'som dataprodukten Modellerad br' "namnmarkering i steg 1" "python3 tests/kedjevy_rendering.py"
 
 section "Mutation i skydd.py:s eget lager (täcks av enhetstestet skydd_enhet.py, inte av integrationstestet)"
 D="$(mktemp -d)"; cp -R services tests "${D}/"

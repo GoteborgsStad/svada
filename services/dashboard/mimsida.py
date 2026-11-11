@@ -133,5 +133,5 @@ a{{color:#0848a6}} h1{{margin:.6rem 0 .2rem}}
 </style></head><body>
 <div class="topp"><a href="/?lang={sprak}">&larr; {_e(t["tillbaka"])}</a><a href="{path}?lang={andra[0]}" hreflang="{andra[0]}">{andra[1]}</a></div>
 {innehall(sprak)}
-<p style="color:#47504c;font-size:.85rem;margin-top:2rem">{_s(sprak, "Version", "Version")} {_e(os.environ.get("SVADA_VERSION", "okänd"))}</p>
+<p style="color:#47504c;font-size:.85rem;margin-top:2rem">{_s(sprak, "Version", "Version")} {_e(os.environ.get("SVADA_VERSION", "okänd"))} · <a href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener">{_s(sprak, "Källkod på GitHub", "Source code on GitHub")} ↗</a></p>
 </body></html>"""

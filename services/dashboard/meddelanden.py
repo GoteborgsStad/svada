@@ -129,6 +129,14 @@ KATALOG = {
                              "en": "The fault injection is off again. No other visitor was affected."},
     "jobb.felinjektion_kvar": {"sv": "Varning: felinjektionen kunde inte slås av direkt ({fel}); städningen slår av den.",
                                "en": "Warning: the fault injection could not be switched off right away ({fel}); the cleanup switches it off."},
+    "jobb.betrodd_pa": {"sv": "SCENARIO betrodd organisation: staden är utpekad som betrodd hos DHI i högst {sek} s, bara under den här förhandlingen. Avtalet om A skrivs direkt, utan KoV-prövning.",
+                        "en": "SCENARIO trusted organisation: the city is designated as trusted at DHI for at most {sek} s, only during this negotiation. The agreement for A is written directly, without a KoV review."},
+    "jobb.betrodd_av": {"sv": "Utpekningen som betrodd organisation är borttagen igen. Ingen annan besökare påverkades.",
+                        "en": "The designation as a trusted organisation has been removed again. No other visitor was affected."},
+    "jobb.betrodd_kvar": {"sv": "Varning: utpekningen som betrodd organisation kunde inte tas bort direkt (providern svarade inte); den går ut av sig själv hos providern och städas före nästa förhandling.",
+                          "en": "Warning: the designation as a trusted organisation could not be removed right away (the provider did not answer); it expires on its own at the provider and is cleaned up before the next negotiation."},
+    "jobb.kov_automatiskt": {"sv": "Avtalet godkändes AUTOMATISKT hos providern: staden är betrodd organisation. Ingen KoV-prövning gjordes.",
+                             "en": "The agreement was approved AUTOMATICALLY at the provider: the city is a trusted organisation. No KoV review was made."},
     "jobb.misslyckades": {"sv": "MISSLYCKADES: {orsak}", "en": "FAILED: {orsak}"},
     "jobb.nekad": {"sv": "NEKAD av spärren: {orsak}", "en": "REFUSED by the safeguard: {orsak}"},
     "jobb.nekad_inget_avtal": {"sv": "NEKAD, inget gällande avtal: {orsak}",
@@ -164,6 +172,10 @@ KATALOG = {
                           "en": "the request body must be a JSON object – nothing was done"},
     "fel.felinj_argument": {"sv": "felinjektionen tar ett JSON-objekt med läge:sant/falskt (schemadrift, saknade_parametrar, gis_i_b)",
                             "en": "fault injection takes a JSON object with mode:true/false (schemadrift, saknade_parametrar, gis_i_b)"},
+    "fel.betrodd_utpekning": {"sv": "Staden kunde inte pekas ut som betrodd organisation hos DHI, så förhandlingen om A startades inte. Försök igen om en stund.",
+                              "en": "The city could not be designated as a trusted organisation at DHI, so the negotiation for A was not started. Try again in a moment."},
+    "fel.scenario_argument": {"sv": "scenariot tar ett JSON-objekt med betrodd:sant/falskt",
+                              "en": "the scenario takes a JSON object with betrodd:true/false"},
     "fel.avkylning": {"sv": "Felinjektionen har just slagits av. Vänta {sek} s innan den slås på igen, så att demon hinner återhämta sig.",
                       "en": "Fault injection has just been switched off. Wait {sek} s before switching it on again so the demo can recover."},
     "fel.avkylning_ute": {"sv": "Medlemsintyget för {part|deltagare} har just satts in igen. Vänta {sek} s innan {part|deltagare} stängs ute på nytt, så att demon hinner återhämta sig.",
@@ -171,6 +183,8 @@ KATALOG = {
     "fel.stad_nekad_dhi": {"sv": "Staden nekas av DHI (401): DHI godtar inte stadens medlemsintyg. Staden måste släppas in igen av samordnaren innan det går att förhandla.",
                            "en": "The city is refused by DHI (401): DHI does not accept the city's membership credential. The city must be let back in by the coordinator before it can negotiate."},
     "fel.jobb_argument": {"sv": "åtgärden {atgard} kräver ett giltigt id", "en": "the action {atgard} requires a valid id"},
+    "fel.borja_om_upptaget": {"sv": "Ett jobb pågår. Vänta tills det är klart och försök igen.",
+                              "en": "A job is running. Wait until it is done and try again."},
     "fel.upptaget": {"sv": "ett jobb kör redan – kedjan körs ett steg i taget",
                      "en": "a job is already running – the chain runs one step at a time"},
     "fel.uppdatering_strax": {"sv": "Demon uppdateras strax. Nya körningar startas inte nu; vänta tills uppdateringen är klar och ladda om sidan.",
@@ -265,6 +279,8 @@ KATALOG = {
                           "en": "KoV APPROVED the release of Distribution A"},
     "audit.kov_godkand_roll": {"sv": "KoV GODKÄNDE utlämning av Distribution A (verifierad roll: {roll})",
                                "en": "KoV APPROVED the release of Distribution A (verified role: {roll|roll})"},
+    "audit.kov_automatiskt": {"sv": "Avtal om Distribution A skrevs DIREKT, utan KoV-prövning: staden var utpekad som betrodd organisation (scenario). Beslutsfattare: {roll}",
+                              "en": "The agreement for Distribution A was written DIRECTLY, without a KoV review: the city was designated as a trusted organisation (scenario). Decision maker: {roll|roll}"},
     "audit.kov_avslagen": {"sv": "KoV AVSLOG begäran om Distribution A",
                            "en": "KoV REJECTED the request for Distribution A"},
     "audit.kov_avslagen_roll": {"sv": "KoV AVSLOG begäran om Distribution A (verifierad roll: {roll})",
@@ -390,9 +406,9 @@ KATALOG = {
         "en": "no contract agreement {avtal} exists at the city's EDC connector – without an agreement there is "
               "no access to Distribution A"},
     "gateway.fel_distribution": {
-        "sv": "avtalet gäller assetet '{asset}'. Åtkomst till stadens CIP kräver ett avtal för Distribution A "
+        "sv": "avtalet gäller assetet '{asset}'. Åtkomst till stadens dataplattform kräver ett avtal för Distribution A "
               "({asset_a}). Distribution B läses öppet via Mintaka och den publika vyn – ingen token behövs.",
-        "en": "the agreement covers the asset '{asset}'. Access to the city's CIP requires an agreement for "
+        "en": "the agreement covers the asset '{asset}'. Access to the city's data platform requires an agreement for "
               "Distribution A ({asset_a}). Distribution B is read openly via Mintaka and the public view – no "
               "token is needed."},
     "gateway.avtal_havt": {
@@ -456,6 +472,9 @@ KATALOG = {
               "Rights Holder-beslut.",
         "en": "Negotiation {id} for {asset} carries no svada:kovGodkannande obligation – it requires no Data "
               "Rights Holder decision."},
+    "kov.betrodd_argument": {
+        "sv": "Ange organisationens deltagar-id (did) och antal sekunder (sek, 1 till {max}).",
+        "en": "Give the organisation's participant id (did) and a number of seconds (sek, 1 to {max})."},
     "kov.redan_avgjord": {
         "sv": "Förhandling {id} är redan avgjord ({beslut}) – ett KoV-beslut kan inte ändras eller upprepas.",
         "en": "Negotiation {id} has already been decided ({beslut}) – a KoV decision cannot be changed or "
@@ -497,7 +516,9 @@ ORSAKER = {
 
 # Verifierade roller som visas i texten.
 ROLLER = {"Kretslopp och Vatten – rättighetsinnehavare (dataägare)":
-          "Kretslopp och Vatten – rights holder (data owner)"}
+          "Kretslopp och Vatten – rights holder (data owner)",
+          "betrodd organisation (automatiskt, ingen KoV-prövning)":
+          "trusted organisation (automatic, no KoV review)"}
 
 _MALL = re.compile(r"\{(\w+)(?:\|(\w+))?\}")
 
@@ -555,7 +576,7 @@ def _filter(namn, varde, sprak, v_ra):
 
 # Svenska visningsnamn för statuskoder (koderna själva är ASCII och används i logiken; här gäller bara texten).
 SV_KODER = {
-    "VANTANDE": "väntar på beslut", "GODKAND": "godkänd", "AVSLAGEN": "avslagen", "AVSLAGET": "avslaget",
+    "VANTANDE": "väntar på beslut", "AUTOMATISKT": "automatiskt (betrodd organisation, ingen KoV-prövning)", "GODKAND": "godkänd", "AVSLAGEN": "avslagen", "AVSLAGET": "avslaget",
     "HAVT": "hävt", "UTGANGET": "utgånget", "GALLANDE": "gällande", "OKAND": "okänd", "AVVISAD": "avvisad",
     "AVVISAT": "avvisat", "LEVERERAD": "levererad", "UTESTANGD": "utestängd", "INSATT": "insläppt", "PABORJAD": "påbörjad",
 }

@@ -12,7 +12,7 @@ import zipfile
 ROT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROT, "services", "dashboard"))
 sys.path.insert(0, os.path.join(ROT, "services"))
-os.environ.setdefault("SVADA_VERSION", "2026.10.29-16")
+os.environ.setdefault("SVADA_VERSION", "2026.11.04-1")
 import analys  # noqa: E402
 import kallor  # noqa: E402
 import nedladdning  # noqa: E402

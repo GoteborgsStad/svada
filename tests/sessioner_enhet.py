@@ -357,5 +357,23 @@ os.environ.pop("VARSEL_FIL", None)
 jobbmodul.aterstall._CACHE["t"] = None
 kolla("fel.uppdatering_strax" in jobbmodul.meddelanden.KATALOG if hasattr(jobbmodul.meddelanden, "KATALOG") else True, "felkoden finns i meddelandekatalogen")
 
+print("== börja om: en ny, tom session ==")
+gam, _n = sessioner.hamta_eller_skapa(None)
+gam.gjort.add("kor-batch"); gam.a_laget = "begart"; gam.forhandlingar.add("f1")
+ny = sessioner.byt(gam.id)
+kolla(ny.id != gam.id and not ny.gjort and ny.a_laget is None and not ny.forhandlingar, "byt: den nya sessionen är tom och har ett annat id")
+kolla(sessioner.hamta_eller_skapa(gam.id)[1] is True, "byt: den gamla kakan är inte längre känd (ger en ny session, ingenting följer med)")
+kolla(sessioner.hamta_eller_skapa(ny.id) == (ny, False), "byt: den nya kakan är känd")
+print("== börja om utan sessioner: det delade tillståndet nollställs ==")
+class _J:
+    def __init__(self, status, session): self.status, self.session = status, session
+_g = jobbmodul._GLOBALT
+_g.gjort.update({"kor-batch", "hamta-katalog"}); _g.a_laget = "begart"; _g.a_forut = "godkant"; _g.betrodd = True
+_sess_j = _J("klar", sessioner.Session("a1" * 16)); _kor_j = _J("kör", None)
+jobbmodul.JOBB[:] = [_J("klar", None), _sess_j, _kor_j]
+jobbmodul.nollstall_globalt()
+kolla(not _g.gjort and _g.a_laget is None and _g.a_forut is None and not _g.betrodd, "nollstall_globalt: det delade tillståndet är tomt")
+kolla(jobbmodul.JOBB == [_sess_j, _kor_j], "nollstall_globalt: avslutade jobb utan session rensas; en sessions jobb och ett pågående jobb ligger kvar")
+jobbmodul.JOBB[:] = []
 print("FEL: %d" % fel if fel else "OK: alla prov gröna")
 sys.exit(1 if fel else 0)

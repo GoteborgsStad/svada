@@ -15,6 +15,8 @@
  *   POST /management/kov/forhandlingar/{id}/avsla   – avslå   -> TERMINATED
  *   GET  /management/kov/avtal                      – avtalen med status GALLANDE/HAVT
  *   POST /management/kov/avtal/{id}/hav             – KoV häver ett avtal direkt
+ *   GET|POST|DELETE /management/kov/betrodda        – scenariot betrodd organisation: KoV pekar ut en part som betrodd i högst
+ *                                                     600 s (?did=…&sek=…); gäller bara förhandlingar som skapas därefter
  *
  * Dashboardets "KoV-knapp" (komponent 14) anropar exakt de här
  * endpointsen – knappen representerar dataägarbeslutet verkställt i DHI:s
@@ -42,11 +44,13 @@
 package se.goteborg.svada.edc.kov;
 
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -113,6 +117,59 @@ public class KovController {
     }
 
     // -----------------------------------------------------------------
+    // Betrodda organisationer (scenario): KoV pekar i förväg ut en part som betrodd, för en kort tid.
+    // -----------------------------------------------------------------
+
+    @GET
+    @Path("/betrodda")
+    public List<Map<String, Object>> betrodda() {
+        return gate.aktivaBetrodda().stream().map(this::sammanfattaBetrodd).toList();
+    }
+
+    /**
+     * Pekar ut en organisation som betrodd i högst {@link KovGate#BETRODD_MAX_SEK} sekunder. Kräver KoV-rollintyget, som ett
+     * godkännande: det är rättighetsinnehavaren som delegerar, ingen annan (och aldrig consumern själv).
+     */
+    @POST
+    @Path("/betrodda")
+    public Response sattBetrodd(@QueryParam("did") String did, @QueryParam("sek") Long sek,
+                                @HeaderParam("Authorization") String authorization) {
+        var verifiering = verifierare.verifiera(authorization);
+        if (verifiering.failed()) {
+            return felFranVerifiering(verifiering.getFailureDetail());
+        }
+        if (did == null || did.isBlank() || sek == null || sek < 1) {
+            return fel(Response.Status.BAD_REQUEST, "Ange did (organisationens deltagar-id) och sek (antal sekunder, 1 till "
+                    + KovGate.BETRODD_MAX_SEK + ").", "kov.betrodd_argument", Map.of("max", String.valueOf(KovGate.BETRODD_MAX_SEK)));
+        }
+        return Response.ok(sammanfattaBetrodd(gate.sattBetrodd(did, sek, verifiering.getContent()))).build();
+    }
+
+    @DELETE
+    @Path("/betrodda")
+    public Response tagBortBetrodd(@QueryParam("did") String did, @HeaderParam("Authorization") String authorization) {
+        var verifiering = verifierare.verifiera(authorization);
+        if (verifiering.failed()) {
+            return felFranVerifiering(verifiering.getFailureDetail());
+        }
+        if (did == null || did.isBlank()) {
+            return fel(Response.Status.BAD_REQUEST, "Ange did (organisationens deltagar-id).", "kov.betrodd_argument",
+                    Map.of("max", String.valueOf(KovGate.BETRODD_MAX_SEK)));
+        }
+        var m = new LinkedHashMap<String, Object>();
+        m.put("did", did);
+        m.put("borttagen", gate.tagBortBetrodd(did));
+        return Response.ok(m).build();
+    }
+
+    private Map<String, Object> sammanfattaBetrodd(KovGate.Betrodd b) {
+        var m = new LinkedHashMap<String, Object>();
+        m.put("did", b.did());
+        m.put("fran", b.fran().toString());
+        m.put("till", b.till().toString());
+        m.put("utpekadAv", b.av());
+        return m;
+    }
 
     private Response beslut(String id, KovGate.Beslut b, String authorization) {
         // DCP-identitetens verifieringssteg: verifiera FÖRST, innan förhandlingen ens slås
@@ -271,6 +328,15 @@ public class KovController {
         return havdaIds;
     }
 
+    /** Tillkom avtalet utan KoV-prövning (parten var utpekad som betrodd organisation)? Avgörs ur förhandlingen som gav avtalet. */
+    private boolean automatisktAvtal(String avtalId) {
+        try (var stream = store.queryNegotiations(QuerySpec.max())) {
+            return stream.filter(n -> n.getType() == ContractNegotiation.Type.PROVIDER)
+                    .filter(n -> n.getContractAgreement() != null && avtalId.equals(n.getContractAgreement().getId()))
+                    .anyMatch(n -> gate.automatisktFor(n.getId()) != null);
+        }
+    }
+
     private Map<String, Object> sammanfattaAvtal(ContractAgreement a) {
         var m = new LinkedHashMap<String, Object>();
         m.put("id", a.getId());
@@ -278,6 +344,7 @@ public class KovController {
         m.put("providerId", a.getProviderId());
         m.put("consumerId", a.getConsumerId());
         m.put("contractSigningDate", a.getContractSigningDate());
+        m.put("tillkomst", automatisktAvtal(a.getId()) ? "betrodd-organisation" : "kov-beslut");
         var h = gate.havning(a.getId());
         m.put("status", h == null ? "GALLANDE" : "HAVT");
         if (h != null) {
@@ -308,6 +375,8 @@ public class KovController {
         // Den verifierade rollen som fattade beslutet (null om VANTANDE).
         // Se KovGate.beslutsfattare(...) och dess fälts docstring.
         m.put("beslutsfattare", gate.beslutsfattare(n.getId()));
+        // Sant när avtalet tillkom utan KoV-prövning för att parten var utpekad som betrodd organisation (scenario).
+        m.put("betroddAutomatiskt", gate.automatisktFor(n.getId()) != null);
         m.put("contractAgreementId", n.getContractAgreement() == null
                 ? null : n.getContractAgreement().getId());
         m.put("errorDetail", n.getErrorDetail());

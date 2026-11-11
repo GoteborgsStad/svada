@@ -36,7 +36,7 @@ fungerar demon ändå – stegvyn visar exakt vilken komponent som saknas.
 
 ## 3.3 Extranummer om tiden räcker (3 minuter)
 
-**Felinjektion – avtalsbrottet.** Fliken **Felinjektion** → bocka i `gis_i_b` → **Leverera B (kör transfer)
+**Felinjektion – avtalsbrottet.** Fliken **Scenarier** (tidigare Felinjektion) → bocka i `gis_i_b` → **Leverera B (kör transfer)
 och se utfallet**. FCF lägger då tyst tillbaka brunnarnas GIS-position i den öppna
 distributionen. Nyttolasten bär ingen flagga om felet – stadens ingest-service upptäcker det
 själv och avvisar leveransen med orsaken `brunns-gis-i-distribution-b`. Transfern blir

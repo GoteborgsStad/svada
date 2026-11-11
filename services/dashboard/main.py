@@ -448,6 +448,26 @@ async def sessionskaka(begaran: Request, anrop_vidare):
     return svar
 
 
+@app.post("/api/session/ny")
+def ny_session(begaran: Request):
+    """Börja om från början (guidens "Börja om"): besökaren får en ny, tom session (egen kaka). Utan session (lokal körning) nollställs i
+    stället det delade tillståndet. Ett pågående jobb måste vara klart först, så att inget körs i ett tillstånd som besökaren inte längre ser."""
+    gammal = sessioner.aktuell()
+    if jobbmodul.aktivt():
+        return _fel_svar(jobbmodul.Jobbfel("fel.borja_om_upptaget"), 409)
+    if gammal is None:
+        # Utan sessioner (lokal körning, direktanrop): det delade tillståndet nollställs i stället för att en session byts.
+        jobbmodul.nollstall_globalt()
+        with _AVTAL_A_LAS:
+            _AVTAL_A.pop("", None)
+        return JSONResponse({"ok": True, "lokalt": True})
+    ny = sessioner.byt(gammal.id)
+    svar = JSONResponse({"ok": True})
+    svar.set_cookie(sessioner.KAKNAMN, ny.id, max_age=sessioner.KAKA_MAXALDER_S, httponly=True, samesite="lax", path="/",
+                    secure=begaran.headers.get("x-forwarded-proto") == "https")
+    return svar
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(begaran: Request):
     sprak, uttryckligt = _valt_sprak(begaran)
@@ -585,6 +605,8 @@ def api_status(lang: str = "sv"):
                                "nere": len(komponenter) - uppe},
             "demoVersion": DEMO_VERSION,
             "jobbAktivt": jobbmodul.aktivt(),
+            "sessioner": sessioner.aktuell() is not None,      # egen vy per besökare: då byter "Börja om" session
+            "borjaOm": True,                                   # guiden kan alltid börja om: med en ny session, eller (lokalt) genom att nollställa det delade tillståndet
             "nasta": jobbmodul.nasta_atgard(),      # åtgärden som är rimlig att köra härnäst (markeras på knappen)
             # F1: sidan läser om steg 6 när avtalet om A inte längre gäller (annars låg positionerna kvar tills besökaren uppdaterade)
             "avtalA": {"gallande": _avtal_a_gallande()}}
@@ -872,8 +894,8 @@ def api_avtal():
         return _fel_svar(fel, 502)
 
 
-def _avtalssida(a, en):
-    """Avtalets löstbara sida: vad avtalet innebär och vilken status det har."""
+def _avtalssida(a, en, fran="suveranitet"):
+    """Avtalets löstbara sida: vad avtalet innebär och vilken status det har. fran = flik eller steg som besökaren kom från (Tillbaka går dit)."""
     def t(sv, eng):
         return eng if en else sv
     e = html.escape
@@ -910,6 +932,15 @@ def _avtalssida(a, en):
             delar.append(t("av", "by") + ": " + str(hav.get("av")))
         havtext = "<p><b>%s</b> %s</p>" % (t("Hävt", "Revoked"), e(" · ".join(delar)))
 
+    till = a.get("tillkomst")
+    if till == "betrodd-organisation":
+        havtext += '<p class="betrodd"><b>%s</b> %s</p>' % (
+            t("Hur avtalet tillkom:", "How the agreement came about:"),
+            e(t("direkt, utan KoV-prövning. Staden var utpekad som betrodd organisation hos DHI (scenario i fliken Scenarier). "
+                "I normalfallet prövar KoV varje begäran om distribution A.",
+                "directly, without a KoV review. The city was designated as a trusted organisation at DHI (a scenario in the Scenarios tab). "
+                "Normally KoV reviews every request for distribution A.")))
+
     def tid(epok):
         """Epoksekunder -> läsbar UTC-tid (annars värdet som det är)."""
         try:
@@ -928,6 +959,9 @@ def _avtalssida(a, en):
         (t("Part (mottagare)", "Party (recipient)"), a.get("konsument")),
         (t("Provider", "Provider"), a.get("provider")),
         (t("Avtalets adress", "The agreement's address"), "/avtal/%s" % a.get("id") if a.get("id") else None),
+        *(((t("Tillkom genom", "Came about through"),
+            {"betrodd-organisation": t("betrodd organisation (ingen KoV-prövning)", "trusted organisation (no KoV review)"),
+             "kov-beslut": t("KoV-beslut", "KoV decision")}.get(till)),) if till else ()),
         (t("Signerat", "Signed"), tid(a.get("signerat"))),
         (t("Giltigt till", "Valid until"), tid(a.get("giltigTill")))))
     sida = """<!doctype html><html lang="%s"><head><meta charset="utf-8">
@@ -938,8 +972,10 @@ body{background:#fff;color:#1d1d1d;font: 16px/1.5 system-ui,sans-serif;max-width
 th{text-align:left;padding-right: 1rem;vertical-align:top;font-weight: 600}
 code,pre{overflow-wrap:anywhere;white-space:pre-wrap}
 .status{display:inline-block;border: 2px solid currentColor;border-radius: 6px;padding:.1rem .6rem;font-weight: 700}
+a{color:#0848a6}.topp{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.betrodd{border:2px solid #8a4b00;background:#fff4e0;border-radius:8px;padding:.5rem .8rem}
 </style></head><body>
-<p><a href="/#suveranitet">&larr; %s</a></p>
+<div class="topp"><a href="/?lang=%s#%s">&larr; %s</a><a href="/avtal/%s?lang=%s&amp;fran=%s" hreflang="%s">%s</a></div>
 <h1>%s <span class="status">%s</span></h1>
 <p>%s</p>%s
 <table>%s</table>
@@ -947,7 +983,8 @@ code,pre{overflow-wrap:anywhere;white-space:pre-wrap}
 <h3>%s</h3><pre>%s</pre>
 </body></html>""" % (
         "en" if en else "sv", t("Avtal", "Agreement"),
-        t("Kontrollrummet", "Control room"),
+        "en" if en else "sv", e(fran), t("Tillbaka", "Back") if fran != "suveranitet" else t("Kontrollrummet", "Control room"),
+        e(str(a.get("id") or "")), "sv" if en else "en", e(fran), "sv" if en else "en", "Svenska" if en else "English",
         t("Avtal", "Agreement"), status,
         e(t("Ett avtal gäller tills det hävs eller löper ut, inte bara för en datahämtning. "
             "Statusen synkas från DHI:s connector ungefär varje sekund "
@@ -982,10 +1019,15 @@ async def http_fel(begaran: Request, fel: StarletteHTTPException):
 
 # Ett avtals-id är ett UUID. Allt annat (specialtecken, tomt, mycket långt) är en okänd adress och ska aldrig nå mottagningen.
 _AVTALS_ID = re.compile(r"^[0-9A-Za-z-]{1,64}$")
+_FRAN = re.compile(r"^(steg-[1-6]|folj|suveranitet|audit|jobb)$")      # varifrån besökaren kom till avtalssidan (Tillbaka går dit)
 
 
 @app.get("/avtal/{avtals_id:path}")      # även id med snedstreck ger avtalssidans 404, inte rå JSON (L8)
-def avtalssida(avtals_id: str, lang: str = "sv"):
+def avtalssida(avtals_id: str, begaran: Request, fran: str = "suveranitet"):
+    sprak, _ = _valt_sprak(begaran)      # ?lang vinner, annars kakan och webbläsarens språk (förut alltid svenska utan ?lang)
+    lang = sprak
+    if not _FRAN.match(fran):
+        fran = "suveranitet"
     try:
         if not _AVTALS_ID.match(avtals_id):
             raise KallFel("ogiltigt avtals-id")
@@ -1003,7 +1045,7 @@ def avtalssida(avtals_id: str, lang: str = "sv"):
         # CSS som regeln för portnummer annars skulle skada.
         a = json.loads(rensa.neutrala_did(stegmodul.utan_intern_adress(
             json.dumps(a, ensure_ascii=False))))
-    return HTMLResponse(_avtalssida(a, lang == "en"))
+    return HTMLResponse(_avtalssida(a, lang == "en", fran))
 
 
 @app.post("/api/kov/avtal/{dhi_avtals_id}/hav")
@@ -1107,6 +1149,26 @@ def _satt_fel_synk(kropp, proxy):
                      "audit.felinj_pa" if aktiva else "audit.felinj_av", {"lagen": aktiva},
                      svar.get("lagen"))
         return svar
+
+
+@app.get("/api/scenario")
+def api_scenario():
+    """Besökarens avtalsscenario (scenariot "betrodd organisation"): eget val, bara hennes egna A-förhandlingar berörs (jobb.py, _egen_betrodd)."""
+    t = jobbmodul._tillstand(sessioner.aktuell())
+    return {"betrodd": bool(getattr(t, "betrodd", False)), "sek": jobbmodul.BETRODD_SEK, "egen": sessioner.aktuell() is not None}
+
+
+@app.post("/api/scenario")
+async def api_satt_scenario(begaran: Request):
+    try:
+        kropp = await las_json_kropp(begaran)
+    except Kroppsfel as fel:
+        return _kroppsfel_svar(fel)
+    if not isinstance(kropp, dict) or set(kropp) != {"betrodd"} or not isinstance(kropp["betrodd"], bool):
+        return _fel_svar(jobbmodul.Jobbfel("fel.scenario_argument"), 400)
+    t = jobbmodul._tillstand(sessioner.aktuell())
+    t.betrodd = kropp["betrodd"]
+    return api_scenario()
 
 
 @app.post("/api/felinjektion/reset")

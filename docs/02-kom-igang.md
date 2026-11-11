@@ -76,7 +76,7 @@ Nyckelparametrar i `.env`: `FCF_BATCH_INTERVAL_S=600` (10 minuter = ett modeller
 
 ## 2.5 Verifiering
 
-Hård regel 11: ett arbetspaket är klart först när allt är grönt.
+Hård regel 11: testa det berörda efter varje ändring och hela provet före push; ett arbetspaket är klart för push först när allt är grönt (se `docs/testning-tillampning.md` §3b).
 
 ```bash
 bash tests/verify_all.sh      # alla delar, ~20 minuter

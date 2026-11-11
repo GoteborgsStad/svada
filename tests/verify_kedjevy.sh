@@ -316,7 +316,8 @@ if [ -d tools/node_modules/playwright-core ] && command -v node >/dev/null 2>&1;
     ST=$(curl -s --max-time 10 "${DASH}/api/jobb/${JID}" | jq -r '.status // "okänd"')
     [ "${ST}" = "klar" ] || no "K3 förberedelsen: ${ATG} blev inte klar (status ${ST}); proven av steg 5 och 6 i läge B förutsätter en B-leverans"
   done
-  DASH="${DASH}" PUBLIKVY="http://localhost:${PUBLIK_VY_PORT}" node tests/kedjevy_webblasare.mjs 2>&1 | tee "${TMP}/webblasare.log"
+  # Delkörning och förkortade väntor (ONLY, STILLA_MAX) är till för nivå 1–2; ett fullt prov får aldrig ärva dem ur skalet.
+  env -u ONLY -u STILLA_MAX DASH="${DASH}" PUBLIKVY="http://localhost:${PUBLIK_VY_PORT}" node tests/kedjevy_webblasare.mjs 2>&1 | tee "${TMP}/webblasare.log"
   WRC=${PIPESTATUS[0]}
   WFEL=$(grep -c '^  \[FEL\]' "${TMP}/webblasare.log")
   if [ "${WRC}" -ne 0 ]; then no "K3 webbläsartestet avslutades med kod ${WRC} (${WFEL} [FEL]-rader)"
@@ -470,10 +471,21 @@ sys.exit(0 if d and all(re.match(r'^\d{4}-\d\d-\d\d$', dag) and all(tillatna.mat
 PY"
 SV="$(curl -s -o "${TMP}/stat-sv.html" -w '%{http_code}' --max-time 20 "${DASH}/statistik?lang=sv")"; EN="$(curl -s -o "${TMP}/stat-en.html" -w '%{http_code}' --max-time 20 "${DASH}/statistik?lang=en")"
 [ "${SV}" = 200 ] && [ "${EN}" = 200 ] && grep -q "Besökare per dag" "${TMP}/stat-sv.html" && grep -q "Visitors per day" "${TMP}/stat-en.html" && ok "K27f sidan /statistik svarar på svenska och engelska" || no "K27f /statistik: sv ${SV}, en ${EN}"
-! grep -qiE 'https?://|<script|cookie=' "${TMP}/stat-sv.html" && ok "K27g sidan har inget skript och inga externa adresser" || no "K27g sidan har skript eller externa adresser"
+# Enda tillåtna externa adressen är den vanliga länken till källkoden (ingen resurs som laddas, inget som spårar).
+! sed 's#<a href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener">##' "${TMP}/stat-sv.html" | grep -qiE 'https?://|<script|cookie=' && ok "K27g sidan har inget skript och inga externa adresser utom länken till källkoden" || no "K27g sidan har skript eller externa adresser"
 grep -q "Step 1 – The model (simulated) creates the data product" "${TMP}/stat-en.html" && ! grep -q "Steps 1" "${TMP}/stat-en.html" && grep -q "Steg 1 – Modellen (simulerad) skapar" "${TMP}/stat-sv.html" && ok "K27j stegen heter detsamma som i kontrollrummet, på rätt språk ('Step 1', inte 'Steps 1')" || no "K27j stegnamnen i statistiken stämmer inte med kontrollrummets, eller engelskan är halvöversatt"
 curl -s --max-time 20 "${DASH}/api/status" | jq -e '.avtalA | has("gallande")' >/dev/null && ok "K27i /api/status bär avtalA.gallande, som sidan använder för att läsa om steg 6 när avtalet om A slutar gälla (F1)" || no "K27i /api/status saknar avtalA"
 grep -q 'href="/statistik' <(curl -s --max-time 20 "${DASH}/?lang=sv") && ok "K27h kontrollrummets sidfot länkar till statistiken" || no "K27h länken till /statistik saknas i sidfoten"
+# K27k: avtalssidan följer vyns språk (även utan ?lang, via webbläsarens språk), har en växlare sv/en och Tillbaka går dit besökaren kom ifrån (?fran=).
+AVT_K27=$(curl -s --max-time 20 "${DASH}/api/avtal" | jq -r '.avtal[0].id // empty')
+if [ -n "${AVT_K27}" ]; then
+  A1=$(curl -s --max-time 20 -H 'Accept-Language: en' "${DASH}/avtal/${AVT_K27}?fran=steg-5"); A2=$(curl -s --max-time 20 "${DASH}/avtal/${AVT_K27}?lang=sv&fran=steg-5"); A3=$(curl -s --max-time 20 "${DASH}/avtal/${AVT_K27}?lang=en&fran=%22%3Cx")
+  printf '%s' "${A1}" | grep -q '<html lang="en"' && printf '%s' "${A1}" | grep -q 'href="/?lang=en#steg-5"' && printf '%s' "${A1}" | grep -q 'hreflang="sv"' \
+    && printf '%s' "${A2}" | grep -q '<html lang="sv"' && printf '%s' "${A2}" | grep -q 'hreflang="en"' && printf '%s' "${A3}" | grep -q 'href="/?lang=en#suveranitet"' \
+    && ok "K27k avtalssidan: följer språket, har växlare och Tillbaka går till stegets flik (okänt ursprung ger Suveränitet)" || no "K27k avtalssidans språk, växlare eller Tillbaka-länk"
+else
+  echo "  [HOPPAR ÖVER] K27k avtalssidan (inget avtal finns än)"
+fi
 
 # K33: språket följer sidan (X-Svada-Lang) och felsidor (404-sida för webbläsare, 404 för ogiltigt avtals-id), i dashboard-imagen utan nätverk
 section "K33 Språk per sida och felsidor (sprak_enhet.py, i dashboard-imagen, utan stack)"
@@ -531,6 +543,23 @@ section "K38 Schemakontroll vid inläsning (schemakontroll_enhet.py, utan stack)
 python3 -I tests/schemakontroll_enhet.py > "${TMP}/schemakontroll-enhet.log" 2>&1; SKRC=$?
 cat "${TMP}/schemakontroll-enhet.log"
 [ "${SKRC}" -eq 0 ] && ok "K38 schemakontrollen: $(grep -c '\[OK\]' "${TMP}/schemakontroll-enhet.log") kontroller gröna" || no "K38 schemakontrollen misslyckades (exit ${SKRC})"
+
+# K41: avtalsscenariot "betrodd organisation" (jobb.py, _egen_betrodd): utpekningen hos providern görs före och tas bort efter besökarens egen A-förhandling
+section "K41 Avtalsscenariot betrodd organisation (betrodd_enhet.py, utan stack)"
+docker run --rm --network none -e DEMO_VARIANT=extern -v "${PWD}/services:/srv:ro" -v "${PWD}/tests:/tst:ro" "${DASH_IMAGE}" python /tst/betrodd_enhet.py 2>&1 | grep -v '^\[jobb \|^\[audit\]' > "${TMP}/betrodd-enhet.log"; BERC=${PIPESTATUS[0]}
+cat "${TMP}/betrodd-enhet.log"
+[ "${BERC}" -eq 0 ] && ok "K41 betrodd organisation: $(grep -c '\[OK\]' "${TMP}/betrodd-enhet.log") kontroller gröna" || no "K41 betrodd organisation misslyckades (exit ${BERC})"
+
+# K41b: /api/scenario över HTTP: standard av, ogiltig kropp ger 400, sant och falskt sparas, och ett läge som slagits på städas direkt
+section "K41b /api/scenario över HTTP (validering och eget val)"
+SC0=$(curl -s --max-time 20 "${DASH}/api/scenario" | jq -r '.betrodd')
+SC_BAD=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d '{"betrodd":"ja"}' "${DASH}/api/scenario")
+SC_EXTRA=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d '{"betrodd":true,"x":1}' "${DASH}/api/scenario")
+SC_ON=$(curl -s --max-time 20 -X POST -H 'content-type: application/json' -d '{"betrodd":true}' "${DASH}/api/scenario" | jq -r '.betrodd')
+SC_OFF=$(curl -s --max-time 20 -X POST -H 'content-type: application/json' -d '{"betrodd":false}' "${DASH}/api/scenario" | jq -r '.betrodd')
+[ "${SC0}" = "false" ] && [ "${SC_BAD}" = 400 ] && [ "${SC_EXTRA}" = 400 ] && [ "${SC_ON}" = "true" ] && [ "${SC_OFF}" = "false" ] \
+  && ok "K41b /api/scenario: av som standard, ogiltig kropp 400, sant och falskt sparas (av igen efter provet)" \
+  || no "K41b /api/scenario: standard=${SC0}, felaktig=${SC_BAD}, extra fält=${SC_EXTRA}, på=${SC_ON}, av=${SC_OFF}"
 
 # K31: versionsnumret (.env är källan; nyheter.py, sidfoten, /api/status, /nyheter och brunnsvyn följer det)
 section "K31 Versionsnummer: .env, /nyheter, sidfoten och /api/status är samma version (version_enhet.py + mot stacken)"

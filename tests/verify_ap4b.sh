@@ -433,6 +433,56 @@ else
 fi
 
 # --- 4b.6 Regression ---------------------------------------------------
+# --- 4b.7 Scenariot "betrodd organisation" ----------------------------
+# KoV pekar i förväg ut staden som betrodd, för en kort tid; providern skriver då avtalet om A direkt. Avgörandet ligger hos PROVIDERN (regel 7),
+# bara KoV-rollintyget får peka ut, och beslutet märks så att det aldrig kan förväxlas med ett KoV-godkännande.
+section "4b.7 Scenariot betrodd organisation: avtal om A skrivs direkt, märkt som automatiskt"
+STAD_URI=$(jq -rn --arg d "${EDC_CONSUMER_ID}" '$d|@uri')
+KOD_B_UTAN=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" \
+        "${PROV_MGMT}/kov/betrodda?did=${STAD_URI}&sek=60")
+[ "$KOD_B_UTAN" = "401" ] && ok "4b.7 att peka ut en betrodd organisation UTAN KoV-rollintyg avvisas med 401 (consumern kan inte utse sig själv)" \
+  || no "4b.7 utpekning utan rollintyg gav HTTP $KOD_B_UTAN (förväntat 401)"
+KOV_TOKEN7=$(hamta_kov_token)
+SVAR_B=$(curl -s --max-time 20 -X POST -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" -H "Authorization: Bearer ${KOV_TOKEN7}" \
+        "${PROV_MGMT}/kov/betrodda?did=${STAD_URI}&sek=60")
+echo "$SVAR_B" | jq -e --arg d "${EDC_CONSUMER_ID}" '.did == $d and (.utpekadAv | length > 0)' >/dev/null 2>&1 \
+  && ok "4b.7 KoV pekade ut staden som betrodd (gäller högst 60 s, utpekad av den verifierade rollen)" \
+  || no "4b.7 utpekningen gick inte igenom: $(echo "$SVAR_B" | head -c 300)"
+KOD_TAK=$(curl -s --max-time 20 -X POST -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" -H "Authorization: Bearer $(hamta_kov_token)" \
+        "${PROV_MGMT}/kov/betrodda?did=${STAD_URI}&sek=99999" | jq -r '.till // empty')
+[ -n "$KOD_TAK" ] && python3 -c 'import sys,re,datetime as d; t=d.datetime.fromisoformat(re.sub(r"\.\d+", "", sys.argv[1]).replace("Z","+00:00")); sys.exit(0 if (t-d.datetime.now(d.timezone.utc)).total_seconds() <= 610 else 1)' "$KOD_TAK" \
+  && ok "4b.7 utpekningen kapas vid 600 s (en simulering blir aldrig en stående ordning)" || no "4b.7 utpekningen kapades inte vid 600 s ($KOD_TAK)"
+NEG_T=$(forhandla "${EDC_ASSET_A_ID}")
+S_T=$(vanta_pa_tillstand "$NEG_T" 60 FINALIZED TERMINATED)
+[ "$S_T" = "FINALIZED" ] && ok "4b.7 förhandlingen om A blev FINALIZED utan något KoV-beslut" || no "4b.7 förhandlingen hamnade i '$S_T' (förväntat FINALIZED)"
+POST_T=$(providerpost "$NEG_T")
+echo "$POST_T" | jq -e '.kovBeslut == "GODKAND" and .betroddAutomatiskt == true and (.beslutsfattare | test("automatiskt"))' >/dev/null 2>&1 \
+  && ok "4b.7 beslutet är märkt: GODKAND, betroddAutomatiskt=true, beslutsfattare säger 'automatiskt, ingen KoV-prövning'" \
+  || no "4b.7 beslutet är inte märkt som automatiskt: $(echo "$POST_T" | head -c 300)"
+AVT_T=$(echo "$POST_T" | jq -r '.contractAgreementId // empty')
+curl -s --max-time 15 -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" "${PROV_MGMT}/kov/avtal" \
+  | jq -e --arg a "$AVT_T" '[.[] | select(.id == $a)] | .[0].tillkomst == "betrodd-organisation"' >/dev/null 2>&1 \
+  && ok "4b.7 avtalet bär tillkomst=betrodd-organisation (avtalslistan hos providern)" || no "4b.7 avtalet saknar märkningen tillkomst"
+docker exec -e K="${EDC_PROVIDER_STATUS_KEY}" -e U="http://edc-provider:${EDC_PROVIDER_STATUS_PORT:-19195}/status/avtalsstatus" "${SVADA_PREFIX:-svada}-ingest-service" python -c '
+import os, urllib.request
+r = urllib.request.Request(os.environ["U"]); r.add_header("X-Api-Key", os.environ["K"])
+print(urllib.request.urlopen(r, timeout=10).read().decode())' 2>/dev/null \
+  | jq -e --arg a "$AVT_T" '[.[] | select(.id == $a)] | .[0].tillkomst == "betrodd-organisation"' >/dev/null 2>&1 \
+  && ok "4b.7 avtalsstatus (som stadens register läser) bär samma märkning" || no "4b.7 avtalsstatus saknar märkningen"
+KOD_BORT=$(curl -s --max-time 20 -X DELETE -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" -H "Authorization: Bearer $(hamta_kov_token)" \
+        "${PROV_MGMT}/kov/betrodda?did=${STAD_URI}" | jq -r '.borttagen')
+[ "$KOD_BORT" = "true" ] && ok "4b.7 utpekningen togs bort" || no "4b.7 utpekningen kunde inte tas bort ($KOD_BORT)"
+NEG_T2=$(forhandla "${EDC_ASSET_A_ID}")
+PROV_T2=""
+for _ in $(seq 1 15); do sleep 2; PROV_T2=$(providerpost "$NEG_T2" | jq -r '.id // empty'); [ -n "$PROV_T2" ] && break; done
+# Beviset är att gaten HÅLLER förhandlingen (pending), inte bara att den saknar beslut (en post syns som väntande en stund innan gaten prövat den).
+for _ in $(seq 1 15); do providerpost "$NEG_T2" | jq -e '.pending == true' >/dev/null 2>&1 && break; sleep 2; done
+providerpost "$NEG_T2" | jq -e '.pending == true and .kovBeslut == "VANTANDE" and .betroddAutomatiskt == false' >/dev/null 2>&1 \
+  && ok "4b.7 efter borttagningen HÅLLER gaten nästa begäran om A (pending, väntar på KoV)" || no "4b.7 nästa begäran hölls inte av gaten efter borttagningen"
+# Städa: avslå den väntande begäran så att ingen hänger kvar i kön för senare skript.
+curl -s --max-time 20 -X POST -H "X-Api-Key: ${EDC_PROVIDER_MGMT_KEY}" -H "Authorization: Bearer $(hamta_kov_token)" \
+  "${PROV_MGMT}/kov/forhandlingar/${PROV_T2}/avsla" >/dev/null 2>&1
+
 section "4b.6 Regression"
 ok "4b.6 hanteras av tests/verify_all.sh (kör ap0–ap4b i ordning)"
 

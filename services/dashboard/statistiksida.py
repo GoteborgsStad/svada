@@ -23,7 +23,7 @@ T = {
         "dag": "Dag", "unika": "Besökare", "sidv": "Sidvisningar", "brunnar": "Brunnsvyn (sidvisningar)", "avvisade": "Avvisade vid lösenordet (besökare, bara när lösenord krävs)", "fel_dag": "Serverfel (5xx)", "gr_dag": "Begränsade (429)",
         "summa_rub": "Totalt sedan {dag}",
         "t_sidv": "sidvisningar i kontrollrummet", "t_bsidv": "sidvisningar i brunnsvyn", "t_dagar": "besökardagar (summa av dagens besökare)",
-        "t_ts": "anrop mot tidsserie-API:t (B)", "t_cip": "anrop mot stadens plattform (CIP)",
+        "t_ts": "anrop mot tidsserie-API:t (B)", "t_cip": "anrop mot stadens plattform",
         "oppnas_rub": "Vad besökare öppnar", "steg": "Steg", "steg_n": "Steg", "flikar": "Flikar", "atgarder": "Knappar som trycks", "ovrigt": "Övrigt",
         "sprak_en": "Bytte till engelska", "sprak_sv": "Bytte till svenska", "karta_osm": "Visade kartbakgrund (OpenStreetMap)",
         "analys_a": "Analys: distribution A", "analys_b": "Analys: distribution B", "antal": "gånger",
@@ -50,7 +50,7 @@ T = {
         "dag": "Day", "unika": "Visitors", "sidv": "Page views", "brunnar": "Chambers view (page views)", "avvisade": "Turned away at the password (visitors, only when a password is required)", "fel_dag": "Server errors (5xx)", "gr_dag": "Rate limited (429)",
         "summa_rub": "Total since {dag}",
         "t_sidv": "page views in the control room", "t_bsidv": "page views in the chambers view", "t_dagar": "visitor days (sum of each day's visitors)",
-        "t_ts": "calls to the time-series API (B)", "t_cip": "calls to the city's platform (CIP)",
+        "t_ts": "calls to the time-series API (B)", "t_cip": "calls to the city's platform",
         "oppnas_rub": "What visitors open", "steg": "Steps", "steg_n": "Step", "flikar": "Tabs", "atgarder": "Buttons pressed", "ovrigt": "Other",
         "sprak_en": "Switched to English", "sprak_sv": "Switched to Swedish", "karta_osm": "Showed the map background (OpenStreetMap)",
         "analys_a": "Analysis: distribution A", "analys_b": "Analysis: distribution B", "antal": "times",
@@ -69,8 +69,8 @@ T = {
     },
 }
 
-VARDNAMN = {"sv": {"kontrollrum": "kontrollrummet", "brunnar": "brunnsvyn", "tidsserie": "tidsserie-API:t", "cip": "stadens plattform (CIP)"},
-            "en": {"kontrollrum": "the control room", "brunnar": "the chambers view", "tidsserie": "the time-series API", "cip": "the city's platform (CIP)"}}
+VARDNAMN = {"sv": {"kontrollrum": "kontrollrummet", "brunnar": "brunnsvyn", "tidsserie": "tidsserie-API:t", "cip": "stadens plattform"},
+            "en": {"kontrollrum": "the control room", "brunnar": "the chambers view", "tidsserie": "the time-series API", "cip": "the city's platform"}}
 
 
 def _atgardsnamn(sprak):
@@ -229,4 +229,5 @@ details{{margin:.5rem 0}} summary{{cursor:pointer}}
 
 <h2>{_e(t["def_rub"])}</h2><ul>{"".join(f"<li>{_e(x)}</li>" for x in defrader)}</ul>
 <p class="meta">{_e(t["uppd"].format(t=data["uppdaterad"]))} {_e(t["forsta"].format(d=data["forsta_dag"] or "–"))}</p>
+<p class="meta"><a href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener">{"Källkod på GitHub" if sprak == "sv" else "Source code on GitHub"} ↗</a></p>
 </body></html>"""

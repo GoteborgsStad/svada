@@ -322,6 +322,26 @@ def kov_hav(dhi_avtals_id):
                  {}, headers=huvuden, timeout=30)
 
 
+def kov_betrodda():
+    """De organisationer KoV just nu har pekat ut som betrodda (scenario), hos providern."""
+    return anrop(url("edc_provider_mgmt", "/management/kov/betrodda"), headers=EDC_PROVIDER_MGMT_HUVUD)
+
+
+def kov_betrodd_satt(did, sek):
+    """KoV (rollintyget) pekar ut en organisation som betrodd i högst sek sekunder: avtal om A skrivs då direkt, utan KoV-prövning."""
+    huvuden = dict(EDC_PROVIDER_MGMT_HUVUD)
+    huvuden["Authorization"] = "Bearer %s" % hamta_kov_token()
+    return anrop(url("edc_provider_mgmt", "/management/kov/betrodda?did=%s&sek=%d" % (urllib.parse.quote(did, safe=""), int(sek))),
+                 "POST", {}, headers=huvuden, timeout=30)
+
+
+def kov_betrodd_bort(did):
+    huvuden = dict(EDC_PROVIDER_MGMT_HUVUD)
+    huvuden["Authorization"] = "Bearer %s" % hamta_kov_token()
+    return anrop(url("edc_provider_mgmt", "/management/kov/betrodda?did=%s" % urllib.parse.quote(did, safe="")),
+                 "DELETE", headers=huvuden, timeout=30)
+
+
 def svada_status():
     """Samordningsrollens lista över intyg i statuslistan: mottagare, typ, index, återkallat."""
     return anrop(url("identity_hub_svada_did", "/svada-status"), headers=SVADA_STATUS_HUVUD)

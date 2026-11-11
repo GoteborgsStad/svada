@@ -275,15 +275,15 @@ ORDLISTA = [
             "cs": True,
             "def": (
                     "Kretslopp och Vatten, Göteborgs Stads förvaltning för "
-                    "vatten och avlopp. Äger data och sätter villkoren, som "
-                    "binder den som tar emot data.")},
+                    "vatten och avlopp. Informationsägare: sätter villkoren, som "
+                    "binder den som hämtar data.")},
      "en": {"term": "KoV",
             "re": "KoV(?! gate)",
             "cs": True,
             "def": (
                     "Kretslopp och Vatten, the City of Gothenburg's water and "
-                    "sewage administration. Owns the data and sets the terms, "
-                    "which bind whoever receives the data.")},
+                    "sewage administration. The information owner: sets the terms, "
+                    "which bind whoever fetches the data.")},
     },
     {"id": "intraservice",
      "sv": {"term": "Intraservice",
@@ -307,14 +307,15 @@ ORDLISTA = [
             "re": "DHI(?!:)",
             "cs": True,
             "def": (
-                    "Konsultföretag inom vatten som tar fram data åt staden med"
-                    " modellen Future City Flow.")},
+                    "Konsultföretag inom vatten som håller data och tar fram dem"
+                    " åt staden med modellen Future City Flow.")},
      "en": {"term": "DHI",
             "re": "DHI(?!')",
             "cs": True,
             "def": (
-                    "Water engineering consultancy that produces the data for "
-                    "the city with the Future City Flow model.")},
+                    "Water engineering consultancy that holds the data and "
+                    "produces it for the city with the Future City Flow "
+                    "model.")},
     },
     {"id": "fcf",
      "lank": "https://www.dhigroup.com/se/teknologier/future-city-flow",
@@ -818,5 +819,5 @@ div:target dt{{background:#3b6ea826}}
 <h1>{e(t["rub"])}</h1>
 <p>{e(t["intro"])}</p>
 <dl>{"".join(rader)}</dl>
-<p style="font-size:.85rem;opacity:.8;margin-top:2rem">Version {e(os.environ.get("SVADA_VERSION", "okänd"))}</p>
+<p style="font-size:.85rem;opacity:.8;margin-top:2rem">Version {e(os.environ.get("SVADA_VERSION", "okänd"))} · <a href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener">{"Källkod på GitHub" if sprak == "sv" else "Source code on GitHub"} ↗</a></p>
 </body></html>"""

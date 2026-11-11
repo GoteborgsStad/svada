@@ -253,7 +253,10 @@ def _kov(handelser, per_forhandling, fel):
         kod = {"VANTANDE": "audit.kov_vantar", "GODKAND": "audit.kov_godkand",
                "AVSLAGEN": "audit.kov_avslagen"}.get(beslut, "audit.kov_annat")
         p_kod = {"beslut": beslut} if kod == "audit.kov_annat" else {}
-        if beslutsfattare and beslut in ("GODKAND", "AVSLAGEN"):
+        if p.get("betroddAutomatiskt") and beslut == "GODKAND":
+            # Scenariot betrodd organisation: avtalet skrevs utan KoV-prövning. Får aldrig se ut som ett KoV-godkännande.
+            kod, p_kod = "audit.kov_automatiskt", {"roll": beslutsfattare}
+        elif beslutsfattare and beslut in ("GODKAND", "AVSLAGEN"):
             kod += "_roll"
             p_kod["roll"] = beslutsfattare
         handelser.append({

@@ -176,7 +176,8 @@ def _sidfot(mintaka_publik, katalog_url, sprak="sv"):
              "(NGSI-LD Temporal API, requires <code>Accept: application/json</code>, so the address does not work directly in a browser; use curl, for example).")
         + "</p><p>" + _s(sprak, "Datamodell (utkast, ingen beslutad modell): ", "Data model (draft, not a decided model): ")
         + f'<a href="/modell?lang={sprak}">/modell</a></p>'
-        "<p>" + _s(sprak, "Version ", "Version ") + f'<span id="demoversion">{e(DEMO_VERSION)}</span></p></footer>'
+        "<p>" + _s(sprak, "Version ", "Version ") + f'<span id="demoversion">{e(DEMO_VERSION)}</span> · '
+        '<a href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener">' + _s(sprak, "Källkod på GitHub", "Source code on GitHub") + ' ↗</a></p></footer>'
     )
 
 

@@ -35,6 +35,7 @@ KODER = {
     "AVSLAGEN": "REJECTED",
     "AVSLAGET": "REJECTED",
     "GODKAND": "APPROVED",
+    "AUTOMATISKT": "AUTOMATIC (trusted organisation, no KoV review)",
     "PABORJAD": "STARTED",
     "VANTANDE": "WAITING",
     "HAVT": "REVOKED",

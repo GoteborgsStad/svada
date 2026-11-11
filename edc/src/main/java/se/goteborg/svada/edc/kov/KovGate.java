@@ -133,6 +133,22 @@ public class KovGate implements ContractNegotiationPendingGuard {
         if (beslut.containsKey(forhandling.getId())) {
             return false;   // KoV har beslutat – släpp fram den
         }
+        // SCENARIO "betrodd organisation": en part som KoV (rättighetsinnehavaren) själv har pekat ut som betrodd, för en
+        // begränsad tid, får avtalet utan väntan. Det är PROVIDERN som avgör (hård regel 7), på sitt eget register: ett
+        // påstående från consumern räknas aldrig. Beslutet märks tydligt som automatiskt, så att det aldrig kan förväxlas
+        // med ett godkännande av KoV.
+        // Utpekningen gäller bara förhandlingar som skapats EFTER den: en förhandling som fanns innan (till exempel en annan besökares, som
+        // ännu inte prövats av gaten) får aldrig dra nytta av en utpekning som någon annan gjort efteråt.
+        var betrodd = betrodd(forhandling.getCounterPartyId());
+        if (betrodd != null && forhandling.getCreatedAt() >= betrodd.fran().toEpochMilli()) {
+            beslut.put(forhandling.getId(), Beslut.GODKAND);
+            beslutsfattare.put(forhandling.getId(), BETRODD_BESLUTSFATTARE);
+            automatiska.put(forhandling.getId(), betrodd.did());
+            monitor.warning("KoV-GATE: förhandling " + forhandling.getId() + " om " + assetId(forhandling)
+                    + " GODKÄNDES AUTOMATISKT: " + betrodd.did() + " är betrodd organisation (utpekad av "
+                    + betrodd.av() + ", gäller till " + betrodd.till() + "). Ingen KoV-prövning.");
+            return false;
+        }
 
         monitor.warning("KoV-GATE: förhandling " + forhandling.getId()
                 + " om " + assetId(forhandling)
@@ -207,6 +223,63 @@ public class KovGate implements ContractNegotiationPendingGuard {
      */
     public String beslutsfattare(String forhandlingsId) {
         return beslutsfattare.get(forhandlingsId);
+    }
+
+    // -----------------------------------------------------------------
+    // Betrodda organisationer (scenario). Ett beslut KoV har delegerat i förväg, för en kort tid.
+    // -----------------------------------------------------------------
+    /** Det som står i beslutsfattare när avtalet tillkom utan KoV-prövning. */
+    public static final String BETRODD_BESLUTSFATTARE = "betrodd organisation (automatiskt, ingen KoV-prövning)";
+    /** Längsta tid en utpekning gäller: den är en simulering och får aldrig bli en stående ordning. */
+    public static final long BETRODD_MAX_SEK = 600;
+
+    /** En utpekad organisation: deltagar-id (DSP counterPartyId), när utpekningen gjordes och går ut, och den verifierade roll som pekade ut den. */
+    public record Betrodd(String did, Instant fran, Instant till, String av) {
+    }
+
+    private final Map<String, Betrodd> betrodda = new ConcurrentHashMap<>();
+    /** Förhandlings-id -> den betrodda organisation som gav ett automatiskt beslut. */
+    private final Map<String, String> automatiska = new ConcurrentHashMap<>();
+
+    /** Pekar ut en organisation som betrodd i högst {@link #BETRODD_MAX_SEK} sekunder. Ersätter en tidigare utpekning av samma part. */
+    public Betrodd sattBetrodd(String did, long sek, String verifieradRoll) {
+        var tid = Math.max(1, Math.min(sek, BETRODD_MAX_SEK));
+        var nu = Instant.now();
+        var ny = new Betrodd(did, nu, nu.plusSeconds(tid), verifieradRoll);
+        betrodda.put(did, ny);
+        monitor.warning("KoV-GATE: " + verifieradRoll + " pekade ut " + did + " som BETRODD organisation i " + tid
+                + " s (avtal om Distribution A skrivs då direkt, utan KoV-prövning).");
+        return ny;
+    }
+
+    public boolean tagBortBetrodd(String did) {
+        var fanns = betrodda.remove(did) != null;
+        if (fanns) {
+            monitor.warning("KoV-GATE: " + did + " är inte längre betrodd organisation.");
+        }
+        return fanns;
+    }
+
+    /** Den gällande utpekningen för parten, eller null (ingen eller utgången: en utgången rensas här). */
+    public Betrodd betrodd(String did) {
+        if (did == null) {
+            return null;
+        }
+        var b = betrodda.get(did);
+        if (b != null && !Instant.now().isBefore(b.till())) {
+            betrodda.remove(did, b);
+            return null;
+        }
+        return b;
+    }
+
+    public java.util.List<Betrodd> aktivaBetrodda() {
+        return betrodda.keySet().stream().map(this::betrodd).filter(java.util.Objects::nonNull).toList();
+    }
+
+    /** Den betrodda organisation som gav förhandlingen ett automatiskt beslut, eller null (KoV beslutade själv, eller ingen har beslutat). */
+    public String automatisktFor(String forhandlingsId) {
+        return automatiska.get(forhandlingsId);
     }
 
     // -----------------------------------------------------------------

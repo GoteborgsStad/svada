@@ -77,10 +77,10 @@ Vi redovisar öppet hur vi följer OASC:s Minimal Interoperability Mechanisms (M
 Svada-mini är framtaget inom **[Vattendatalabbet (SVADA)](https://vattendatalabbet.se)** (Göteborgs Stad), i samarbete med [RISE](https://www.ri.se/en/infrastructure/water/project/swedish-water-data-lab-svada-transition-for-smart-water-management).
 
 **Upphovspersoner**
-* **Björn Hagström**, expert på informationshantering och data spaces ([GitHub](https://github.com/bjornhagstrom))
-* **Niklas Fjellman**, utvecklingsledare data, Göteborgs Stad
+* **Niklas Fjellman**, utvecklingsledare data, Göteborgs Stad: originaluppsättning av PoC:en: kravställning, arkitektur, utveckling av kod och test enligt Målarkitektur version 1.92, samt teknisk dokumentation
+* **Björn Hagström**, expert på informationshantering och data spaces ([GitHub](https://github.com/bjornhagstrom)): vidareutveckling av stödet för dataspaceprotokollen (identitet, verifierbara intyg, avtal) samt paketering för global kommunikation och begriplighet
 
-**Byggd med AI-assistenter.** Koden, testerna och dokumentationen är utvecklade tillsammans med AI-assistenter (bland annat Claude, Codex och Gemini). Björn Hagström och Niklas Fjellman har styrt arbetet och tar ansvar för innehållet, men allt är inte oberoende granskat av människor. Bedömningarna i [docs/mims](docs/mims/README.md) är självbedömningar, också de framtagna med hjälp av AI-assistenter.
+**Byggd med AI-assistenter.** Koden, testerna och dokumentationen är utvecklade tillsammans med AI-assistenter (bland annat Claude, Codex och Gemini). Niklas Fjellman och Björn Hagström har styrt arbetet och tar ansvar för innehållet, men allt är inte oberoende granskat av människor. Bedömningarna i [docs/mims](docs/mims/README.md) är självbedömningar, också de framtagna med hjälp av AI-assistenter.
 
 **Finansiärer av SVADA:** [Energimyndigheten](https://www.energimyndigheten.se), [Formas](https://www.formas.se), [Vinnova](https://www.vinnova.se) och [Water Wise Societies](https://waterwisesocieties.se). Projektbeskrivning hos [Vinnova](https://www.vinnova.se/en/p/the-swedish-water-data-lab-svada--transition-for-smart-water-management).
 
@@ -145,10 +145,10 @@ We state openly how we follow the Minimal Interoperability Mechanisms (MIMs) of 
 Svada-mini was created within **[the Swedish Water Data Lab (SVADA)](https://vattendatalabbet.se)** (City of Gothenburg), in cooperation with [RISE](https://www.ri.se/en/infrastructure/water/project/swedish-water-data-lab-svada-transition-for-smart-water-management).
 
 **Authors**
-* **Björn Hagström**, expert on information management and data spaces ([GitHub](https://github.com/bjornhagstrom))
-* **Niklas Fjellman**, development lead, data, City of Gothenburg
+* **Niklas Fjellman**, development lead, data, City of Gothenburg: original setup of the PoC: requirements, architecture, and development of code and tests according to the Target Architecture (Målarkitektur) version 1.92, plus technical documentation
+* **Björn Hagström**, expert on information management and data spaces ([GitHub](https://github.com/bjornhagstrom)): extended the PoC with data space protocol support (identity, verifiable credentials, agreements) and packaged it for global communication and clarity
 
-**Built with AI assistants.** The code, the tests and the documentation were developed together with AI assistants (among them Claude, Codex and Gemini). Björn Hagström and Niklas Fjellman have directed the work and are responsible for the content, but not everything has been independently reviewed by humans. The assessments in [docs/mims](docs/mims/README.md) are self-assessments, also prepared with the help of AI assistants.
+**Built with AI assistants.** The code, the tests and the documentation were developed together with AI assistants (among them Claude, Codex and Gemini). Niklas Fjellman and Björn Hagström have directed the work and are responsible for the content, but not everything has been independently reviewed by humans. The assessments in [docs/mims](docs/mims/README.md) are self-assessments, also prepared with the help of AI assistants.
 
 **SVADA is funded by** the [Swedish Energy Agency](https://www.energimyndigheten.se) (Energimyndigheten), [Formas](https://www.formas.se), [Vinnova](https://www.vinnova.se) and [Water Wise Societies](https://waterwisesocieties.se). Project description at [Vinnova](https://www.vinnova.se/en/p/the-swedish-water-data-lab-svada--transition-for-smart-water-management).
 

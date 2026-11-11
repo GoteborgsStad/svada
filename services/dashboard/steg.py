@@ -181,7 +181,7 @@ def _d5():
     tidssteg = len({p.get("observedAt")
                     for p in (hist.get("overflowVolumeM3") or [])})
     return [
-        ("Brunnar i CIP:en", kallor.orion_stad_antal_brunnar()),
+        ("Brunnar i stadens dataplattform", kallor.orion_stad_antal_brunnar()),
         ("overflowVolumeM3", (ent.get("overflowVolumeM3") or {}).get("value")),
         ("Proveniens: distribution", prov.get("distribution")),
         ("Proveniens: avtal", _eget_avtal(prov.get("contractAgreementId"))),
@@ -221,22 +221,27 @@ _P[1] = {
     "bana": "dhi",
     "distributioner": ["A", "B"],
     "vad": _t(
+        # Rader som börjar med "- " blir en punktlista i vy.py (stegtext).
         "En modell räknar ut ett dygns bräddning för alla 91 brunnar och "
-        "paketerar resultatet som dataprodukten Modellerad bräddata. Hos "
+        "paketerar resultatet som dataprodukten {{Modellerad bräddata}}. Hos "
         "DHI görs det av Future City Flow; i demon av en simulerad, enkel "
         "beräkning (se Det här körs i steget). Den delas upp i två "
-        "distributioner. Distribution A, skyddade data, är originalet med "
-        "brunnarnas position. Distribution B, öppna data, tas alltid fram "
-        "ur A genom att positionerna plockas bort. I demon är alla "
-        "positioner påhittade.",
+        "distributioner:\n"
+        "- **Distribution A**, skyddade data: originalet med brunnarnas "
+        "position.\n"
+        "- **Distribution B**, öppna data: tas alltid fram ur A genom att "
+        "positionerna plockas bort.\n"
+        "I demon är alla positioner påhittade.",
         "A model calculates one day of overflow for all 91 chambers and "
-        "packages the result as the data product Modelled overflow data. At"
+        "packages the result as the data product {{Modelled overflow data}}. At"
         " DHI this is done by Future City Flow; in the demo by a simple "
         "simulated calculation (see What runs in this step). It is split "
-        "into two distributions. Distribution A, protected data, is the "
-        "original with the chambers' positions. Distribution B, open data, "
-        "is always derived from A by removing the positions. In the demo "
-        "all positions are made up."),
+        "into two distributions:\n"
+        "- **Distribution A**, protected data: the original with the "
+        "chambers' positions.\n"
+        "- **Distribution B**, open data: always derived from A by removing "
+        "the positions.\n"
+        "In the demo all positions are made up."),
     "varfor": _t(
         "I verkligheten räknas brunnarnas position som skyddsvärd "
         "information om VA-nätet, och demon behandlar de påhittade "
@@ -248,18 +253,16 @@ _P[1] = {
         " the same way. Splitting the product here means distribution B can"
         " be shared freely as open data while distribution A is protected."),
     "dataspace": _t(
-        "Själva modellen är DHI:s egen sak. Men att paketera data som en "
-        "produkt, med klassning och villkor inbyggda, är en central idé i "
-        "dataspaces.",
-        "The model itself is DHI's business. But packaging data as a "
-        "product, with classification and terms built in, is a central idea"
-        " in data spaces."),
+        "Att paketera data som en produkt, med klassning och villkor "
+        "inbyggda, är en central idé i dataspaces.",
+        "Packaging data as a product, with classification and terms built "
+        "in, is a central idea in data spaces."),
     "byggblock": _t(
         "Begrepp i DSSC: data products",
         "DSSC concept: data products"),
     "styrning": _t(
-        'Dataägaren (KoV) har beslutat informationsklassningen och att produkten delas i den öppna distributionen B och den skyddade distributionen A. Det är ett styrbeslut på användningsfallets nivå; modellen utför det bara.',
-        'The data owner (KoV) has decided the information classification and that the product is split into the open distribution B and the protected distribution A. That is a governance decision at the use-case level; the model merely carries it out.'),
+        'Informationsägaren (KoV) har beslutat informationsklassningen och att produkten delas i den öppna distributionen B och den skyddade distributionen A. Det är ett styrbeslut på användningsfallets nivå; modellen utför det bara.',
+        'The information owner (KoV) has decided the information classification and that the product is split into the open distribution B and the protected distribution A. That is a governance decision at the use-case level; the model merely carries it out.'),
     "akta": _t(
         "Uppdelningen i den öppna distributionen B och den skyddade "
         "distributionen A är riktig och testas automatiskt vid varje körning. "
@@ -284,22 +287,29 @@ _P[1] = {
         "kor-batch": {
             "roll": "dhi",
             "gor": _t(
-                "Ber modellen räkna fram en ny dygnsbatch direkt, i stället"
-                " för att vänta på nästa schemalagda körning.",
-                "Asks the model to compute a new daily batch right away "
-                "instead of waiting for the next scheduled run."),
+                "Utifrån data beräknas ny modellerad data regelbundet. En "
+                "dygnsbatch är modellens resultat för ett dygn. Klicka på "
+                "knappen för att räkna fram en ny dygnsbatch direkt, i "
+                "stället för att vänta på nästa schemalagda körning.",
+                "New modelled data is calculated regularly from the "
+                "underlying data. A daily batch is the model's result for one "
+                "day. Click the button to calculate a new daily batch right "
+                "away, instead of waiting for the next scheduled run."),
             "titta": _t(
-                "Producerade batchar ökar med ett och Senaste batch får ett"
-                " nytt id. Datumet sist i id:t (till exempel 2026-06-29) är det"
-                " modellerade dygnet batchen avser, inte när den kördes: demon"
-                " spelar upp ett nytt dygn per batch.",
-                "Batches produced goes up by one and Latest batch gets a "
-                "new id. The date at the end of the id (for example "
-                "2026-06-29) is the modelled day the batch covers, not when it "
-                "was run: the demo plays back a new day for each batch."),
+                "I raden Just nu under knappen ökar Producerade batchar med ett, och "
+                "Senaste batch får ett nytt id. Datumet sist i id:t (till "
+                "exempel 2026-06-29) är det modellerade dygnet batchen avser, "
+                "inte när den kördes: demon spelar upp ett nytt dygn per "
+                "batch.",
+                "In the Right now line below the button, Batches produced goes up by one and "
+                "Latest batch gets a new id. The date at the end of the id "
+                "(for example 2026-06-29) is the modelled day the batch "
+                "covers, not when it was run: the demo plays back a new day "
+                "for each batch."),
             "kraver": _t(
-                "Inget.",
-                "Nothing."),
+                "Inget. Det här är det första steget, så du kan börja direkt.",
+                "Nothing. This is the first step, so you can start right "
+                "away."),
         },
     },
 }
@@ -349,12 +359,12 @@ _P[2] = {
     "varfor": _t(
         "Den som vill ha data ska kunna se vad som finns och på vilka "
         "villkor innan något lämnas ut. Villkoren följer med erbjudandet i "
-        "stället för att stå i ett separat pappersavtal. De sätts av den som "
-        "äger data och binder den som tar emot data.",
+        "stället för att stå i ett separat pappersavtal. De sätts av "
+        "informationsägaren och binder den som tar emot data.",
         "Whoever wants data should be able to see what is available and on "
         "what terms before anything is released. The terms travel with the "
         "offer instead of sitting in a separate paper contract. They are set "
-        "by whoever owns the data and bind whoever receives it."),
+        "by the information owner and bind whoever receives it."),
     "dataspace": _t(
         "**Gäller dataspace generellt.** Kärnan i ett dataspace. Varje part"
         " har en connector, och Dataspace Protocol (DSP) är det "
@@ -368,7 +378,7 @@ _P[2] = {
         "standard way of talking to each other. Each party shows its own "
         "catalogue of what it offers, and the terms travel with the offer. "
         "The parties prove who they are before anything is shown or "
-        "shared. What must be prevented is prevented at whoever owns the "
+        "shared. What must be prevented is prevented at whoever releases the "
         "data; what the recipient does afterwards is governed by the "
         "agreement."),
     "byggblock": _t(
@@ -419,35 +429,42 @@ _P[2] = {
         "hamta-katalog": {
             "roll": "stad",
             "gor": _t(
-                "Stadens connector frågar DHI:s connector efter katalogen "
-                "över organisationsgränsen, precis som en riktig motpart "
-                "skulle göra. Det är bara en listning av vad som erbjuds "
-                "och på vilka villkor; inga data lämnas ut. Själva data "
-                "begärs i steg 3 (avtal) och 4 (leverans).",
-                "The city's connector asks DHI's connector for the "
-                "catalogue across the organisational boundary, just as a "
-                "real counterpart would. This only lists what is offered "
-                "and on what terms; no data is released. The data itself is"
-                " requested in step 3 (agreement) and 4 (delivery)."),
+                "Innan staden kan be om data måste den veta vad DHI "
+                "erbjuder. Det står i DHI:s katalog, en lista över "
+                "produkterna och villkoren för var och en. Klicka på knappen "
+                "för att låta staden fråga DHI om katalogen, som en riktig "
+                "motpart skulle göra (stadens connector frågar DHI:s "
+                "connector över organisationsgränsen). Bara listan hämtas; "
+                "inga data lämnas ut. Själva data begärs i steg 3 (avtal) "
+                "och 4 (leverans).",
+                "Before the city can ask for data it must know what DHI "
+                "offers. That is in DHI's catalogue, a list of the products "
+                "and the terms for each. Click the button to let the city ask "
+                "DHI for the catalogue, as a real counterpart would (the "
+                "city's connector asks DHI's connector across the "
+                "organisational boundary). Only the list is fetched; no data "
+                "is released. The data itself is requested in step 3 "
+                "(agreement) and 4 (delivery)."),
             "titta": _t(
-                "Loggen sammanfattar svaret som stadens connector får: en "
-                "rad per distribution med klass och villkor. Hela svaret, "
-                "katalogen i DCAT med villkoren i ODRL, visas under Se hur "
-                "det ser ut nedan. Får du felkoden 401 (Unauthorized, "
-                "”obehörig”) godtog DHI inte stadens intyg, t.ex. om "
+                "Loggen visar vad staden fick tillbaka: en rad per "
+                "distribution med dess klass och villkor. Hela "
+                "svaret, katalogen i DCAT med villkoren i ODRL, visas under "
+                "Se hur det ser ut nedan. Får du felkoden 401 (Unauthorized, "
+                "”obehörig”) godtog DHI inte stadens intyg, till exempel om "
                 "stadens identitetstjänst inte svarar. Samma kontroll görs "
                 "igen vid avtal och leverans.",
-                "The log summarises the response the city's connector "
-                "receives: one line per distribution with class and terms. "
-                "The full response, the catalogue in DCAT with the terms in"
-                " ODRL, is shown under See what it looks like below. The "
-                "error code 401 (Unauthorized) means DHI did not accept the"
-                " city's credential, for example if the city's identity "
-                "service is not responding. The same check is made again "
-                "for the agreement and the delivery."),
+                "The log shows what the city got back: one line per "
+                "distribution with its class and terms. The full "
+                "response, the catalogue in DCAT with the terms in ODRL, is "
+                "shown under See what it looks like below. The error code "
+                "401 (Unauthorized) means DHI did not accept the city's "
+                "credential, for example if the city's identity service is "
+                "not responding. The same check is made again for the "
+                "agreement and the delivery."),
             "kraver": _t(
-                "Inget.",
-                "Nothing."),
+                "Inget. Katalogen kan hämtas utan att en batch har körts.",
+                "Nothing. The catalogue can be fetched without a batch having "
+                "been run."),
         },
     },
 }
@@ -487,15 +504,17 @@ _P[3] = {
         "(step 5)."),
     "varfor": _t(
         "Data gäller stadens egna brunnar. KoV, stadens VA-förvaltning, "
-        "äger data och bestämmer villkoren även om DHI tar fram data. "
+        "är informationsägare och bestämmer villkoren även om DHI håller "
+        "och tar fram data. "
         "Spärren sitter hos DHI, som lämnar ut: en spärr hos mottagaren "
         "skulle mottagaren kunna öppna själv. Villkoren sätts av ägaren och "
         "binder mottagaren. För den skyddade distributionen A sätter KoV "
         "villkoren. Intraservice tar emot data på KoV:s uppdrag och är bunden "
         "av villkoren, precis som en framtida extern mottagare skulle vara.",
         "The data concerns the city's own chambers. KoV, the city's water "
-        "and sewage administration, owns the data and sets the terms even "
-        "though DHI produces the data. The barrier sits at DHI, the party "
+        "and sewage administration, is the information owner and sets the "
+        "terms even though DHI holds and produces the data. The barrier "
+        "sits at DHI, the party "
         "releasing the data: a barrier at the recipient could be opened by "
         "the recipient itself. The terms are set by the owner and bind the "
         "recipient. For the protected distribution A, KoV sets the terms. "
@@ -503,17 +522,17 @@ _P[3] = {
         "terms, just as a future external recipient would be."),
     "dataspace": _t(
         "**Gäller dataspace generellt.** Kärnan i ett dataspace: "
-        "dataägarens villkor verkställs maskinellt i protokollet i stället "
+        "informationsägarens villkor verkställs maskinellt i protokollet i stället "
         "för att stå i ett pappersavtal. Mottagaren startar alltid "
         "förhandlingen. Avtalet är en maskinläsbar överenskommelse med ett "
         "eget id. Om ett mänskligt godkännande krävs, och av vem, bestämmer"
-        " dataägaren för varje dataprodukt.",
+        " informationsägaren för varje dataprodukt.",
         "**True of data spaces in general.** The core of a data space: the "
-        "data owner's terms are enforced by machine in the protocol "
+        "information owner's terms are enforced by machine in the protocol "
         "instead of sitting in a paper contract. The recipient always "
         "starts the negotiation. The agreement is a machine-readable "
         "arrangement with its own id. Whether a human approval is "
-        "required, and by whom, is decided by the data owner for each data"
+        "required, and by whom, is decided by the information owner for each data"
         " product."),
     "byggblock": _t(
         "Byggblock i DSSC: Contractual Framework (datadelningsavtal), Data "
@@ -521,8 +540,8 @@ _P[3] = {
         "DSSC building blocks: Contractual Framework (data sharing "
         "agreement), Data Sovereignty"),
     "styrning": _t(
-        'Här möts tre lager. Dataspacets nivå: Svadas utfärdare avgör vem som är medlem och kan stänga ute en part genom att återkalla intyget (rutan nedan; i den publika demon visas det som ett inspelat exempel). Deltagarnas nivå: staden intygar KoV:s roll, DHI sin egen. Användningsfallets nivå: KoV, dataägaren, avgör om A får lämnas ut och kan häva avtalet.',
-        "Three layers meet here. The data space level: Svada's issuer decides who is a member and can exclude a party by revoking the credential (the box below; in the public demo it is shown as a recorded example). The participant level: the city attests KoV's role, DHI its own. The use-case level: KoV, the data owner, decides whether A may be released and can revoke the agreement."),
+        'Här möts tre lager. Dataspacets nivå: Svadas utfärdare avgör vem som är medlem och kan stänga ute en part genom att återkalla intyget (rutan nedan; i den publika demon visas det som ett inspelat exempel). Deltagarnas nivå: staden intygar KoV:s roll, DHI sin egen. Användningsfallets nivå: KoV, informationsägaren, avgör om A får lämnas ut och kan häva avtalet.',
+        "Three layers meet here. The data space level: Svada's issuer decides who is a member and can exclude a party by revoking the credential (the box below; in the public demo it is shown as a recorded example). The participant level: the city attests KoV's role, DHI its own. The use-case level: KoV, the information owner, decides whether A may be released and can revoke the agreement."),
     "akta": _t(
         "Spärren hos DHI är riktig och testas automatiskt: utan KoV:s "
         "beslut går förhandlingen om A aldrig vidare. "
@@ -577,37 +596,63 @@ _P[3] = {
         "forhandla-b": {
             "roll": "stad",
             "gor": _t(
-                "Staden begär ett avtal om den öppna distributionen B. "
-                "Ingen människa behöver godkänna.",
-                "The city requests an agreement for the open distribution "
-                "B. No human needs to approve."),
+                "Innan data får lämnas ut krävs ett avtal mellan staden och "
+                "DHI om vilka villkor som gäller. B är den öppna varianten av "
+                "produkten, så avtalet blir klart automatiskt. Klicka på "
+                "knappen för att staden ska begära avtalet. Ingen människa "
+                "behöver godkänna.",
+                "Before data may be released an agreement is needed between "
+                "the city and DHI on the terms that apply. B is the open "
+                "variant of the product, so the agreement completes "
+                "automatically. Click the button for the city to request the "
+                "agreement. No human needs to approve."),
             "titta": _t(
                 "Inom några sekunder är avtalet klart. I loggen står det "
-                "FINALIZED.",
+                "FINALIZED, som betyder att avtalet är ingått. Det är då "
+                "staden har rätt att hämta B.",
                 "Within a few seconds the agreement is done. The log says "
-                "FINALIZED."),
+                "FINALIZED, which means the agreement is concluded. That is "
+                "when the city has the right to fetch B."),
             "kraver": _t(
-                "Steg 2 fungerar.",
-                "Step 2 works."),
+                "Att steg 2 fungerar, så att staden har kunnat hämta "
+                "katalogen och se vilka villkor som gäller för B.",
+                "That step 2 works, so that the city has been able to fetch "
+                "the catalogue and see the terms that apply to B."),
         },
         "forhandla-a": {
             "roll": "stad",
             "gor": _t(
-                "Staden begär ett avtal om den skyddade distributionen A.",
-                "The city requests an agreement for the protected "
-                "distribution A."),
+                "A är den skyddade varianten av produkten. Den innehåller "
+                "brunnarnas koordinater, och det är det som gör den skyddad: "
+                "positionerna får inte spridas, och bara staden får hämta A, "
+                "med KoV:s godkännande. I den här demon är koordinaterna "
+                "påhittade och ligger inom Liseberg. Klicka på knappen för "
+                "att staden ska begära ett avtal om A. Begäran stannar hos "
+                "DHI och väntar på KoV:s svar (knapparna nedan).",
+                "A is the protected variant of the product. It contains the "
+                "coordinates of the chambers, and that is what makes it "
+                "protected: the positions must not be shared, and only the "
+                "city may fetch A, with KoV's approval. In this demo the "
+                "coordinates are made up and lie within Liseberg, an "
+                "amusement park in Gothenburg. Click the button for the city "
+                "to request an agreement for A. The request stops at DHI and "
+                "waits for KoV's answer (the buttons below)."),
             "titta": _t(
                 "Jobbet (knapptrycket) är klart när begäran har kommit "
                 "fram. Avtalet är inte klart: loggen visar att begäran "
-                "väntar hos DHI (statuskoden VANTANDE). Avtalet blir klart (FINALIZED) "
-                "först när någon fattar beslut som KoV.",
+                "väntar hos DHI (statuskoden VANTANDE, alltså väntande). "
+                "Avtalet blir klart (FINALIZED) först när någon fattar beslut "
+                "som KoV, informationsägaren.",
                 "The job (the button press) is done once the request has "
                 "arrived. The agreement is not: the log shows the request "
                 "waiting at DHI (WAITING, meaning pending). The agreement "
-                "is only concluded (FINALIZED) once someone decides as KoV."),
+                "is only concluded (FINALIZED) once someone decides as KoV, "
+                "the information owner."),
             "kraver": _t(
-                "Steg 2 fungerar.",
-                "Step 2 works."),
+                "Att steg 2 fungerar, så att staden har kunnat hämta "
+                "katalogen och se att A kräver ett godkännande.",
+                "That step 2 works, so that the city has been able to fetch "
+                "the catalogue and see that A requires an approval."),
         },
         "kov-godkann": {
             "roll": "kov",
@@ -616,20 +661,29 @@ _P[3] = {
                 "KoV godkänner",
                 "KoV approves"),
             "gor": _t(
-                "Skickar KoV:s ja till DHI:s connector, tillsammans med ett"
-                " intyg som bevisar att den som klickar har rollen KoV.",
-                "Sends KoV's yes to DHI's connector, together with a "
-                "credential proving that the person clicking holds the KoV "
-                "role."),
+                "KoV (Kretslopp och Vatten) är informationsägare och avgör "
+                "om staden får hämta A. Klicka på knappen för att svara ja i "
+                "KoV:s ställe. Svaret skickas till DHI:s connector tillsammans "
+                "med ett intyg som bevisar att den som klickar har rollen "
+                "KoV.",
+                "KoV (Kretslopp och Vatten) is the information owner and "
+                "decides whether the city may fetch A. Click the button to "
+                "answer yes on KoV's behalf. The answer is sent to DHI's "
+                "connector together with a credential proving that the "
+                "person clicking holds the KoV role."),
             "titta": _t(
-                "Avtalet för distribution A blir klart (FINALIZED). Nu kan "
-                "distribution A levereras i steg 4.",
-                "The agreement for distribution A completes (FINALIZED). "
-                "Distribution A can now be delivered in step 4."),
+                "Avtalet för distribution A blir klart (FINALIZED, alltså "
+                "ingått). Nu har staden rätt att hämta A, och A kan "
+                "levereras i steg 4.",
+                "The agreement for distribution A completes (FINALIZED, "
+                "meaning concluded). The city now has the right to fetch A, "
+                "and A can be delivered in step 4."),
             "kraver": _t(
-                "En förhandling om distribution A väntar (knappen ovan).",
-                "A negotiation for distribution A is waiting (button "
-                "above)."),
+                "Att staden har begärt ett avtal om A (knappen Förhandla A) "
+                "och att begäran väntar hos DHI på informationsägarens svar.",
+                "That the city has requested an agreement for A (the "
+                "Negotiate A button) and that the request is waiting at DHI "
+                "for the information owner's answer."),
         },
         "kov-avsla": {
             "roll": "kov",
@@ -638,10 +692,16 @@ _P[3] = {
                 "KoV avslår",
                 "KoV rejects"),
             "gor": _t(
-                "Skickar KoV:s nej till DHI:s connector.",
-                "Sends KoV's no to DHI's connector."),
+                "KoV (Kretslopp och Vatten) är informationsägare och avgör "
+                "om staden får hämta A. Klicka på knappen för att svara nej "
+                "i KoV:s ställe. Svaret skickas till DHI:s connector, och "
+                "staden får inget avtal om A.",
+                "KoV (Kretslopp och Vatten) is the information owner and "
+                "decides whether the city may fetch A. Click the button to "
+                "answer no on KoV's behalf. The answer is sent to DHI's "
+                "connector, and the city gets no agreement for A."),
             "titta": _t(
-                "Den här begäran får inget avtal (TERMINATED), så ingen data "
+                "Den här begäran får inget avtal (TERMINATED, alltså avslutad), så ingen data "
                 "lämnas ut på den. Så fungerar PoC:en: i den delade demon "
                 "häver avslaget inget tidigare avtal (det skulle drabba andra "
                 "besökare). Vill du häva ett avtal, använd ”KoV häver avtalet”.",
@@ -650,8 +710,11 @@ _P[3] = {
                 "the rejection revokes no earlier agreement (it would affect other "
                 "visitors). To revoke an agreement, use “KoV revokes the agreement”."),
             "kraver": _t(
-                "En förhandling om distribution A väntar.",
-                "A negotiation for distribution A is waiting."),
+                "Att staden har begärt ett avtal om A (knappen Förhandla A) "
+                "och att begäran väntar hos DHI på informationsägarens svar.",
+                "That the city has requested an agreement for A (the "
+                "Negotiate A button) and that the request is waiting at DHI "
+                "for the information owner's answer."),
         },
         "kov-hav": {
             "roll": "kov",
@@ -660,25 +723,31 @@ _P[3] = {
                 "KoV häver avtalet",
                 "KoV revokes the agreement"),
             "gor": _t(
-                "Häver det gällande avtalet om A hos DHI, med samma "
-                "rollbevis som vid ett beslut. Ett avtal gäller tills det "
-                "hävs eller löper ut, så det här är sättet att dra tillbaka det i förtid utan att "
-                "staden först begär något nytt.",
-                "Revokes the current agreement for A at DHI, with the same "
-                "role proof as for a decision. An agreement is valid until "
-                "it is revoked or expires, so this is how to withdraw it early without the "
-                "city first requesting anything new."),
+                "Ett avtal gäller tills det hävs eller löper ut, inte bara "
+                "för en enda hämtning. Klicka på knappen för att KoV, som "
+                "informationsägare, ska dra tillbaka det gällande avtalet om "
+                "A i förtid, utan att staden först behöver begära något nytt. "
+                "Hävningen görs hos DHI, med samma rollbevis som vid ett "
+                "beslut.",
+                "An agreement is valid until it is revoked or expires, not "
+                "just for one fetch. Click the button for KoV, as the "
+                "information owner, to withdraw the current agreement for A "
+                "early, without the city first having to request anything "
+                "new. The revocation is made at DHI, with the same role proof "
+                "as for a decision."),
             "titta": _t(
-                "Avtalet får status HÄVT. DHI:s connector nekar nya "
-                "överföringar och staden ger inga nya åtkomstnycklar. En "
-                "nyckel som redan finns går inte längre att använda för att "
-                "hämta data.",
+                "Avtalet får status HÄVT, alltså upphävt. DHI:s connector "
+                "nekar nya överföringar och staden ger inga nya "
+                "åtkomstnycklar. En nyckel som redan finns går inte längre "
+                "att använda för att hämta data.",
                 "The agreement becomes REVOKED. DHI's connector refuses new "
                 "transfers and the city issues no new access keys. A key "
                 "that already exists can no longer be used to fetch data."),
             "kraver": _t(
-                "Ett gällande avtal om distribution A finns.",
-                "A current agreement for distribution A exists."),
+                "Ett gällande avtal om A: informationsägaren (KoV) har "
+                "godkänt, och avtalet har varken hävts eller löpt ut.",
+                "A current agreement for A: the information owner (KoV) has "
+                "approved it, and it has neither been revoked nor expired."),
         },
     },
 }
@@ -716,7 +785,7 @@ _P[4] = {
         " kan beställa nya leveranser under samma avtal, och varje leverans"
         " ger det som är senast just då. Ett avtal om A gäller i 30 dagar "
         "efter ingåendet, om det inte hävs dessförinnan. Var staden sedan lagrar data är stadens eget val (här "
-        "CIP:en i steg 5).",
+        "stadens dataplattform i steg 5).",
         "**What we do in the PoC.** The city's connector orders the "
         "delivery with an agreement from step 3 and says where the data "
         "should go. We chose push: DHI's connector fetches the latest "
@@ -738,8 +807,8 @@ _P[4] = {
         "delivery that contains chamber positions is stopped. The city can order new deliveries under the "
         "same agreement, and each delivery brings whatever is latest at "
         "that moment. An agreement for A is valid for 30 days after it is made, unless revoked earlier. Where the"
-        " city then stores the data is the city's own choice (here the CIP "
-        "in step 5)."),
+        " city then stores the data is the city's own choice (here the city's "
+        "data platform in step 5)."),
     "varfor": _t(
         "Mottagaren ska inte behöva lita blint på avsändaren. Kontrollen "
         "fångar fel och avtalsbrott innan de hamnar i stadens system.",
@@ -810,43 +879,69 @@ _P[4] = {
             "roll": "stad",
             "sida": "felinjektion",
             "gor": _t(
-                "Levererar den öppna distributionen B med det senaste "
-                "avtalet för distribution B.",
-                "Delivers the open distribution B using the latest "
-                "agreement for distribution B."),
+                "I förra steget ingick DHI och staden ett avtal om B. Det ger "
+                "rätt att hämta data, men det flyttade inga data. Här sker "
+                "själva leveransen: klicka på knappen för att DHI ska "
+                "leverera den öppna distributionen B till staden, med stöd "
+                "av det senaste avtalet.",
+                "In the previous step DHI and the city agreed on B. That "
+                "gives the right to fetch data, but it moved no data. The "
+                "delivery itself happens here: click the button for DHI to "
+                "deliver the open distribution B to the city, based on the "
+                "latest agreement."),
             "titta": _t(
-                "Loggen säger att mottagningen KVITTERADE, och Accepterade "
-                "ökar med ett.",
-                "The log says the intake acknowledged it (ACKNOWLEDGED), and "
-                "Accepted goes up by one."),
+                "Loggen säger att stadens mottagning KVITTERADE, alltså "
+                "bekräftade att leveransen kom fram och godkändes, och "
+                "Accepterade i raden Just nu under knappen ökar med ett.",
+                "The log says the city's intake acknowledged it "
+                "(ACKNOWLEDGED), meaning it confirmed that the delivery "
+                "arrived and was accepted, and Accepted in the Right now line below the button "
+                "goes up by one."),
             "kraver": _t(
-                "Ett avtal för distribution B (steg 3).",
-                "An agreement for distribution B (step 3)."),
+                "Ett avtal för distribution B (steg 3), och minst en batch "
+                "som DHI kan leverera (steg 1).",
+                "An agreement for distribution B (step 3), and at least one "
+                "batch that DHI can deliver (step 1)."),
         },
         "transfer-a": {
             "roll": "stad",
             "gor": _t(
-                "Levererar den skyddade distributionen A om KoV har "
-                "godkänt.",
-                "Delivers the protected distribution A if KoV has approved."),
+                "Ett avtal ger rätt att hämta data, men det flyttar inga "
+                "data. Klicka på knappen för att DHI ska leverera den "
+                "skyddade distributionen A, med brunnarnas koordinater, till "
+                "staden. Det går bara om KoV har godkänt i steg 3.",
+                "An agreement gives the right to fetch data, but it moves no "
+                "data. Click the button for DHI to deliver the protected "
+                "distribution A, with the coordinates of the chambers, to the "
+                "city. This only works if KoV has approved in step 3."),
             "titta": _t(
-                "Utan godkännande får du ett felmeddelande i loggen. Det är spärren som "
+                "Med godkännande kvitterar mottagningen leveransen, som för "
+                "B. Utan godkännande får du ett felmeddelande i loggen, "
+                "eftersom inget avtal finns. Har avtalet hävts stoppar "
+                "stadens kontroll av avtalet leveransen. Det är spärren som "
                 "fungerar, inte något som är trasigt.",
-                "Without approval you get an error message in the log. "
-                "That's the barrier working, not something broken."),
+                "With approval the intake acknowledges the delivery, as for "
+                "B. Without approval you get an error message in the log, "
+                "because there is no agreement. If the agreement has been "
+                "revoked, the city's check of the agreement stops the "
+                "delivery. That is the barrier working, not something "
+                "broken."),
             "kraver": _t(
-                "KoV har godkänt distribution A i steg 3.",
-                "KoV has approved distribution A in step 3."),
+                "Ett gällande avtal om A: informationsägaren (KoV) har "
+                "godkänt i steg 3, och avtalet har inte hävts.",
+                "A current agreement for A: the information owner (KoV) has "
+                "approved in step 3, and the agreement has not been "
+                "revoked."),
         },
     },
     "extra": _t(
-        "Vill du se kontrollen slå till? I fliken Felinjektion kan du få "
+        "Vill du se kontrollen slå till? I fliken Scenarier kan du få "
         "modellen att smyga in brunnspositioner i den öppna distributionen "
         "B. Mottagningen avvisar då leveransen. Ett avtal för A gäller "
         "tills det hävs eller löper ut. Avslår KoV en ny begäran om A häver "
         "avslaget inget tidigare avtal i den delade demon; det gör ”KoV häver avtalet”, "
         "och då nekas leveransen av A.",
-        "Want to see the check kick in? In the Fault injection tab you can "
+        "Want to see the check kick in? In the Scenarios tab you can "
         "make the model sneak chamber positions into the open distribution "
         "B. The intake then rejects the delivery. An agreement for A stays "
         "valid until it is revoked or expires. If KoV rejects a new request "
@@ -867,7 +962,7 @@ _P[5] = {
     "distributioner": [],
     "vad": _t(
         "Leveransen görs om till stadens format och sparas i stadens "
-        "dataplattform (kallas CIP), som Intraservice driver. Varje värde "
+        "dataplattform (i SVADA-arkitekturen kallad CIP), som Intraservice driver. Varje värde "
         "får en ursprungsmärkning. Det mesta följer med från DHI i "
         "leveransen (batch, distribution, klass, licens och utgivare); "
         "staden lägger själv till avtalets nummer, en länk till avtalet och "
@@ -877,7 +972,7 @@ _P[5] = {
         "stadens connector så länge avtalet finns kvar (i PoC:en till "
         "nästa omstart).",
         "The delivery is converted to the city's format and stored in the "
-        "city's data platform (called CIP), run by Intraservice. Every "
+        "city's data platform (called CIP in the SVADA architecture), run by Intraservice. Every "
         "value gets a provenance label. Most of it comes along from DHI in "
         "the delivery (batch, distribution, class, licence and publisher); "
         "the city itself adds the agreement number, a link to the agreement "
@@ -893,9 +988,28 @@ _P[5] = {
         " from and whether the city was allowed to use it."),
     "dataspace": _t(
         "Lagringen är stadens egen. Ursprungsmärkningen knyter värdet till "
-        "dataspace-avtalet: samma avtals-id som i steg 3.",
+        "dataspace-avtalet: samma avtals-id som i steg 3. EU:s referensram "
+        "(DSSC Blueprint v3) kräver inte att avtalet bäddas in i varje "
+        "datapunkt. Där hör villkoren till dataproduktens maskinläsbara "
+        "beskrivning, och proveniens kan lagras hos någon av parterna eller "
+        "båda, utan någon obligatorisk specifikation. Att varje värde bär en "
+        "referens till avtalet är vårt sätt att uppfylla kravet på spårbarhet. "
+        "Det finns andra, till exempel att bara parterna eller en oberoende "
+        "tredje part loggar leveranserna. Att DHI själv signerar en "
+        "avtalsreferens i leveransen skulle ge DHI ett eget bevis, men det är "
+        "vår egen idé och inget Blueprint kräver.",
         "The storage is the city's own. The provenance label ties the value"
-        " to the data space agreement: the same agreement id as in step 3."),
+        " to the data space agreement: the same agreement id as in step 3. "
+        "The EU reference framework (DSSC Blueprint v3) does not require the "
+        "agreement to be embedded in every data point. There the terms belong "
+        "to the data product's machine-readable description, and provenance "
+        "can be stored by either party or both, with no mandatory "
+        "specification. Having every value carry a reference to the agreement "
+        "is our way of meeting the traceability need. There are others, for "
+        "example only the parties or an independent third party logging the "
+        "deliveries. Having DHI itself sign an agreement reference in the "
+        "delivery would give DHI its own proof, but that is our own idea and "
+        "not something the Blueprint requires."),
     "byggblock": _t(
         "Byggblock i DSSC: Provenance & Traceability",
         "DSSC building block: Provenance & Traceability"),
@@ -913,7 +1027,7 @@ _P[5] = {
         "standardmodell.",
         "The data model for the chamber is a local one, not a published "
         "standard model."),
-    "komponenter": "orion-stad / CIP, mintaka, stad-gateway",
+    "komponenter": "orion-stad (stadens dataplattform), mintaka, stad-gateway",
     "protokoll": _t(
         "NGSI-LD, NGSI-LD temporal",
         "NGSI-LD, NGSI-LD temporal"),
@@ -1160,8 +1274,8 @@ _TEKNIK = {
              "stored. The one-time key is simplified.")},
     ],
     5: [
-        {"namn": _t("FIWARE Orion-LD (stadens CIP)",
-                  "FIWARE Orion-LD (the city's CIP)"),
+        {"namn": _t("FIWARE Orion-LD (stadens dataplattform)",
+                  "FIWARE Orion-LD (the city's data platform)"),
          "status": "akta",
          "lankar": [["GitHub", "https://github.com/FIWARE/context.Orion-LD"]],
          "gor": _t(
@@ -1187,8 +1301,8 @@ _TEKNIK = {
          "gor": _t(
              "Rangordnar brunnarna efter bräddvolym och visar ursprunget.",
              "Ranks the chambers by overflow volume and shows the origin.")},
-        {"namn": _t("FIWARE Orion-LD (stadens CIP)",
-                  "FIWARE Orion-LD (the city's CIP)"),
+        {"namn": _t("FIWARE Orion-LD (stadens dataplattform)",
+                  "FIWARE Orion-LD (the city's data platform)"),
          "status": "akta",
          "lankar": [["GitHub", "https://github.com/FIWARE/context.Orion-LD"]],
          "gor": _t(
@@ -1492,7 +1606,7 @@ _DETALJ_EN = {
     "Avvisade": "Rejected",
     "Skrivna entiteter": "Entities written",
     "Senaste": "Latest",
-    "Brunnar i CIP:en": "Chambers in the CIP",
+    "Brunnar i stadens dataplattform": "Chambers in the city's data platform",
     "Proveniens: distribution": "Provenance: distribution",
     "Proveniens: avtal": "Provenance: agreement",
     "Proveniens: informationsklass": "Provenance: information class",

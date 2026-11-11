@@ -13,6 +13,18 @@ MONSTER = re.compile(r"^\d{4}\.\d{2}\.\d{2}-\d+$")
 
 # Nyast överst. (version, datum, [(svenska, engelska), ...])
 NYHETER = [
+    ("2026.11.04-1", "2026-11-04", [
+        ("Fliken Felinjektion heter nu Scenarier och har ett nytt avtalsscenario: betrodd organisation. Du kan simulera att KoV i förväg har pekat ut staden som betrodd, så att DHI:s connector skriver avtalet om A direkt utan att vänta på KoV. Avgörandet ligger kvar hos providern, och avtalet märks \"betrodd organisation, ingen KoV-prövning\" i auditloggen och på avtalssidan. Valet är ditt eget och gäller bara dina egna körningar.",
+         "The Fault injection tab is now called Scenarios and has a new agreement scenario: trusted organisation. You can simulate that KoV has designated the city as trusted in advance, so that DHI's connector writes the agreement for A directly without waiting for KoV. The decision still lies with the provider, and the agreement is marked \"trusted organisation, no KoV review\" in the audit log and on the agreement page. The choice is your own and applies only to your own runs."),
+        ("Källkoden är lätt att hitta: Om-fliken har en ruta med en GitHub-knapp (licensen är Apache-2.0), och varje sida har en länk till källkoden i sidfoten. Upphovet står nu med roller: Niklas Fjellman (originaluppsättning av PoC:en) och Björn Hagström (utveckling och paketering för kommunikation och begriplighet).",
+         "The source code is easy to find: the About tab has a box with a GitHub button (the licence is Apache-2.0), and every page has a link to the source code in the footer. The credits now state roles: Niklas Fjellman (original setup of the PoC) and Björn Hagström (development and packaging for communication and comprehensibility)."),
+        ("Avtalssidan har en språkväxlare, följer språket på sidan du kom från, och Tillbaka går till stället du kom från (till exempel steg 5) i stället för till Suveränitet.",
+         "The agreement page has a language switch, follows the language of the page you came from, and Back goes to where you came from (for example step 5) instead of Sovereignty."),
+        ("Den guidade banan har fått steg 5, Ursprung, före Analysera, så att du ser hur villkor, klass och avtal följer med data. Knappen Nästa landar nu på själva steget, där något händer.",
+         "The guided path now includes step 5, Provenance, before Analyse, so that you see how terms, class and agreement follow the data. The Next button now lands on the step itself, where something happens."),
+        ("Går det inte att hämta kartbakgrunden i steg 6 (till exempel på ett långsamt mobilnät) säger sidan det i stället för att tyst visa den schematiska kartan.",
+         "If the map background in step 6 cannot be fetched (for example on a slow mobile network), the page says so instead of silently showing the schematic map."),
+    ]),
     ("2026.10.29-16", "2026-11-03", [
         ("Du varnas nu innan en planerad uppdatering av demon. Markeringen uppe till höger och en remsa överst visar nedräkningen från 15 minuter före, med klockslag i din tid, och förklarar att pågående körningar avbryts men att plattformens data finns kvar. De sista två minuterna startas inga nya körningar. Brunnsvyn visar samma varsel.",
          "You are now warned before a planned update of the demo. The marker at the top right and a strip at the top show the countdown from 15 minutes before, with the time in your time zone, and explain that runs in progress are cancelled but the platform's data stays. In the last two minutes no new runs are started. The well view shows the same notice."),
@@ -115,9 +127,9 @@ NYHETER = [
     ]),
     ("2026.10.28-3", "2026-10-29", [
         ("Vi säger nu öppet att demon är byggd med AI-assistenter: en rad på Om-sidan, i projektets beskrivning och i översikten över MIM-bedömningarna, och en mening i rutan överst på datamodellutkastet. "
-         "Koden, testerna och dokumentationen är utvecklade tillsammans med AI-assistenter (bland annat Claude, Codex och Gemini). Björn Hagström och Niklas Fjellman har styrt arbetet och tar ansvar för innehållet, men allt är inte oberoende granskat av människor.",
+         "Koden, testerna och dokumentationen är utvecklade tillsammans med AI-assistenter (bland annat Claude, Codex och Gemini). Niklas Fjellman och Björn Hagström har styrt arbetet och tar ansvar för innehållet, men allt är inte oberoende granskat av människor.",
          "We now say openly that the demo is built with AI assistants: a line on the About page, in the project description and in the overview of the MIM assessments, and a sentence in the box at the top of the draft data model. "
-         "The code, the tests and the documentation were developed together with AI assistants (among them Claude, Codex and Gemini). Björn Hagström and Niklas Fjellman have directed the work and are responsible for the content, but not everything has been independently reviewed by humans."),
+         "The code, the tests and the documentation were developed together with AI assistants (among them Claude, Codex and Gemini). Niklas Fjellman and Björn Hagström have directed the work and are responsible for the content, but not everything has been independently reviewed by humans."),
         ("Demon är öppen utan lösenord även när man kör den lokalt: det är nu standard.",
          "The demo is now open without a password when run locally too: that is the default."),
     ]),
@@ -252,4 +264,5 @@ h1{{margin:.6rem 0 .2rem}} h2{{margin:1.4rem 0 .3rem;font-size:1.1rem}} .datum{{
 <h1>{e(t["rub"])}</h1>
 <p>{e(t["nu"])} <b>{e(VERSION)}</b>. {e(t["intro"])}</p>
 {poster}
+<p style="color:var(--dov);font-size:.85rem;margin-top:2rem"><a href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener">{"Källkod på GitHub" if sprak == "sv" else "Source code on GitHub"} ↗</a></p>
 </body></html>"""

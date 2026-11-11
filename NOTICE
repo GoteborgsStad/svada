@@ -2,11 +2,11 @@ Svada-mini
 
 Copyright 2026 Göteborgs Stad (Vattendatalabbet, SVADA)
 
-Skapad av Björn Hagström och Niklas Fjellman inom Vattendatalabbet (SVADA, Göteborgs Stad, i samarbete med RISE).
+Skapad av Niklas Fjellman (originaluppsättning av PoC:en: kravställning, arkitektur, utveckling av kod och test enligt Målarkitektur version 1.92, samt teknisk dokumentation) och Björn Hagström (vidareutveckling av stödet för dataspaceprotokollen (identitet, verifierbara intyg, avtal) samt paketering för global kommunikation och begriplighet) inom Vattendatalabbet (SVADA, Göteborgs Stad, i samarbete med RISE).
 SVADA finansieras av Energimyndigheten, Formas, Vinnova och Water Wise Societies.
 Projektsida: https://vattendatalabbet.se
 
-Created by Björn Hagström and Niklas Fjellman within the Swedish Water Data Lab (SVADA, City of Gothenburg, in cooperation with RISE).
+Created by Niklas Fjellman (original setup of the PoC: requirements, architecture, and development of code and tests according to the Target Architecture (Målarkitektur) version 1.92, plus technical documentation) and Björn Hagström (extended the PoC with data space protocol support (identity, verifiable credentials, agreements) and packaged it for global communication and clarity) within the Swedish Water Data Lab (SVADA, City of Gothenburg, in cooperation with RISE).
 SVADA is funded by the Swedish Energy Agency (Energimyndigheten), Formas, Vinnova and Water Wise Societies.
 
 Koden i det här repot är licensierad under Apache License 2.0 (se LICENSE). Den som vidaredistribuerar ska behålla den här filen.
