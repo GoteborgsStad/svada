@@ -261,6 +261,8 @@ TEXTER = {
                 " riktigt dataspace mellan DHI och Göteborgs Stad, till att "
                 "staden använder data för analys och beslut. Klicka på ett "
                 "steg för att se vad som händer, varför, och vad knapparna gör."),
+        "ingressProj": "Den här PoC:en skapades inom ramen för projektet",
+        "ingressLank": "Vattendatalabbet (SVADA) ↗",
         "fakta1": (
                 "<b>Dataspace</b>: data delas på avtal och villkor, utan "
                 "gemensam databas."),
@@ -656,6 +658,8 @@ TEXTER = {
                 "real data space between DHI and the City of Gothenburg, to the "
                 "city using the data for analysis and decisions. Click a step "
                 "to see what happens, why, and what the buttons do."),
+        "ingressProj": "This PoC was created within the project",
+        "ingressLank": "Swedish Water Data Lab (SVADA) ↗",
         "fakta1": (
                 "<b>Data space</b>: data is shared under agreements and terms, "
                 "with no shared database."),
@@ -1318,6 +1322,7 @@ nav { display: flex; flex-wrap: wrap; gap: .4rem; }
 .sektionrub { font-size: 1.05rem; margin: 0 0 .4rem; flex-basis: 100%; }
 .intro .ingress { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: .2rem 2rem; align-items: start; }
 .intro .ingress h2 { grid-column: 1 / -1; }
+.intro .ingress p a { color: var(--akt); }   /* länken till Vattendatalabbet i samma färg som övriga länkar och knappar */
 .intro .ingress .omlank { grid-column: 1; justify-self: start; }
 .intro .fakta { grid-column: 2; grid-row: 2 / 4; }
 @media (max-width: 900px) { .intro .ingress { grid-template-columns: 1fr; } .intro .fakta { grid-column: 1; grid-row: auto; } }
@@ -4654,7 +4659,7 @@ def _intro(t, antal, sprak):
     <summary><span class="introrub">{e(t['introH'])}</span>
       <span class="introknapp"><span class="iv">{e(t['introVisa'])}</span><span class="id">{e(t['introDolj'])}</span></span></summary>
     <div class="ingress">
-      <p>{e(t['ingress'])}</p>
+      <p>{e(t['ingress'])} {e(t['ingressProj'])} <a href="https://vattendatalabbet.se/" target="_blank" rel="noopener">{e(t['ingressLank'])}</a>.</p>
       <ul class="fakta">
         <li><span class="fikon f-ds">◆</span><span>{t['fakta1']}</span></li>
         <li><span class="fikon f-akta">✓</span><span>{_mall(t['faktaAkta'], a=antal['akta'], f=antal['forenklad'], r=antal['simulerad'])}</span></li>
@@ -5245,7 +5250,7 @@ def sida(steg, komponenter, portar, vard, troskel, publika=None,
 {_ordlistesida(sprak)}
 
 <footer>
-  <p>{e(t['sidfot1'])} <a href="/statistik?lang={sprak}">{'Statistik' if sprak == 'sv' else 'Statistics'}</a> · <a href="{KALLKOD_URL}" target="_blank" rel="noopener" aria-label="{'Källkod på GitHub (öppnas i ny flik, extern sida)' if sprak == 'sv' else 'Source code on GitHub (opens in a new tab, external site)'}">{GITHUB_IKON}{'Källkod' if sprak == 'sv' else 'Source code'} ↗</a> · <a href="/nyheter?lang={sprak}">{'Version' if sprak == 'sv' else 'Version'} <span id="demoversion">{e(DEMO_VERSION)}</span></a>{'' if variant == 'extern' else ' API: <a href="/api/status">/api/status</a> · <a href="/api/steg">/api/steg</a> · <a href="/api/audit">/api/audit</a> · <a href="/api/analys">/api/analys</a> · <a href="/api/kov">/api/kov</a> · <a href="/health">/health</a>'}</p>
+  <p>{e(t['sidfot1'])} <a href="/statistik?lang={sprak}">{'Statistik' if sprak == 'sv' else 'Statistics'}</a> · <a href="{KALLKOD_URL}" target="_blank" rel="noopener" aria-label="{'Källkod på GitHub (öppnas i ny flik, extern sida)' if sprak == 'sv' else 'Source code on GitHub (opens in a new tab, external site)'}">{GITHUB_IKON}{'Källkod' if sprak == 'sv' else 'Source code'} ↗</a> · <a href="https://vattendatalabbet.se/" target="_blank" rel="noopener">{'Vattendatalabbet (SVADA)' if sprak == 'sv' else 'Swedish Water Data Lab (SVADA)'} ↗</a> · <a href="/nyheter?lang={sprak}">{'Version' if sprak == 'sv' else 'Version'} <span id="demoversion">{e(DEMO_VERSION)}</span></a>{'' if variant == 'extern' else ' API: <a href="/api/status">/api/status</a> · <a href="/api/steg">/api/steg</a> · <a href="/api/audit">/api/audit</a> · <a href="/api/analys">/api/analys</a> · <a href="/api/kov">/api/kov</a> · <a href="/health">/health</a>'}</p>
   <p>{e(t['sidfot2'])} <span id="testlage" hidden></span></p>
 </footer>
 </main>"""
