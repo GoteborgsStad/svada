@@ -38,6 +38,7 @@ class Session:
         self.gjort = set()           # åtgärder (batch, katalog, B-förhandling, B-leverans) som besökaren fått klara, för "nästa" (jobb.py)
         self.a_laget = None          # A-kedjan: None, "begart", "godkant" eller "levererat" (jobb.py, nasta_atgard)
         self.fel_lagen = {}          # besökarens eget felinjektionsläge (schemadrift, saknade_parametrar, gis_i_b): slås på i FCF bara medan HENNES leverans körs
+        self.betrodd = False         # scenario: staden är utpekad som betrodd organisation hos DHI, bara medan besökarens egen A-förhandling körs (jobb.py)
         self.a_forut = None          # läget före en ny begäran (godkant/levererat): återställs om begäran avslås utan att något avtal hävs
 
     def kort(self):
@@ -79,6 +80,17 @@ def hamta_eller_skapa(kakvarde):
         s = Session(secrets.token_hex(16))
         _SESSIONER[s.id] = s
         return s, True
+
+
+def byt(gammal_id):
+    """Börja om: den gamla sessionen glöms och besökaren får en ny, tom. Den gamla sessionens jobb, förhandlingar och avtal följer inte med
+    (de syns bara i den sessionen); plattformens gemensamma data berörs inte."""
+    with _LAS:
+        _SESSIONER.pop(gammal_id, None)
+        _rensa_gamla(time.monotonic())
+        s = Session(secrets.token_hex(16))
+        _SESSIONER[s.id] = s
+        return s
 
 
 def antal():

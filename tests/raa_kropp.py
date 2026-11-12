@@ -29,7 +29,7 @@ try:
             kaka = delar[6]
 except OSError:
     pass
-if not kaka and os.environ.get("DEMO_GATE", "on") != "off":
+if not kaka and os.environ.get("DEMO_GATE", "off") != "off":
     print("UTAN_KAKA")          # anroparen räknar detta som fel: provet skulle annars testa grinden, inte backend
     sys.exit(0)
 
@@ -42,7 +42,7 @@ def oppna():
 
 
 def rubrik(sokvag, langd):
-    return ("POST %s HTTP/1.1\r\nHost: %s\r\nOrigin: %s\r\nCookie: svada_tilltrade=%s\r\nContent-Type: application/json\r\n"
+    return ("POST %s HTTP/1.1\r\nHost: %s\r\nOrigin: %s\r\nCookie: svada_tilltrade=%s; svada-test=1\r\nContent-Type: application/json\r\n"
             "Content-Length: %d\r\nConnection: close\r\n\r\n" % (sokvag, u.netloc, origin, kaka, langd)).encode()
 
 

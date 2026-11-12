@@ -24,7 +24,7 @@ WORKDIR /app
 COPY gemensam/ ./gemensam/
 COPY dashboard/kallor.py dashboard/steg.py dashboard/kedjan.py dashboard/i18n.py dashboard/meddelanden.py \
      dashboard/audit.py dashboard/analys.py dashboard/jobb.py \
-     dashboard/vy.py dashboard/main.py dashboard/skydd.py dashboard/statistiksida.py dashboard/sessioner.py dashboard/nyheter.py ./
+     dashboard/vy.py dashboard/main.py dashboard/skydd.py dashboard/statistiksida.py dashboard/sessioner.py dashboard/nyheter.py dashboard/mim.py dashboard/mimsida.py dashboard/ordlista.py dashboard/nedladdning.py ./
 COPY dashboard/statiskt/ ./statiskt/
 
 ENV PYTHONUNBUFFERED=1

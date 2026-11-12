@@ -41,6 +41,7 @@ services:
     profiles: ["dashboard", "etapp6b"]
     environment:
       SVADA_VERSION: ${SVADA_VERSION:-okänd}
+      MODELL_KONTEXT_URL: ${MODELL_KONTEXT_URL:-http://publik-vy:8085/modell/utkast/0.1/context.jsonld}
       # Statistik: loggen läses, dagssummor och händelseräknare skrivs i data/ (git-ignorerad, utanför nollställningen).
       STATISTIK_KATALOG: /statistik
       # Egna adresser som inte ska räknas (kapade adresser, CIDR, kommaseparerade); tom = alla räknas.
@@ -95,6 +96,8 @@ services:
       DASH_SESSIONER: ${DASH_SESSIONER:-}
       # Klockslaget för den nattliga återställningen (nedräkningen på sidan). Tomt = ingen nedräkning (lokalt).
       DEMO_ATERSTALL_KL: ${DEMO_ATERSTALL_KL:-}
+      # Planerad uppdatering: tid och typ i en liten fil på värden (katalogen ./varsel); texterna är fasta i sidan.
+      VARSEL_FIL: /varsel/varsel.json
       # Skydd i den publika demon (services/dashboard/skydd.py); sekunder.
       DASH_UTESTANGNING_S: ${DASH_UTESTANGNING_S:-180}
       DASH_FELINJEKTION_S: ${DASH_FELINJEKTION_S:-300}
@@ -121,11 +124,12 @@ services:
     volumes:
       - ./statistik/logg:/statistik/logg:ro
       - ./statistik/data:/statistik/data
+      - ./varsel:/varsel:ro                 # varselfilen för planerad uppdatering
     restart: ${SVADA_RESTART:-unless-stopped}
   # -------------------------------------------------------------------
   # caddy – PUBLIK INGÅNG (publik demo). Den enda porten en extern
   # besökare når. Ett värdnamn per publik roll, se services/caddy/Caddyfile.
-  # Hela ingången ligger bakom ett gemensamt lösenord (lösenordsgrinden).
+  # Med DEMO_GATE=on ligger hela ingången bakom ett gemensamt lösenord (lösenordsgrinden).
   # Når tjänsterna över värdens portar, precis som kontrollrummet – ligger
   # därför bara på sitt eget nät, inte på något org-nät.
   # -------------------------------------------------------------------
@@ -137,6 +141,7 @@ services:
         CADDY_BUILDER_IMAGE: ${CADDY_BUILDER_IMAGE}
         CADDY_RUNTIME_IMAGE: ${CADDY_IMAGE}
         CADDY_RATELIMIT_VERSION: ${CADDY_RATELIMIT_VERSION}
+        CADDY_REPLACE_RESPONSE_VERSION: ${CADDY_REPLACE_RESPONSE_VERSION}
     container_name: ${SVADA_PREFIX:-svada}-caddy
     security_opt:
       - "no-new-privileges:true"
@@ -158,8 +163,12 @@ services:
       # egenskaper är inte hemliga och ligger i .env.
       DEMO_KAKA_MAXALDER: ${DEMO_KAKA_MAXALDER}
       DEMO_KAKA_SECURE: ${DEMO_KAKA_SECURE:-}
-      # on (standard) = lösenordsgrinden gäller; off = demon är öppen för alla (se Caddyfilen, snippet inloggning)
-      DEMO_GATE: ${DEMO_GATE:-on}
+      # off (standard) = demon är öppen för alla; on = lösenordsgrinden gäller (se Caddyfilen, snippet inloggning)
+      DEMO_GATE: ${DEMO_GATE:-off}
+      # Brunnsvyns publika adress: Caddy byter kontextens interna adress mot den i JSON-LD-svar från tidsserien.
+      PUBLIK_URL_BRUNNAR: ${PUBLIK_URL_BRUNNAR:-http://localhost:${PUBLIK_VY_PORT}}
+      # Datamodellens kontext (hämtas internt av Orion och Mintaka); Caddy lägger den som Link-header mot tidsserien.
+      MODELL_KONTEXT_URL: ${MODELL_KONTEXT_URL:-http://publik-vy:8085/modell/utkast/0.1/context.jsonld}
       RATE_INLOGG_FONSTER: ${RATE_INLOGG_FONSTER}
       RATE_INLOGG_ANTAL: ${RATE_INLOGG_ANTAL}
     # Användarnamnet och hemligheterna (DEMO_ANVANDARE, DEMO_LOSENORD_HASH,
@@ -171,7 +180,7 @@ services:
       - path: ./.demo-inloggning.env
         required: false
     # Fail-closed: utan lösenordshash och token startar INTE den publika
-    # ingången – grinden kan aldrig falla bort tyst. Sedan Caddys vanliga
+    # ingången – en grind som är på kan aldrig falla bort tyst. Sedan Caddys vanliga
     # startkommando (bildens CMD).
     command:
       - sh

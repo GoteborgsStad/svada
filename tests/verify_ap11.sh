@@ -185,6 +185,22 @@ c "11.6d efter återinsättning når staden DHI igen" "prov_ok"
 c "11.6e en NY utestängning och en NY återinsättning av staden finns i auditloggen (som kod, med mottagare)" \
   "audit_ny audit.svada_aterkallat && audit_ny audit.svada_aterinsatt"
 
+section "11.8 Deltagarregistret /participants (MIM3 RC5.1): deltagarna kan upptäcka varandra, och en återkallelse syns direkt"
+reg() { curl -s --max-time 10 "${HUB}/participants"; }
+reg_status() { reg | jq -r --arg id "$1" --arg f "$2" '.participants[] | select(.id == $id) | .[$f].status'; }   # reg_status <id> membership|participation
+c "11.8a registret är öppet (200) och listar DHI och staden med namn, DID och connectorns adress" \
+  "[ \"\$(curl -s -o /dev/null -w '%{http_code}' ${HUB}/participants)\" = 200 ] && reg | jq -e '([.participants[].id] | sort) == [\"dhi\",\"stad\"] and ([.participants[] | select((.name // \"\") != \"\" and (.did | startswith(\"did:web:\")) and (.dspEndpoint | startswith(\"http\")))] | length) == 2' >/dev/null"
+c "11.8b båda deltagarna har giltigt medlemskap och deltagarintyg från början" \
+  "[ \"\$(reg_status dhi membership)\" = valid ] && [ \"\$(reg_status stad membership)\" = valid ] && [ \"\$(reg_status dhi participation)\" = valid ] && [ \"\$(reg_status stad participation)\" = valid ]"
+c "11.8c en post har bara de avsedda fälten: inga roller, nycklar eller hemligheter" \
+  "[ \"\$(reg | jq -c '[.participants[0] | keys[]]')\" = '[\"did\",\"dspEndpoint\",\"id\",\"membership\",\"name\",\"participation\"]' ] && ! reg | grep -q \"${SVADA_STATUS_ADMIN_KEY}\""
+c "11.8d återkallas DHI:s medlemsintyg syns det direkt i registret (staden är oförändrad)" \
+  "[ \"\$(satt dhi medlemskap aterkalla)\" = 200 ] && [ \"\$(reg_status dhi membership)\" = revoked ] && [ \"\$(reg_status dhi participation)\" = valid ] && [ \"\$(reg_status stad membership)\" = valid ]"
+c "11.8e återinsätts det syns det också" \
+  "[ \"\$(satt dhi medlemskap aterinsatt)\" = 200 ] && [ \"\$(reg_status dhi membership)\" = valid ]"
+c "11.8f stadens deltagarintyg återkallas separat och syns som participation" \
+  "[ \"\$(satt stad deltagare aterkalla)\" = 200 ] && [ \"\$(reg_status stad participation)\" = revoked ] && [ \"\$(reg_status stad membership)\" = valid ] && [ \"\$(satt stad deltagare aterinsatt)\" = 200 ] && [ \"\$(reg_status stad participation)\" = valid ]"
+
 # Städa: lämna listan utan återkallelser (görs även av trap vid avbrott).
 stada_intyg
 finish "Återkallelse av intyg"

@@ -27,6 +27,7 @@ UPPDATERAR de attribut vi skickar.
 import datetime as dt
 import http.client
 import json
+import os
 import urllib.error
 import urllib.request
 
@@ -117,6 +118,10 @@ class OrionFel(Exception):
     pass
 
 
+MODELL_KONTEXT_URL = os.environ.get("MODELL_KONTEXT_URL", "")
+LANK_KONTEXT = '<%s>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
+
 def skriv(orion_url, entiteter, batchstorlek=50, tenant=None):
     """Batch-upsert mot orion-stad. Returnerar antal skrivna entiteter."""
     skrivna = 0
@@ -130,6 +135,8 @@ def skriv(orion_url, entiteter, batchstorlek=50, tenant=None):
             data=data, method="POST")
         req.add_header("Content-Type", "application/json; charset=utf-8")
         req.add_header("Accept", "application/json")
+        if MODELL_KONTEXT_URL:    # datamodellens kontext: attributen lagras under modellens adresser (docs/modell)
+            req.add_header("Link", LANK_KONTEXT % MODELL_KONTEXT_URL)
         if tenant:
             req.add_header("NGSILD-Tenant", tenant)
         try:

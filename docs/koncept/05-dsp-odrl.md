@@ -90,8 +90,10 @@ curl -s -X POST localhost:39393/management/v3/catalog/request \
 
 * **Mock-IAM.** `svada:deltagare eq "stad"` utvärderas mot en identitet som
   motparten själv påstår ([[C1-identitet]], gapanalysens G1).
-* **In-memory stores.** Assets och policyer nollställs vid omstart av providern –
-  `registrera-edc` måste köras om ([[C2-resursstrategi]]).
+* **In-memory stores.** Assets och policyer nollställs vid omstart av providern
+  ([[C2-resursstrategi]]). Tjänsten `registrera-edc-bevakare` (samma skript, `--bevaka`) märker det
+  inom ca 15 sekunder och registrerar om; `registrera-edc` som engångsjobb finns kvar för start och
+  prov. Avtal som låg i lagret kan inte återskapas – besökarens nästa förhandling ger ett nytt.
 
 ## Läs vidare
 

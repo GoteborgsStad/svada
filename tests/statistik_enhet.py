@@ -208,7 +208,11 @@ with tempfile.TemporaryDirectory() as kat:
 sys.path.insert(0, os.path.join(rot, "services", "dashboard"))
 import statistiksida  # noqa: E402
 sida = statistiksida.sida(sam, "sv") + statistiksida.sida(sam, "en")
-kolla("<script" not in sida and "http://" not in sida and "https://" not in sida, "sidan har inget skript och inga externa adresser (sv och en)")
+# Enda tillåtna externa adressen är den vanliga länken till källkoden (ingen resurs som laddas, inget som spårar).
+_utan_kallkod = sida.replace('<a href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener">', "")
+kolla("<script" not in sida and "http://" not in _utan_kallkod and "https://" not in _utan_kallkod,
+      "sidan har inget skript och inga externa adresser utom länken till källkoden (sv och en)")
+kolla(sida.count("https://github.com/GoteborgsStad/svada") == 2, "sidan länkar källkoden (en länk per språk)")
 kolla(statistiksida.sida(S.sammanstall({}, {}, idag=dt.date(2026, 10, 21), dagar=3), "sv").count("Ingen statistik ännu") >= 1, "sidan klarar att det inte finns någon data ännu")
 # Testläge: anrop med loggfältet test=1 och själva ?test=1-anropet räknas inte; övriga räknas som förut
 def _post(ts, uri, test=None, ua="Mozilla/5.0 (X11) Chrome/120"):

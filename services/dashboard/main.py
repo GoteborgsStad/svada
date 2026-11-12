@@ -64,7 +64,10 @@ import kallor
 import kedjan
 import skydd
 import sessioner
+import mimsida
+import nedladdning
 import nyheter
+import ordlista
 import statistiksida
 import steg as stegmodul
 import vy
@@ -190,6 +193,7 @@ async def rensa_api_externt(request, anrop_vidare):
     sokvag = request.url.path
     if (DEMO_VARIANT != "extern"
             or not (sokvag.startswith("/api/") or sokvag == "/health")
+            or (sokvag.startswith("/api/ladda-ned/") and svar.status_code == 200)      # filerna rensas i nedladdning.py (leveransen aldrig): summan gäller exakt de byte som skickas; felsvar rensas här som förut
             or "json" not in svar.headers.get("content-type", "")):
         return svar
     kropp = b"".join([d async for d in svar.body_iterator])
@@ -367,6 +371,26 @@ PUBLIKA_INGANGAR = [
 ]
 
 
+def onskat_sprak(huvud):
+    """Språket webbläsaren ber om (Accept-Language-huvudet): svenska bara om svenska är det första önskemålet (efter q-värde), annars
+    engelska. Utan huvud (curl, sökrobotar, våra prov) svenska. Samma funktion i kontrollrummet, brunnsvyn och gatewayen (provet jämför)."""
+    onskemal = []
+    for i, del_ in enumerate((huvud or "").split(",")):
+        tag, _, q = del_.strip().partition(";")
+        tag = tag.strip().lower()
+        if not tag or tag == "*":
+            continue
+        try:
+            vikt = float(q.strip()[2:]) if q.strip().startswith("q=") else 1.0
+        except ValueError:
+            vikt = 0.0
+        if vikt > 0:
+            onskemal.append((-vikt, i, tag))
+    if not onskemal:
+        return "sv"
+    return "sv" if sorted(onskemal)[0][2].split("-")[0] == "sv" else "en"
+
+
 def _valt_sprak(begaran):
     """(språk, uttryckligt): ?lang=sv|en vinner över kakan svada-sprak."""
     fraga = begaran.query_params.get("lang")
@@ -378,7 +402,7 @@ def _valt_sprak(begaran):
     if huvud in vy.SPRAK:
         return huvud, False
     kaka = begaran.cookies.get("svada-sprak")
-    return (kaka if kaka in vy.SPRAK else "sv"), False
+    return (kaka if kaka in vy.SPRAK else onskat_sprak(begaran.headers.get("accept-language"))), False
 
 
 @app.middleware("http")
@@ -391,6 +415,7 @@ async def oversatt_api(begaran: Request, call_next):
     svar = await call_next(begaran)
     sokvag = begaran.url.path
     if (not sokvag.startswith("/api/") or sokvag.startswith("/api/steg")
+            or (sokvag.startswith("/api/ladda-ned/") and svar.status_code == 200)      # filen skickas som den är: summan och huvudena ska överleva
             or "application/json" not in svar.headers.get("content-type", "")):
         return svar
     if _valt_sprak(begaran)[0] != "en":
@@ -423,6 +448,26 @@ async def sessionskaka(begaran: Request, anrop_vidare):
     return svar
 
 
+@app.post("/api/session/ny")
+def ny_session(begaran: Request):
+    """Börja om från början (guidens "Börja om"): besökaren får en ny, tom session (egen kaka). Utan session (lokal körning) nollställs i
+    stället det delade tillståndet. Ett pågående jobb måste vara klart först, så att inget körs i ett tillstånd som besökaren inte längre ser."""
+    gammal = sessioner.aktuell()
+    if jobbmodul.aktivt():
+        return _fel_svar(jobbmodul.Jobbfel("fel.borja_om_upptaget"), 409)
+    if gammal is None:
+        # Utan sessioner (lokal körning, direktanrop): det delade tillståndet nollställs i stället för att en session byts.
+        jobbmodul.nollstall_globalt()
+        with _AVTAL_A_LAS:
+            _AVTAL_A.pop("", None)
+        return JSONResponse({"ok": True, "lokalt": True})
+    ny = sessioner.byt(gammal.id)
+    svar = JSONResponse({"ok": True})
+    svar.set_cookie(sessioner.KAKNAMN, ny.id, max_age=sessioner.KAKA_MAXALDER_S, httponly=True, samesite="lax", path="/",
+                    secure=begaran.headers.get("x-forwarded-proto") == "https")
+    return svar
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(begaran: Request):
     sprak, uttryckligt = _valt_sprak(begaran)
@@ -430,6 +475,7 @@ def index(begaran: Request):
         stegmodul.STEG, _komponentlista(sprak), kallor.PORTAR, kallor.VARD,
         0.5, PUBLIKA_INGANGAR, sprak=sprak,
         variant=DEMO_VARIANT, utestangning=UTESTANGNING_TILLATEN))
+    svar.headers["Vary"] = "Accept-Language, Cookie"
     if uttryckligt:
         svar.set_cookie("svada-sprak", sprak, max_age=31536000, samesite="lax")
     return svar
@@ -461,10 +507,16 @@ def _spola_handelser():
     _HANDELSER.spola()
 
 
+@app.get("/mim", response_class=HTMLResponse)
+def mim_sida(begaran: Request):
+    sprak, _ = _valt_sprak(begaran)
+    return HTMLResponse(ordlista.med_ordlista(mimsida.sida(sprak), sprak, f"/?lang={sprak}#ordlista-{{id}}"))
+
+
 @app.get("/nyheter", response_class=HTMLResponse)
 def nyheter_sida(begaran: Request):
     sprak, _ = _valt_sprak(begaran)
-    return HTMLResponse(nyheter.sida(sprak))
+    return HTMLResponse(ordlista.med_ordlista(nyheter.sida(sprak), sprak, f"/?lang={sprak}#ordlista-{{id}}"))
 
 
 @app.get("/statistik", response_class=HTMLResponse)
@@ -498,7 +550,7 @@ async def api_handelse(begaran: Request):
 @app.get("/api/aterstallning")
 def api_aterstallning():
     """Nästa nattliga återställning (UTC) och serverns nuvarande tid, för nedräkningen. Tomt svar lokalt (ingen nattlig återställning)."""
-    svar = aterstall.som_svar(os.environ.get("DEMO_ATERSTALL_KL", ""), os.environ.get("TZ", "UTC"))
+    svar = aterstall.som_svar(os.environ.get("DEMO_ATERSTALL_KL", ""), os.environ.get("TZ", "UTC"), varselfil=os.environ.get("VARSEL_FIL", ""))
     return svar or {"nastaUtc": None}
 
 
@@ -553,6 +605,8 @@ def api_status(lang: str = "sv"):
                                "nere": len(komponenter) - uppe},
             "demoVersion": DEMO_VERSION,
             "jobbAktivt": jobbmodul.aktivt(),
+            "sessioner": sessioner.aktuell() is not None,      # egen vy per besökare: då byter "Börja om" session
+            "borjaOm": True,                                   # guiden kan alltid börja om: med en ny session, eller (lokalt) genom att nollställa det delade tillståndet
             "nasta": jobbmodul.nasta_atgard(),      # åtgärden som är rimlig att köra härnäst (markeras på knappen)
             # F1: sidan läser om steg 6 när avtalet om A inte längre gäller (annars låg positionerna kvar tills besökaren uppdaterade)
             "avtalA": {"gallande": _avtal_a_gallande()}}
@@ -583,6 +637,30 @@ def api_steg5_ursprung(lang: str = "sv"):
         # Ett normalt läge (senaste leveransen är inte B): 200 utan värde, så att sidan behåller sina
         # statiska exempel utan att webbläsarens konsol får ett fel.
         return {"tillgangligt": False}
+
+
+@app.get("/api/ladda-ned")
+def api_ladda_ned_lista(lang: str = "sv"):
+    """Vilka filer som går att ladda ned, per steg (steg 0 = ordlistan och MIM-bedömningen). Själva filerna skapas först vid nedladdning."""
+    i = 1 if lang == "en" else 0
+    return {"filer": [{"id": p["id"], "steg": p["steg"], "titel": p["en" if i else "sv"][0], "format": p["sv"][1],
+                       "krav": "avtal-a" if p.get("krav_a") else None, "info": p["info"][i]} for p in nedladdning.POSTER]}
+
+
+@app.get("/api/ladda-ned/{post_id}")
+def api_ladda_ned(post_id: str, lang: str = "sv"):
+    """Skapar och lämnar ut en fil (nedladdning.py). Normala skäl att den inte finns just nu ger 403/409 med en förklaring."""
+    sprak = "en" if lang == "en" else "sv"
+    try:
+        innehall, mime, namn, art, summa, klass = nedladdning.skapa(post_id, sprak, extern=DEMO_VARIANT == "extern")
+    except nedladdning.Ej as ej:
+        return JSONResponse(status_code=ej.status, content={"fel": ej.kod, "detalj": ej.text(sprak)})
+    except KallFel as fel:
+        return _fel_svar(fel, 502)
+    nedladdning.anteckna(nedladdning.PER_ID[post_id], namn, innehall, summa)
+    return Response(content=innehall, media_type=mime, headers={
+        "Content-Disposition": 'attachment; filename="%s"' % namn, "X-Content-SHA256": summa, "X-Svada-Art": art,
+        "X-Svada-Klass": klass, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/api/steg/{nr}/exempel")
@@ -816,8 +894,8 @@ def api_avtal():
         return _fel_svar(fel, 502)
 
 
-def _avtalssida(a, en):
-    """Avtalets löstbara sida: vad avtalet innebär och vilken status det har."""
+def _avtalssida(a, en, fran="suveranitet"):
+    """Avtalets löstbara sida: vad avtalet innebär och vilken status det har. fran = flik eller steg som besökaren kom från (Tillbaka går dit)."""
     def t(sv, eng):
         return eng if en else sv
     e = html.escape
@@ -854,6 +932,15 @@ def _avtalssida(a, en):
             delar.append(t("av", "by") + ": " + str(hav.get("av")))
         havtext = "<p><b>%s</b> %s</p>" % (t("Hävt", "Revoked"), e(" · ".join(delar)))
 
+    till = a.get("tillkomst")
+    if till == "betrodd-organisation":
+        havtext += '<p class="betrodd"><b>%s</b> %s</p>' % (
+            t("Hur avtalet tillkom:", "How the agreement came about:"),
+            e(t("direkt, utan KoV-prövning. Staden var utpekad som betrodd organisation hos DHI (scenario i fliken Scenarier). "
+                "I normalfallet prövar KoV varje begäran om distribution A.",
+                "directly, without a KoV review. The city was designated as a trusted organisation at DHI (a scenario in the Scenarios tab). "
+                "Normally KoV reviews every request for distribution A.")))
+
     def tid(epok):
         """Epoksekunder -> läsbar UTC-tid (annars värdet som det är)."""
         try:
@@ -872,6 +959,9 @@ def _avtalssida(a, en):
         (t("Part (mottagare)", "Party (recipient)"), a.get("konsument")),
         (t("Provider", "Provider"), a.get("provider")),
         (t("Avtalets adress", "The agreement's address"), "/avtal/%s" % a.get("id") if a.get("id") else None),
+        *(((t("Tillkom genom", "Came about through"),
+            {"betrodd-organisation": t("betrodd organisation (ingen KoV-prövning)", "trusted organisation (no KoV review)"),
+             "kov-beslut": t("KoV-beslut", "KoV decision")}.get(till)),) if till else ()),
         (t("Signerat", "Signed"), tid(a.get("signerat"))),
         (t("Giltigt till", "Valid until"), tid(a.get("giltigTill")))))
     sida = """<!doctype html><html lang="%s"><head><meta charset="utf-8">
@@ -882,8 +972,10 @@ body{background:#fff;color:#1d1d1d;font: 16px/1.5 system-ui,sans-serif;max-width
 th{text-align:left;padding-right: 1rem;vertical-align:top;font-weight: 600}
 code,pre{overflow-wrap:anywhere;white-space:pre-wrap}
 .status{display:inline-block;border: 2px solid currentColor;border-radius: 6px;padding:.1rem .6rem;font-weight: 700}
+a{color:#0848a6}.topp{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.betrodd{border:2px solid #8a4b00;background:#fff4e0;border-radius:8px;padding:.5rem .8rem}
 </style></head><body>
-<p><a href="/#suveranitet">&larr; %s</a></p>
+<div class="topp"><a href="/?lang=%s#%s">&larr; %s</a><a href="/avtal/%s?lang=%s&amp;fran=%s" hreflang="%s">%s</a></div>
 <h1>%s <span class="status">%s</span></h1>
 <p>%s</p>%s
 <table>%s</table>
@@ -891,7 +983,8 @@ code,pre{overflow-wrap:anywhere;white-space:pre-wrap}
 <h3>%s</h3><pre>%s</pre>
 </body></html>""" % (
         "en" if en else "sv", t("Avtal", "Agreement"),
-        t("Kontrollrummet", "Control room"),
+        "en" if en else "sv", e(fran), t("Tillbaka", "Back") if fran != "suveranitet" else t("Kontrollrummet", "Control room"),
+        e(str(a.get("id") or "")), "sv" if en else "en", e(fran), "sv" if en else "en", "Svenska" if en else "English",
         t("Avtal", "Agreement"), status,
         e(t("Ett avtal gäller tills det hävs eller löper ut, inte bara för en datahämtning. "
             "Statusen synkas från DHI:s connector ungefär varje sekund "
@@ -916,19 +1009,25 @@ async def http_fel(begaran: Request, fel: StarletteHTTPException):
         en = sprak == "en"
         return HTMLResponse('<!doctype html><html lang="%s"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
                             '<title>%s</title><body style="font:16px/1.5 system-ui,sans-serif;max-width:34rem;margin:12vh auto;padding:0 16px">'
-                            '<h1>%s</h1><p>%s</p><p><a href="/?lang=%s">%s</a></p></body></html>'
+                            '<h1>%s</h1><p>%s</p><p><a href="/?lang=%s">%s</a></p>'
+                            '<p style="font-size:.85rem;opacity:.8">Version %s</p></body></html>'
                             % (sprak, "Page not found" if en else "Sidan finns inte", "Page not found" if en else "Sidan finns inte",
                                "There is nothing at this address." if en else "Det finns inget på den här adressen.", sprak,
-                               "Back to the control room" if en else "Tillbaka till kontrollrummet"), status_code=404)
+                               "Back to the control room" if en else "Tillbaka till kontrollrummet", DEMO_VERSION), status_code=404)
     return JSONResponse({"detail": fel.detail}, status_code=fel.status_code, headers=getattr(fel, "headers", None))
 
 
 # Ett avtals-id är ett UUID. Allt annat (specialtecken, tomt, mycket långt) är en okänd adress och ska aldrig nå mottagningen.
 _AVTALS_ID = re.compile(r"^[0-9A-Za-z-]{1,64}$")
+_FRAN = re.compile(r"^(steg-[1-6]|folj|suveranitet|audit|jobb)$")      # varifrån besökaren kom till avtalssidan (Tillbaka går dit)
 
 
 @app.get("/avtal/{avtals_id:path}")      # även id med snedstreck ger avtalssidans 404, inte rå JSON (L8)
-def avtalssida(avtals_id: str, lang: str = "sv"):
+def avtalssida(avtals_id: str, begaran: Request, fran: str = "suveranitet"):
+    sprak, _ = _valt_sprak(begaran)      # ?lang vinner, annars kakan och webbläsarens språk (förut alltid svenska utan ?lang)
+    lang = sprak
+    if not _FRAN.match(fran):
+        fran = "suveranitet"
     try:
         if not _AVTALS_ID.match(avtals_id):
             raise KallFel("ogiltigt avtals-id")
@@ -946,7 +1045,7 @@ def avtalssida(avtals_id: str, lang: str = "sv"):
         # CSS som regeln för portnummer annars skulle skada.
         a = json.loads(rensa.neutrala_did(stegmodul.utan_intern_adress(
             json.dumps(a, ensure_ascii=False))))
-    return HTMLResponse(_avtalssida(a, lang == "en"))
+    return HTMLResponse(_avtalssida(a, lang == "en", fran))
 
 
 @app.post("/api/kov/avtal/{dhi_avtals_id}/hav")
@@ -1050,6 +1149,26 @@ def _satt_fel_synk(kropp, proxy):
                      "audit.felinj_pa" if aktiva else "audit.felinj_av", {"lagen": aktiva},
                      svar.get("lagen"))
         return svar
+
+
+@app.get("/api/scenario")
+def api_scenario():
+    """Besökarens avtalsscenario (scenariot "betrodd organisation"): eget val, bara hennes egna A-förhandlingar berörs (jobb.py, _egen_betrodd)."""
+    t = jobbmodul._tillstand(sessioner.aktuell())
+    return {"betrodd": bool(getattr(t, "betrodd", False)), "sek": jobbmodul.BETRODD_SEK, "egen": sessioner.aktuell() is not None}
+
+
+@app.post("/api/scenario")
+async def api_satt_scenario(begaran: Request):
+    try:
+        kropp = await las_json_kropp(begaran)
+    except Kroppsfel as fel:
+        return _kroppsfel_svar(fel)
+    if not isinstance(kropp, dict) or set(kropp) != {"betrodd"} or not isinstance(kropp["betrodd"], bool):
+        return _fel_svar(jobbmodul.Jobbfel("fel.scenario_argument"), 400)
+    t = jobbmodul._tillstand(sessioner.aktuell())
+    t.betrodd = kropp["betrodd"]
+    return api_scenario()
 
 
 @app.post("/api/felinjektion/reset")

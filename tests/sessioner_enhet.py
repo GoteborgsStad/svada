@@ -198,6 +198,12 @@ for at in ("kor-batch", "hamta-katalog", "forhandla-b", "transfer-b", "forhandla
     klart(sd, at)
 klart(sd, "transfer-a", status="fel", utfall="nekad")
 kolla(nasta_for(sd) == "forhandla-a", "efter en nekad leverans av A är nästa 'forhandla-a'")
+# Ett driftfel (inte en spärr) vid Leverera A ändrar inget: avtalet gäller, så nästa är att leverera igen
+sdf = sessioner.Session("f" * 32); besokare[sdf.id] = sdf
+for at in ("kor-batch", "hamta-katalog", "forhandla-b", "transfer-b", "forhandla-a", "kov-godkann"):
+    klart(sdf, at)
+klart(sdf, "transfer-a", status="fel", utfall=None)
+kolla(nasta_for(sdf) == "transfer-a", "efter ett driftfel vid Leverera A är nästa 'transfer-a' igen (avtalet gäller)")
 # Ett avslag av en NY begäran medan ett avtal gäller (delad demon: avslaget häver inget) tar besökaren tillbaka dit hen var; häver avslaget avtal börjar hen om.
 for nr_, (havda, forvantat) in enumerate((([], "analysera"), (["x"], "forhandla-a"))):
     sh = sessioner.Session(("%x" % (50 + nr_)) * 32)
@@ -326,5 +332,48 @@ kolla(jobbmodul._senaste_avtal("tillgang", ag) == ("avtal-A", "stad-A") and jobb
       "'senaste avtalet' är besökarens eget; utan session det senaste överhuvudtaget; en besökare utan avtal får inget")
 jobbmodul.kallor.forhandlingar = verklig
 
+# planerad uppdatering: spärren är inkopplad i jobbstarten (VARSEL_FIL), ger rätt felkod och slår inte före argumentkontrollen
+import datetime as _dt
+import json as _json
+import tempfile as _tmp
+_vf = os.path.join(_tmp.mkdtemp(), "varsel.json")
+def _varsel(min_fram):
+    with open(_vf, "w", encoding="utf-8") as f:
+        _json.dump({"tid": (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(minutes=min_fram)).isoformat(), "typ": "uppdatering"}, f)
+    jobbmodul.aterstall._CACHE["t"] = None
+os.environ["VARSEL_FIL"] = _vf
+_varsel(1)
+try:
+    jobbmodul.starta("kor-batch"); _kod = None
+except jobbmodul.Upptaget as e:
+    _kod = e.kod if hasattr(e, "kod") else str(e)
+kolla(_kod is not None and "uppdatering_strax" in str(_kod), "en minut före en planerad uppdatering nekas ett nytt jobb med fel.uppdatering_strax (spärren är inkopplad)")
+try:
+    jobbmodul.starta("finns-inte"); _kod2 = None
+except jobbmodul.Jobbfel as e:
+    _kod2 = str(getattr(e, "kod", e))
+kolla(_kod2 is not None and "okand_atgard" in _kod2 and "uppdatering_strax" not in _kod2, "en okänd åtgärd ger fortfarande sitt eget fel (argumentkontrollen kommer före spärren)")
+os.environ.pop("VARSEL_FIL", None)
+jobbmodul.aterstall._CACHE["t"] = None
+kolla("fel.uppdatering_strax" in jobbmodul.meddelanden.KATALOG if hasattr(jobbmodul.meddelanden, "KATALOG") else True, "felkoden finns i meddelandekatalogen")
+
+print("== börja om: en ny, tom session ==")
+gam, _n = sessioner.hamta_eller_skapa(None)
+gam.gjort.add("kor-batch"); gam.a_laget = "begart"; gam.forhandlingar.add("f1")
+ny = sessioner.byt(gam.id)
+kolla(ny.id != gam.id and not ny.gjort and ny.a_laget is None and not ny.forhandlingar, "byt: den nya sessionen är tom och har ett annat id")
+kolla(sessioner.hamta_eller_skapa(gam.id)[1] is True, "byt: den gamla kakan är inte längre känd (ger en ny session, ingenting följer med)")
+kolla(sessioner.hamta_eller_skapa(ny.id) == (ny, False), "byt: den nya kakan är känd")
+print("== börja om utan sessioner: det delade tillståndet nollställs ==")
+class _J:
+    def __init__(self, status, session): self.status, self.session = status, session
+_g = jobbmodul._GLOBALT
+_g.gjort.update({"kor-batch", "hamta-katalog"}); _g.a_laget = "begart"; _g.a_forut = "godkant"; _g.betrodd = True
+_sess_j = _J("klar", sessioner.Session("a1" * 16)); _kor_j = _J("kör", None)
+jobbmodul.JOBB[:] = [_J("klar", None), _sess_j, _kor_j]
+jobbmodul.nollstall_globalt()
+kolla(not _g.gjort and _g.a_laget is None and _g.a_forut is None and not _g.betrodd, "nollstall_globalt: det delade tillståndet är tomt")
+kolla(jobbmodul.JOBB == [_sess_j, _kor_j], "nollstall_globalt: avslutade jobb utan session rensas; en sessions jobb och ett pågående jobb ligger kvar")
+jobbmodul.JOBB[:] = []
 print("FEL: %d" % fel if fel else "OK: alla prov gröna")
 sys.exit(1 if fel else 0)

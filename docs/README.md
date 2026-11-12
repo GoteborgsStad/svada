@@ -38,6 +38,8 @@ tidigare PoC:en med tio steg ingår inte i det här paketet.
 | [`11-verifiering.md`](11-verifiering.md) | testsviten och vad varje skript bevisar |
 | [`12-fragor.md`](12-fragor.md) | frågorna som faktiskt ställs efter demon, med korta svar |
 | [`13-ordlista.md`](13-ordlista.md) | kanonisk terminologi |
+| [`modell/`](modell/README.md) | **utkast** till datamodell för modellerade bräddresultat (på engelska): termlista och hur vi arbetar. Inte beslutad modell |
+| [`mims/`](mims/README.md) | hur vi följer OASC:s MIMs (på engelska): vad vi följer, vad vi inte följer och varför; börjar med MIM6 |
 | [`14-dataprodukten.md`](14-dataprodukten.md) | dataproduktens specifikation och kvalitetsdeklaration, som katalogen pekar på |
 | [`koncept/`](koncept/README.md) | konceptbiblioteket: tekniska fördjupningar med kodhänvisningar och `KONCEPT:`-ankare in i källkoden |
 

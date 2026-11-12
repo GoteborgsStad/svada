@@ -53,6 +53,10 @@ KATALOG = {
     "jobb.batch": {"sv": "FCF producerade batch {batch} för modellerat dygn {dygn} ({antal} poster)",
                    "en": "FCF produced batch {batch} for modelled day {dygn} ({antal} records)"},
     "jobb.underlag": {"sv": "underlag: {kalla}", "en": "basis: {kalla}"},
+    "jobb.leverantor_registret": {"sv": "staden hittade leverantören {namn} i samordnarens deltagarregister",
+                                  "en": "the City found the provider {namn} in the orchestrator's participant directory"},
+    "jobb.leverantor_konfig": {"sv": "staden hittade ingen leverantör i deltagarregistret (eller nådde det inte) och använder den konfigurerade leverantören",
+                               "en": "the City found no provider in the participant directory (or could not reach it) and uses the configured provider"},
     "jobb.katalograd": {"sv": "{asset} – {namn} ({klass}, {atkomst}): {villkor}",
                         "en": "{asset} – {namn} ({klass}, {atkomst}): {villkor}"},
     "jobb.forh_startad": {"sv": "förhandling {id} startad om Distribution {dist}",
@@ -125,6 +129,14 @@ KATALOG = {
                              "en": "The fault injection is off again. No other visitor was affected."},
     "jobb.felinjektion_kvar": {"sv": "Varning: felinjektionen kunde inte slås av direkt ({fel}); städningen slår av den.",
                                "en": "Warning: the fault injection could not be switched off right away ({fel}); the cleanup switches it off."},
+    "jobb.betrodd_pa": {"sv": "SCENARIO betrodd organisation: staden är utpekad som betrodd hos DHI i högst {sek} s, bara under den här förhandlingen. Avtalet om A skrivs direkt, utan KoV-prövning.",
+                        "en": "SCENARIO trusted organisation: the city is designated as trusted at DHI for at most {sek} s, only during this negotiation. The agreement for A is written directly, without a KoV review."},
+    "jobb.betrodd_av": {"sv": "Utpekningen som betrodd organisation är borttagen igen. Ingen annan besökare påverkades.",
+                        "en": "The designation as a trusted organisation has been removed again. No other visitor was affected."},
+    "jobb.betrodd_kvar": {"sv": "Varning: utpekningen som betrodd organisation kunde inte tas bort direkt (providern svarade inte); den går ut av sig själv hos providern och städas före nästa förhandling.",
+                          "en": "Warning: the designation as a trusted organisation could not be removed right away (the provider did not answer); it expires on its own at the provider and is cleaned up before the next negotiation."},
+    "jobb.kov_automatiskt": {"sv": "Avtalet godkändes AUTOMATISKT hos providern: staden är betrodd organisation. Ingen KoV-prövning gjordes.",
+                             "en": "The agreement was approved AUTOMATICALLY at the provider: the city is a trusted organisation. No KoV review was made."},
     "jobb.misslyckades": {"sv": "MISSLYCKADES: {orsak}", "en": "FAILED: {orsak}"},
     "jobb.nekad": {"sv": "NEKAD av spärren: {orsak}", "en": "REFUSED by the safeguard: {orsak}"},
     "jobb.nekad_inget_avtal": {"sv": "NEKAD, inget gällande avtal: {orsak}",
@@ -160,6 +172,10 @@ KATALOG = {
                           "en": "the request body must be a JSON object – nothing was done"},
     "fel.felinj_argument": {"sv": "felinjektionen tar ett JSON-objekt med läge:sant/falskt (schemadrift, saknade_parametrar, gis_i_b)",
                             "en": "fault injection takes a JSON object with mode:true/false (schemadrift, saknade_parametrar, gis_i_b)"},
+    "fel.betrodd_utpekning": {"sv": "Staden kunde inte pekas ut som betrodd organisation hos DHI, så förhandlingen om A startades inte. Försök igen om en stund.",
+                              "en": "The city could not be designated as a trusted organisation at DHI, so the negotiation for A was not started. Try again in a moment."},
+    "fel.scenario_argument": {"sv": "scenariot tar ett JSON-objekt med betrodd:sant/falskt",
+                              "en": "the scenario takes a JSON object with betrodd:true/false"},
     "fel.avkylning": {"sv": "Felinjektionen har just slagits av. Vänta {sek} s innan den slås på igen, så att demon hinner återhämta sig.",
                       "en": "Fault injection has just been switched off. Wait {sek} s before switching it on again so the demo can recover."},
     "fel.avkylning_ute": {"sv": "Medlemsintyget för {part|deltagare} har just satts in igen. Vänta {sek} s innan {part|deltagare} stängs ute på nytt, så att demon hinner återhämta sig.",
@@ -167,8 +183,12 @@ KATALOG = {
     "fel.stad_nekad_dhi": {"sv": "Staden nekas av DHI (401): DHI godtar inte stadens medlemsintyg. Staden måste släppas in igen av samordnaren innan det går att förhandla.",
                            "en": "The city is refused by DHI (401): DHI does not accept the city's membership credential. The city must be let back in by the coordinator before it can negotiate."},
     "fel.jobb_argument": {"sv": "åtgärden {atgard} kräver ett giltigt id", "en": "the action {atgard} requires a valid id"},
+    "fel.borja_om_upptaget": {"sv": "Ett jobb pågår. Vänta tills det är klart och försök igen.",
+                              "en": "A job is running. Wait until it is done and try again."},
     "fel.upptaget": {"sv": "ett jobb kör redan – kedjan körs ett steg i taget",
                      "en": "a job is already running – the chain runs one step at a time"},
+    "fel.uppdatering_strax": {"sv": "Demon uppdateras strax. Nya körningar startas inte nu; vänta tills uppdateringen är klar och ladda om sidan.",
+                              "en": "The demo is about to be updated. New runs are not started now; wait until the update is done and reload the page."},
     "fel.okant_jobb": {"sv": "okänt jobb", "en": "unknown job"},
     "fel.okand_handelse": {"sv": "okänd händelse", "en": "unknown event"},
     "fel.inte_din_forhandling": {"sv": "Den här förhandlingen är inte din: du kan bara fatta beslut om förhandlingar du själv har startat.",
@@ -259,6 +279,8 @@ KATALOG = {
                           "en": "KoV APPROVED the release of Distribution A"},
     "audit.kov_godkand_roll": {"sv": "KoV GODKÄNDE utlämning av Distribution A (verifierad roll: {roll})",
                                "en": "KoV APPROVED the release of Distribution A (verified role: {roll|roll})"},
+    "audit.kov_automatiskt": {"sv": "Avtal om Distribution A skrevs DIREKT, utan KoV-prövning: staden var utpekad som betrodd organisation (scenario). Beslutsfattare: {roll}",
+                              "en": "The agreement for Distribution A was written DIRECTLY, without a KoV review: the city was designated as a trusted organisation (scenario). Decision maker: {roll|roll}"},
     "audit.kov_avslagen": {"sv": "KoV AVSLOG begäran om Distribution A",
                            "en": "KoV REJECTED the request for Distribution A"},
     "audit.kov_avslagen_roll": {"sv": "KoV AVSLOG begäran om Distribution A (verifierad roll: {roll})",
@@ -287,6 +309,8 @@ KATALOG = {
     "audit.felinj_automatisk": {"sv": "Felinjektionen slogs av automatiskt (den publika demon låter den inte stå kvar)",
                                 "en": "Fault injection was switched off automatically (the public demo does not leave it on)"},
     "audit.felinj_nollstalld": {"sv": "Felinjektionen nollställd", "en": "Fault injection reset"},
+    "audit.nedladdning": {"sv": "Nedladdning: {fil|fil} ({filnamn}, {bytes} byte, SHA-256 {sha})",
+                          "en": "Download: {fil|fil} ({filnamn}, {bytes} bytes, SHA-256 {sha})"},
     "audit.ingest_avvisad": {"sv": "AVVISAD ({orsak|orsak}): {detalj}", "en": "REJECTED ({orsak|orsak}): {detalj}"},
     "audit.kallfel_forhandlingar": {"sv": "consumerns förhandlings-API: {fel}",
                                     "en": "the consumer's negotiation API: {fel}"},
@@ -310,8 +334,12 @@ KATALOG = {
     # ---- stadens mottagning (ingest-service) --------------------------------------------------
     "ingest.auktoriserad": {"sv": "engångsnyckel utfärdad för Distribution {dist}",
                             "en": "one-time key issued for Distribution {dist}"},
-    "ingest.levererad": {"sv": "Distribution {dist}, batch {batch} -> {entiteter} entiteter i stadens dataplattform",
-                         "en": "Distribution {dist}, batch {batch} -> {entiteter} entities in the city data platform"},
+    "ingest.levererad": {"sv": "Distribution {dist}, batch {batch} -> {entiteter} entiteter i stadens dataplattform. Schemakontroll mot datamodellens utkast ({schema}): {godkanda} av {poster} godkända",
+                         "en": "Distribution {dist}, batch {batch} -> {entiteter} entities in the city's data platform. Schema check against the draft data model ({schema}): {godkanda} of {poster} passed"},
+    "ingest.levererad_utan_schema": {"sv": "Distribution {dist}, batch {batch} -> {entiteter} entiteter i stadens dataplattform. Schemakontrollen kunde inte köras (schemat saknas)",
+                                     "en": "Distribution {dist}, batch {batch} -> {entiteter} entities in the city's data platform. The schema check could not run (the schema is missing)"},
+    "ingest.schema_avvikelse": {"sv": "leveransen följer inte datamodellens schema ({schema}): {godkanda} av {poster} poster godkändes",
+                                "en": "the delivery does not follow the data model's schema ({schema}): {godkanda} of {poster} records passed"},
     "ingest.edc_otillganglig": {"sv": "kunde inte nå stadens EDC ({url}): {fel}",
                                 "en": "could not reach the city's EDC ({url}): {fel}"},
     "ingest.edc_http": {"sv": "stadens EDC svarade HTTP {http} vid avtalsuppslag",
@@ -355,14 +383,14 @@ KATALOG = {
     "ingest.gis_i_b": {
         "sv": "AVTALSBROTT: Distribution B innehåller brunns-GIS ({falt|lista}) i {antal} av {totalt} poster – "
               "leveransen avvisas i sin helhet",
-        "en": "BREACH OF CONTRACT: Distribution B contains well GIS ({falt|lista}) in {antal} of {totalt} "
+        "en": "BREACH OF CONTRACT: Distribution B contains chamber GIS ({falt|lista}) in {antal} of {totalt} "
               "records – the delivery is rejected as a whole"},
     "ingest.schema_avviker": {
         "sv": "schemat avviker från dataproduktavtalet i {antal} av {totalt} poster (omdöpta eller uteblivna fält)",
         "en": "the schema deviates from the data product agreement in {antal} of {totalt} records (renamed or "
               "missing fields)"},
     "ingest.orion_skrivfel": {"sv": "kunde inte skriva till stadens dataplattform: {fel}",
-                              "en": "could not write to the city data platform: {fel}"},
+                              "en": "could not write to the city's data platform: {fel}"},
     "ingest.exempel_gis": {"sv": "{id} bär {falt|lista}", "en": "{id} carries {falt|lista}"},
     "ingest.exempel_saknar": {"sv": "{id} saknar {falt|lista}", "en": "{id} is missing {falt|lista}"},
 
@@ -378,9 +406,9 @@ KATALOG = {
         "en": "no contract agreement {avtal} exists at the city's EDC connector – without an agreement there is "
               "no access to Distribution A"},
     "gateway.fel_distribution": {
-        "sv": "avtalet gäller assetet '{asset}'. Åtkomst till stadens CIP kräver ett avtal för Distribution A "
+        "sv": "avtalet gäller assetet '{asset}'. Åtkomst till stadens dataplattform kräver ett avtal för Distribution A "
               "({asset_a}). Distribution B läses öppet via Mintaka och den publika vyn – ingen token behövs.",
-        "en": "the agreement covers the asset '{asset}'. Access to the city's CIP requires an agreement for "
+        "en": "the agreement covers the asset '{asset}'. Access to the city's data platform requires an agreement for "
               "Distribution A ({asset_a}). Distribution B is read openly via Mintaka and the public view – no "
               "token is needed."},
     "gateway.avtal_havt": {
@@ -407,7 +435,7 @@ KATALOG = {
     "gateway.okand_token": {"sv": "okänd åtkomsttoken", "en": "unknown access token"},
     "gateway.token_utgangen": {"sv": "åtkomsttoken har gått ut", "en": "the access token has expired"},
     "gateway.ogiltig_json": {"sv": "kroppen är inte giltig JSON", "en": "the body is not valid JSON"},
-    "gateway.cip_otillganglig": {"sv": "kunde inte nå stadens dataplattform", "en": "could not reach the city data platform"},
+    "gateway.cip_otillganglig": {"sv": "kunde inte nå stadens dataplattform", "en": "could not reach the city's data platform"},
 
     # ---- fcf-sim ------------------------------------------------------------------------------
     "fcf.schemadrift": {"sv": "döper om {byten}", "en": "renames {byten}"},
@@ -444,6 +472,9 @@ KATALOG = {
               "Rights Holder-beslut.",
         "en": "Negotiation {id} for {asset} carries no svada:kovGodkannande obligation – it requires no Data "
               "Rights Holder decision."},
+    "kov.betrodd_argument": {
+        "sv": "Ange organisationens deltagar-id (did) och antal sekunder (sek, 1 till {max}).",
+        "en": "Give the organisation's participant id (did) and a number of seconds (sek, 1 to {max})."},
     "kov.redan_avgjord": {
         "sv": "Förhandling {id} är redan avgjord ({beslut}) – ett KoV-beslut kan inte ändras eller upprepas.",
         "en": "Negotiation {id} has already been decided ({beslut}) – a KoV decision cannot be changed or "
@@ -485,7 +516,9 @@ ORSAKER = {
 
 # Verifierade roller som visas i texten.
 ROLLER = {"Kretslopp och Vatten – rättighetsinnehavare (dataägare)":
-          "Kretslopp och Vatten – rights holder (data owner)"}
+          "Kretslopp och Vatten – rights holder (data owner)",
+          "betrodd organisation (automatiskt, ingen KoV-prövning)":
+          "trusted organisation (automatic, no KoV review)"}
 
 _MALL = re.compile(r"\{(\w+)(?:\|(\w+))?\}")
 
@@ -512,6 +545,13 @@ DELTAGARE = {"dhi": ("DHI", "DHI"), "stad": ("staden", "the city")}
 
 
 def _filter(namn, varde, sprak, v_ra):
+    if namn == "fil":
+        try:
+            import nedladdning                              # sent: nedladdning.py importerar audit, som importerar den här modulen
+        except ImportError:                                 # utan resten av tjänsten (till exempel i ett enhetsprov) visas id:t
+            return str(varde)
+        post = nedladdning.PER_ID.get(str(varde))
+        return post["en" if sprak == "en" else "sv"][0] if post else str(varde)
     if namn == "deltagare":
         delar = v_ra if isinstance(v_ra, (list, tuple)) else [v_ra]
         i = 1 if sprak == "en" else 0
@@ -536,7 +576,7 @@ def _filter(namn, varde, sprak, v_ra):
 
 # Svenska visningsnamn för statuskoder (koderna själva är ASCII och används i logiken; här gäller bara texten).
 SV_KODER = {
-    "VANTANDE": "väntar på beslut", "GODKAND": "godkänd", "AVSLAGEN": "avslagen", "AVSLAGET": "avslaget",
+    "VANTANDE": "väntar på beslut", "AUTOMATISKT": "automatiskt (betrodd organisation, ingen KoV-prövning)", "GODKAND": "godkänd", "AVSLAGEN": "avslagen", "AVSLAGET": "avslaget",
     "HAVT": "hävt", "UTGANGET": "utgånget", "GALLANDE": "gällande", "OKAND": "okänd", "AVVISAD": "avvisad",
     "AVVISAT": "avvisat", "LEVERERAD": "levererad", "UTESTANGD": "utestängd", "INSATT": "insläppt", "PABORJAD": "påbörjad",
 }

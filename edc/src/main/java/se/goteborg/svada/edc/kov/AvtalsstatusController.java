@@ -52,10 +52,17 @@ public class AvtalsstatusController {
     public List<Map<String, Object>> avtal() {
         // avtalets id -> consumerns förhandlings-id, ur providerns egna förhandlingar
         var korrelation = new HashMap<String, String>();
+        // avtal som tillkom utan KoV-prövning (parten var utpekad som betrodd organisation, scenario)
+        var automatiska = new java.util.HashSet<String>();
         try (var forh = store.queryNegotiations(QuerySpec.max())) {
             forh.filter(n -> n.getType() == ContractNegotiation.Type.PROVIDER)
                     .filter(n -> n.getContractAgreement() != null)
-                    .forEach(n -> korrelation.put(n.getContractAgreement().getId(), n.getCorrelationId()));
+                    .forEach(n -> {
+                        korrelation.put(n.getContractAgreement().getId(), n.getCorrelationId());
+                        if (gate.automatisktFor(n.getId()) != null) {
+                            automatiska.add(n.getContractAgreement().getId());
+                        }
+                    });
         }
         try (var avtal = store.queryAgreements(QuerySpec.max())) {
             return avtal
@@ -66,6 +73,7 @@ public class AvtalsstatusController {
                         m.put("correlationId", korrelation.get(a.getId()));
                         m.put("assetId", a.getAssetId());
                         m.put("consumerId", a.getConsumerId());
+                        m.put("tillkomst", automatiska.contains(a.getId()) ? "betrodd-organisation" : "kov-beslut");
                         var h = gate.havning(a.getId());
                         m.put("status", h == null ? "GALLANDE" : "HAVT");
                         if (h != null) {

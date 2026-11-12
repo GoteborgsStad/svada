@@ -64,6 +64,8 @@ services:
       # per mottagare). Mintar inga rollintyg.
       SVADA_CREDENTIAL_ISSUER: "true"
       SVADA_ISSUER_MOTTAGARE: "${SVADA_PARTICIPANT_ID_DHI}=${SVADA_PARTICIPANT_DID_DHI},${SVADA_PARTICIPANT_ID_STAD}=${SVADA_PARTICIPANT_DID_STAD}"
+      # Deltagarregistret (/participants): namn och Dataspace Protocol-adress per deltagare (deltagarens egen uppgift till samordnaren).
+      SVADA_ISSUER_DELTAGARINFO: "${SVADA_PARTICIPANT_ID_DHI}=${SVADA_DELTAGARNAMN_DHI}|${SVADA_DSP_ADRESS_DHI},${SVADA_PARTICIPANT_ID_STAD}=${SVADA_DELTAGARNAMN_STAD}|${SVADA_DSP_ADRESS_STAD}"
       SVADA_DATASPACE_ID: ${SVADA_DATASPACE_ID}
       SVADA_VC_UTBYTE_DIR: ${SVADA_VC_UTBYTE_DIR}
       # Används ENDAST av testläget svada-roll (rollstextens lydelse i det felaktiga

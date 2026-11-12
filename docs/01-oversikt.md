@@ -110,14 +110,14 @@ exakt det en människa kan nå med curl.
 | 5 | `stad-gateway` | Staden | `ORION_STAD_PORT` | Åtkomstkontroll framför CIP:en; kontrollerar avtalsstatus vid varje användning |
 | 6 | `orion-stad` (+ mongo) | Staden | intern | CIP – stadens kontextbroker |
 | 7 | `mintaka` (+ timescale) | Staden | 8080 → 38083 | NGSI-LD temporal API (historik) |
-| 8 | `publik-vy` | Staden | 8085 → 38085 | Distribution B:s läsbara webbvy |
+| 8 | `publik-vy` | Staden | 8085 → 38085 | Distribution B:s läsbara webbvy; serverar också datamodellens JSON-LD-kontext (`MODELL_KONTEXT_URL`) som Orion och Mintaka hämtar vid skrivning och fråga |
 | 9 | `dashboard` | – | 8800 → 38800 | Kontrollrummet, inklusive steg 6 |
 | 10 | `identity-hub-svada` | Svada (DSGA 0.1) | 39595–39598 | Simulerad utfärdare av medlems- och deltagarintyg, med statuslista för återkallelse (medveten förenkling: inte eIDAS, listan i minnet) |
 | 11 | `identity-hub-dhi` / `identity-hub-stad` | DHI / Staden | 39195–39198 / 39395–39399 | Egen IdentityHub per part: DID, nycklar, STS och partens eget rollintyg |
-| 12 | `caddy` | – | 80/443 → 38080/38443 lokalt, 80/443 på servern | Publik ingång med lösenordsgrind (bara på publik demo) |
+| 12 | `caddy` | – | 80/443 → 38080/38443 lokalt, 80/443 på servern | Publik ingång; lösenordsgrind finns som brytare (`DEMO_GATE`, av som standard) |
 
 Värdportarna står i portkartan i `.env` (`*_PORT`); `verify_docs.sh` G kontrollerar att körbara exempel använder dem.
 
 Engångsjobb körs med `run --rm`: `ladda-brunnar` (91 brunnar ur GeoPackage till CIP) och
-`registrera-edc` (assets, policyer, kontraktsdefinitioner – **måste köras om efter varje
-omstart av providern**).
+`registrera-edc` (assets, policyer, kontraktsdefinitioner). Providern har inbyggda lager i minnet, så registreringen görs om
+automatiskt av den långlivade `registrera-edc-bevakare` när providern startar om (körs annars för hand: `run --rm registrera-edc`).

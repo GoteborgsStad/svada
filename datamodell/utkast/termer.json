@@ -1,0 +1,1041 @@
+{
+ "model": {
+  "id": "SewerOverflowModelResult",
+  "version": "0.1-utkast",
+  "status": "DRAFT. A temporary model made for the PoC. Not decided. Not agreed with the data owner, the provider or the City's technical custodian. Not submitted to Smart Data Models. Not proposed as a general model.",
+  "base": "https://modell.svada.invalid/utkast/0.1/",
+  "definition": "A modelled result for one sewer overflow chamber and one modelled day: inflow, overflow, level, the period, where the values come from and under which agreement they were delivered.",
+  "definition_sv": "Ett modellerat resultat för en bräddbrunn och ett modellerat dygn: tillrinning, bräddning, nivå, perioden, varifrån värdena kommer och under vilket avtal de levererades.",
+  "profiles": {
+   "A": "All terms, including location and sourceSrs. Non-public.",
+   "B": "All terms except location and sourceSrs. Public."
+  },
+  "entities": {
+   "result": "SewerOverflowModelResult",
+   "weir": "SewerOverflowWeir",
+   "provenance": "provenance"
+  },
+  "weirDefinition": "A sewer overflow chamber (brunn) as recorded in the data owner's register.",
+  "weirDefinition_sv": "En bräddbrunn som den står i dataägarens register."
+ },
+ "terms": [
+  {
+   "name": "SewerOverflowModelResult",
+   "entity": "type",
+   "nature": "EntityType",
+   "type": "entity type",
+   "unit": null,
+   "definition": "A modelled result for one sewer overflow chamber and one modelled day: inflow, overflow, level, the period, where the values come from and under which agreement they were delivered.",
+   "definition_sv": "Ett modellerat resultat för en bräddbrunn och ett modellerat dygn: tillrinning, bräddning, nivå, perioden, varifrån värdena kommer och under vilket avtal de levererades.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "SewerOverflowWeir",
+   "entity": "type",
+   "nature": "EntityType",
+   "type": "entity type",
+   "unit": null,
+   "definition": "A sewer overflow chamber (brunn) as recorded in the data owner's register.",
+   "definition_sv": "En bräddbrunn som den står i dataägarens register.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "http://inspire.ec.europa.eu/codelist/SewerAppurtenanceTypeValue/dischargeStructure",
+     "comment": "INSPIRE sewer appurtenance 'discharge structure'. A possible broader term; to be decided with the data owner."
+    }
+   ]
+  },
+  {
+   "name": "SewerOverflowModelA",
+   "entity": "type",
+   "nature": "EntityType",
+   "type": "entity type",
+   "unit": null,
+   "definition": "The entity type under which Distribution A (profile A, all terms including the position of the chamber, non-public) is stored in the City's platform. A profile of SewerOverflowModelResult, not a different model.",
+   "definition_sv": "Entitetstypen som Distribution A (profil A, alla termer inklusive brunnens position, ej offentlig) lagras under i stadens plattform. En profil av SewerOverflowModelResult, inte en annan modell.",
+   "origin": "egen",
+   "profiles": [
+    "A"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "SewerOverflowModelB",
+   "entity": "type",
+   "nature": "EntityType",
+   "type": "entity type",
+   "unit": null,
+   "definition": "The entity type under which Distribution B (profile B, all terms except the position of the chamber, open data) is stored in the City's platform. A profile of SewerOverflowModelResult, not a different model.",
+   "definition_sv": "Entitetstypen som Distribution B (profil B, alla termer utom brunnens position, öppna data) lagras under i stadens plattform. En profil av SewerOverflowModelResult, inte en annan modell.",
+   "origin": "egen",
+   "profiles": [
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "inflowMeanM3S",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": {
+    "code": "MQS",
+    "label": "cubic metre per second"
+   },
+   "definition": "Mean inflow rate to the chamber over the modelled day.",
+   "definition_sv": "Medeltillrinning till brunnen under det modellerade dygnet.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "https://smartdatamodels.org/dataModel.OpenChannelManagement/waterInflow",
+     "comment": "Raw-water open-channel junction; same quantity, different domain. Not equal."
+    }
+   ]
+  },
+  {
+   "name": "inflowPeakM3S",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": {
+    "code": "MQS",
+    "label": "cubic metre per second"
+   },
+   "definition": "Highest modelled inflow rate to the chamber during the modelled day.",
+   "definition_sv": "Högsta modellerade tillrinning till brunnen under dygnet.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "https://smartdatamodels.org/dataModel.OpenChannelManagement/waterInflow",
+     "comment": "As inflowMeanM3S."
+    }
+   ]
+  },
+  {
+   "name": "inflowVolumeM3",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": {
+    "code": "MTQ",
+    "label": "cubic metre"
+   },
+   "definition": "Total volume that flowed into the chamber during the modelled day (sum of inflow rate times time step).",
+   "definition_sv": "Total volym som rann in i brunnen under dygnet.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "https://smartdatamodels.org/dataModel.OpenChannelManagement/waterInflow",
+     "comment": "Smart Data Models OpenChannelManagement: water inflow. Close in meaning; the unit and the period differ."
+    }
+   ]
+  },
+  {
+   "name": "overflowVolumeM3",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": {
+    "code": "MTQ",
+    "label": "cubic metre"
+   },
+   "definition": "Total volume that overflowed from the chamber during the modelled day.",
+   "definition_sv": "Total volym som bräddade ur brunnen under dygnet.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "https://smartdatamodels.org/dataModel.Environment/waterDischarge",
+     "comment": "Volume (cubic metre) discharged into water, defined for stormwater and treatment plant discharges. Related, not equal."
+    }
+   ]
+  },
+  {
+   "name": "overflowPeakM3S",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": {
+    "code": "MQS",
+    "label": "cubic metre per second"
+   },
+   "definition": "Highest modelled overflow rate during the modelled day.",
+   "definition_sv": "Högsta modellerade bräddflöde under dygnet.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "https://smartdatamodels.org/dataModel.Environment/waterDischarge",
+     "comment": "Smart Data Models Environment (WaterObserved): water discharge. Close in meaning; ours is the modelled peak overflow."
+    }
+   ]
+  },
+  {
+   "name": "overflowDurationMin",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": {
+    "code": "MIN",
+    "label": "minute"
+   },
+   "definition": "Total time within the modelled day during which the modelled overflow rate was above zero (a sum, not the longest single episode).",
+   "definition_sv": "Total tid under dygnet då modellerat bräddflöde var större än noll (summa, inte längsta enskilda episod).",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [],
+   "note": "Regulators report overflow duration (for example the English Event Duration Monitoring returns); no machine-readable vocabulary was found for it."
+  },
+  {
+   "name": "waterLevelMaxM",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": {
+    "code": "MTR",
+    "label": "metre"
+   },
+   "definition": "Highest modelled water level in the chamber during the modelled day. The height reference is not specified in the source data.",
+   "definition_sv": "Högsta modellerade vattennivå i brunnen under dygnet. Höjdreferensen är inte angiven i källdatan.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "https://smartdatamodels.org/dataModel.Environment/waterLevel",
+     "comment": "Current water level of an observation (in that subject: of a storage tank). Ours is a maximum over a day. Related, not equal."
+    }
+   ]
+  },
+  {
+   "name": "modelledDay",
+   "entity": "result",
+   "nature": "Property",
+   "type": "date",
+   "unit": null,
+   "definition": "The calendar day (UTC) the result is modelled for.",
+   "definition_sv": "Det kalenderdygn (UTC) resultatet är modellerat för.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "periodStart",
+   "entity": "result",
+   "nature": "Property",
+   "type": "date-time",
+   "unit": null,
+   "definition": "Start of the modelled period (ISO 8601, UTC).",
+   "definition_sv": "Början på den modellerade perioden (ISO 8601, UTC).",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "https://smartdatamodels.org/dataModel.Environment/dateObservedFrom",
+     "comment": "Start of an observation period. Ours is a modelled period, not an observed one."
+    }
+   ]
+  },
+  {
+   "name": "periodEnd",
+   "entity": "result",
+   "nature": "Property",
+   "type": "date-time",
+   "unit": null,
+   "definition": "End of the modelled period (ISO 8601, UTC). Also used as the observedAt time of the values.",
+   "definition_sv": "Slutet på den modellerade perioden (ISO 8601, UTC). Används också som observedAt för värdena.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "https://smartdatamodels.org/dataModel.Environment/dateObservedTo",
+     "comment": "End of an observation period. Ours is a modelled period, not an observed one."
+    }
+   ]
+  },
+  {
+   "name": "dataSource",
+   "entity": "result",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Where the values come from: measured (a full day of measurements), measured-partial (part of the day) or modelled-synthetic (a synthetic series, not data).",
+   "definition_sv": "Varifrån värdena kommer: measured, measured-partial eller modelled-synthetic (syntetisk serie, inte data).",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [],
+   "enum": [
+    "measured",
+    "measured-partial",
+    "modelled-synthetic"
+   ]
+  },
+  {
+   "name": "modelVersion",
+   "entity": "result",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Name and version of the calculation model that produced the values.",
+   "definition_sv": "Namn och version på beräkningsmodellen som gav värdena.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "overflowStart",
+   "entity": "result",
+   "nature": "Property",
+   "type": "date-time",
+   "unit": null,
+   "definition": "Start of the first time step with overflow in the modelled day. Absent when there was no overflow.",
+   "definition_sv": "Start på första tidssteget med bräddning under dygnet. Saknas om ingen bräddning skedde.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "overflowEnd",
+   "entity": "result",
+   "nature": "Property",
+   "type": "date-time",
+   "unit": null,
+   "definition": "End of the last time step with overflow in the modelled day. Absent when there was no overflow. Overflow need not be continuous between start and end.",
+   "definition_sv": "Slut på sista tidssteget med bräddning. Saknas om ingen bräddning skedde. Bräddningen behöver inte vara sammanhängande.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "measuredCoverage",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": null,
+   "definition": "Share (0 to 1) of the day's time steps that rest on measured values. Only for chambers with a sensor.",
+   "definition_sv": "Andel (0 till 1) av dygnets tidssteg som vilar på mätvärden. Bara för brunnar med sensor.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "syntheticScale",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": null,
+   "definition": "Scale factor applied to a measured pattern to make a synthetic inflow series. Present only when dataSource is modelled-synthetic. PoC specific.",
+   "definition_sv": "Skalfaktor som gör en syntetisk tillrinning ur ett uppmätt mönster. Bara när dataSource är modelled-synthetic. Specifikt för PoC:en.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "envelope",
+   "links": []
+  },
+  {
+   "name": "syntheticOverflowScale",
+   "entity": "result",
+   "nature": "Property",
+   "type": "number",
+   "unit": null,
+   "definition": "Scale factor applied to make a synthetic overflow series. Present only when dataSource is modelled-synthetic. PoC specific.",
+   "definition_sv": "Skalfaktor för syntetiskt bräddflöde. Bara när dataSource är modelled-synthetic. Specifikt för PoC:en.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "envelope",
+   "links": []
+  },
+  {
+   "name": "sampleCount",
+   "entity": "result",
+   "nature": "Property",
+   "type": "integer",
+   "unit": null,
+   "definition": "Number of time steps the day's aggregates are computed from.",
+   "definition_sv": "Antal tidssteg som dygnets aggregat är beräknade ur.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "envelope",
+   "links": []
+  },
+  {
+   "name": "refWeir",
+   "entity": "result",
+   "nature": "Relationship",
+   "type": "uri",
+   "unit": null,
+   "definition": "The chamber this result belongs to (identifier of a SewerOverflowWeir entity).",
+   "definition_sv": "Brunnen resultatet hör till (id för en SewerOverflowWeir-entitet).",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance",
+   "entity": "result",
+   "nature": "Property",
+   "type": "object",
+   "unit": null,
+   "definition": "Where the delivery came from and under which agreement. A structured value; its members are the terms with the prefix provenance. below.",
+   "definition_sv": "Varifrån leveransen kom och under vilket avtal. Ett strukturerat värde; medlemmarna finns som termer med prefixet provenance. nedan.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "location",
+   "entity": "result",
+   "nature": "GeoProperty",
+   "type": "geometry",
+   "unit": null,
+   "definition": "Position of the chamber (GeoJSON point, longitude and latitude). Only in the profile A.",
+   "definition_sv": "Brunnens position (GeoJSON-punkt, longitud och latitud). Bara i profil A.",
+   "origin": "lånad",
+   "profiles": [
+    "A"
+   ],
+   "required": false,
+   "stored": "envelope",
+   "links": [
+    {
+     "predicate": "skos:exactMatch",
+     "target": "https://uri.etsi.org/ngsi-ld/location",
+     "comment": "Core NGSI-LD term, reused as is."
+    }
+   ],
+   "note": "Profile B leaves it out. That is a decision about who may see the position, not a different model."
+  },
+  {
+   "name": "sourceSrs",
+   "entity": "result",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "The coordinate reference system the source position was given in (for example EPSG:4619). Only in the profile A.",
+   "definition_sv": "Koordinatsystemet källans position anges i (till exempel EPSG:4619). Bara i profil A.",
+   "origin": "knyt",
+   "profiles": [
+    "A"
+   ],
+   "required": false,
+   "stored": "envelope",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "https://www.opengis.net/def/crs/EPSG/0/4619",
+     "comment": "The OGC address of the EPSG code used in the PoC data."
+    }
+   ]
+  },
+  {
+   "name": "name",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Name of the chamber.",
+   "definition_sv": "Brunnens namn.",
+   "origin": "lånad",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:exactMatch",
+     "target": "https://uri.etsi.org/ngsi-ld/name",
+     "comment": "Core NGSI-LD term, reused as is."
+    }
+   ],
+   "note": "In the provider's delivery this field is called weirName; the City's register entity calls it name. The draft uses name."
+  },
+  {
+   "name": "weirId",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "The data owner's key for the chamber. The same key follows the chamber through the whole chain and ends the entity identifier.",
+   "definition_sv": "Dataägarens nyckel för brunnen. Samma nyckel följer brunnen genom hela kedjan och avslutar entitetens id.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "regionId",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Identifier of the region (area) the chamber belongs to in the source register.",
+   "definition_sv": "Id för det område brunnen tillhör i källregistret.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "category",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Classification of the chamber in the source register.",
+   "definition_sv": "Brunnens klassning i källregistret.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "weirType",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Type of chamber or weir structure in the source register.",
+   "definition_sv": "Typ av brunn eller överfallskonstruktion i källregistret.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "rdfs:seeAlso",
+     "target": "http://inspire.ec.europa.eu/codelist/SewerAppurtenanceTypeValue/dischargeStructure",
+     "comment": "INSPIRE sewer appurtenance 'discharge structure'. Possible broader term; to be decided with the data owner."
+    }
+   ]
+  },
+  {
+   "name": "seriesRef",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Reference to the sensor series of the chamber in the source system, when there is one.",
+   "definition_sv": "Referens till brunnens sensorserie i källsystemet, när det finns en.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "outlet",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "The discharge point (outlet) the chamber overflows to.",
+   "definition_sv": "Utsläppspunkten (outlet) brunnen bräddar till.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "recipient",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "The receiving water body (recipient) of the discharge point.",
+   "definition_sv": "Recipienten (vattenförekomsten) utsläppspunkten leder till.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "source",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Where the chamber's record comes from: the name of the data owner's register file it was read from.",
+   "definition_sv": "Varifrån brunnens uppgifter kommer: namnet på dataägarens registerfil som de lästes ur.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "http://purl.org/dc/terms/source",
+     "comment": "Dublin Core: a related resource from which the described resource is derived."
+    }
+   ]
+  },
+  {
+   "name": "dataProvider",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "The party that supplied the chamber's record to the data space (the provider).",
+   "definition_sv": "Den part som levererade brunnens uppgifter till dataspacet (leverantören).",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "http://purl.org/dc/terms/publisher",
+     "comment": "Dublin Core: the entity responsible for making the resource available."
+    }
+   ]
+  },
+  {
+   "name": "description",
+   "entity": "weir",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "A free-text description of the chamber from the data owner's register.",
+   "definition_sv": "En fri beskrivning av brunnen ur dataägarens register.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "http://purl.org/dc/terms/description",
+     "comment": "Dublin Core: an account of the resource."
+    }
+   ]
+  },
+  {
+   "name": "provenance.contractAgreementId",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Identifier of the contract agreement under which the data was delivered (provider side).",
+   "definition_sv": "Id för avtalet leveransen skedde under.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance.contractAgreementUrl",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Address of the agreement in the City's agreement register.",
+   "definition_sv": "Adress till avtalet i stadens avtalsregister.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance.dataset",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Name of the data product.",
+   "definition_sv": "Dataproduktens namn.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "http://purl.org/dc/terms/title",
+     "comment": "Title of a dataset."
+    }
+   ]
+  },
+  {
+   "name": "provenance.distribution",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Distribution of the data product: A (full) or B (open).",
+   "definition_sv": "Dataproduktens distribution: A (full) eller B (öppen).",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance.distributionId",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Identifier of the distribution in the catalogue.",
+   "definition_sv": "Distributionens id i katalogen.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance.batchId",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Identifier of the delivery batch.",
+   "definition_sv": "Id för leveransbatchen.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance.producedAt",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "date-time",
+   "unit": null,
+   "definition": "Time the values were produced (ISO 8601, UTC).",
+   "definition_sv": "Tidpunkt då värdena producerades.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "http://www.w3.org/ns/prov#generatedAtTime",
+     "comment": "PROV-O generatedAtTime."
+    }
+   ]
+  },
+  {
+   "name": "provenance.ingestedAt",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "date-time",
+   "unit": null,
+   "definition": "Time the City's platform received the delivery (ISO 8601, UTC).",
+   "definition_sv": "Tidpunkt då stadens plattform tog emot leveransen.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance.accessRights",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Whether the distribution is public or non-public.",
+   "definition_sv": "Om distributionen är publik eller icke-publik.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "http://purl.org/dc/terms/accessRights",
+     "comment": "Dublin Core accessRights."
+    }
+   ]
+  },
+  {
+   "name": "provenance.informationClass",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "The information class of the distribution (for example K0R1T1 or K1R1T1).",
+   "definition_sv": "Distributionens informationsklass (till exempel K0R1T1 eller K1R1T1).",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance.license",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "The licence or agreement terms the distribution is offered under.",
+   "definition_sv": "Licensen eller avtalsvillkoren distributionen erbjuds under.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "http://purl.org/dc/terms/license",
+     "comment": "Dublin Core license."
+    }
+   ]
+  },
+  {
+   "name": "provenance.publisher",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "The organisation that produced and published the data.",
+   "definition_sv": "Organisationen som producerade och publicerade datan.",
+   "origin": "knyt",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": [
+    {
+     "predicate": "skos:closeMatch",
+     "target": "http://purl.org/dc/terms/publisher",
+     "comment": "Dublin Core publisher."
+    }
+   ]
+  },
+  {
+   "name": "provenance.receivedVia",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "How the data reached the City's platform.",
+   "definition_sv": "Hur datan nådde stadens plattform.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": true,
+   "stored": "broker",
+   "links": []
+  },
+  {
+   "name": "provenance.transferProcessId",
+   "entity": "provenance",
+   "nature": "Property",
+   "type": "string",
+   "unit": null,
+   "definition": "Identifier of the transfer in the data space connector.",
+   "definition_sv": "Id för överföringen i dataspace-connectorn.",
+   "origin": "egen",
+   "profiles": [
+    "A",
+    "B"
+   ],
+   "required": false,
+   "stored": "broker",
+   "links": []
+  }
+ ]
+}

@@ -28,6 +28,9 @@ projekthänvisningar; "intern" (standard) visar dem. Styrs av DEMO_VARIANT.
 import html
 import i18n
 import json
+import mim
+import nedladdning
+from ordlista import ORDLISTA
 import os
 import re
 
@@ -36,6 +39,10 @@ from gemensam import rensa
 
 SPRAK = ("sv", "en")
 DEMO_VERSION = os.environ.get("SVADA_VERSION", "okänd")      # visas i sidfoten (länk till /nyheter)
+GITHUB_IKON = (    # inline Octicon (MIT); '~' står för decimalpunkt så att exportgranskningens IP-mönster inte slår på banans siffror
+    '<svg class="gh" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3~58 0 0 3~58 0 8c0 3~54 2~29 6~53 5~47 7~59~4~07~55-~17~55-~38 0-~19-~01-~82-~01-1~49-2~01~37-2~53-~49-2~69-~94-~09-~23-~48-~94-~82-1~13-~28-~15-~68-~52-~01-~53~63-~01 1~08~58 1~23~82~72 1~21 1~87~87 2~33~66~07-~52~28-~87~51-1~07-1~78-~2-3~64-~89-3~64-3~95 0-~87~31-1~59~82-2~15-~08-~2-~36-1~02~08-2~12 0 0 ~67-~21 2~2~82~64-~18 1~32-~27 2-~27~68 0 1~36~09 2 ~27 1~53-1~04 2~2-~82 2~2-~82~44 1~1~16 1~92~08 2~12~51~56~82 1~27~82 2~15 0 3~07-1~87 3~75-3~65 3~95~29~25~54~73~54 1~48 0 1~07-~01 1~93-~01 2~2 0 ~21~15~46~55~38A8~013 8~013 0 0016 8c0-4~42-3~58-8-8-8z"/></svg>'
+).replace('~', '.')
+KALLKOD_URL = "https://github.com/GoteborgsStad/svada"      # utställningen av koden (docs/plan/publiceringsvagar.md); sidfot och Om-fliken länkar hit
 
 
 TEXTER = {
@@ -52,7 +59,7 @@ TEXTER = {
                 "rub": "Villkoren för distribution B och A, i klartext och i ODRL",
                 "intro": (
                     "Så här ser erbjudandena ut i DHI:s katalog. Villkoren "
-                    "sätts av den som äger data (KoV) och binder den som tar "
+                    "sätts av informationsägaren (KoV) och binder den som tar "
                     "emot data. De följer med erbjudandet, men de verkställs olika. "
                     "Connectorn avgör vem som får ingå avtal (bara staden "
                     "för distribution A) och kräver KoV:s godkännande. "
@@ -168,15 +175,22 @@ TEXTER = {
         "prov": {
                 "rub": "Så följer villkoren med data",
                 "intro": (
-                    "Till vänster ett värde i stadens dataplattform, förkortat."
-                    " Fältet provenance bär avtalets id (contractAgreementId). "
-                    "Till höger samma id uppslaget i stadens connector: där "
-                    "finns avtalet med distribution, status och villkoren, "
-                    "först i klartext och sedan i ODRL. ODRL-texten kopieras "
-                    "alltså inte in i varje värde. Värdet pekar på avtalet, och"
-                    " avtalet bär villkoren."),
-                "v1": "1. Värdet i CIP:en med ursprungsmärkning",
-                "v2": "2. Avtalet som id:t pekar på: stadens connectors avtal (id, parter, villkor) med status och adress ur stadens avtalsregister",
+                    "Villkoren följer med data utan att kopieras in i varje "
+                    "värde: data bär avtalets id, och avtalet bär villkoren, "
+                    "först i klartext och sedan i ODRL."),
+                "v1": "1. Data: en brunn med sina värden",
+                "v1t": (
+                    "Så ser en brunn ut i stadens dataplattform, förkortat: "
+                    "brunnens värden och, markerad, ursprungsmärkningen "
+                    "(provenance) med avtalets id och, efter en B-leverans, en "
+                    "länk till avtalet. Klicka på länken för att se avtalet."),
+                "v2": "2. Själva avtalet",
+                "v2t": (
+                    "Avtalet i kod, så som stadens connector har det: id, "
+                    "parter, villkor och status, med adress ur stadens "
+                    "avtalsregister. Efter en B-leverans visar länken till avtalet, "
+                    "här eller i rutan till vänster, samma avtal som en "
+                    "webbsida."),
                 "not": (
                     "Förkortade exempel. Fältnamnen är de riktiga från "
                     "mottagningstjänsten."),
@@ -201,7 +215,7 @@ TEXTER = {
                     "villkor. Distribution B har bara tillstånd (permission), "
                     "med plikten att ange källan. Distribution A har ett "
                     "snävare tillstånd (permission: användning, bara för "
-                    "staden) och dessutom förbud (prohibition) och en "
+                    "staden) och dessutom förbud (prohibition) och "
                     "skyldigheter (obligation). Distribution A syns i DHI:s katalog "
                     "och går bara att få avtal om på dess villkor."),
                 "vcText": (
@@ -221,29 +235,34 @@ TEXTER = {
                     "katalog i rutan ovan och under Visa exempelobjekt längre "
                     "ned."),
             },
-        "stegradRub": "Steg:",
+        "stegradRub": "Flödet:", "guideRub": "Guidad bana:", "guideAvsluta": "✕ Avsluta guiden", "guideStart": "Guidad bana →", "guideStegI": "steg {n} i flödet", "guideNuRub": "Nu:", "guideOm": "↺ Börja om",
+        "vagvalRub": "Två sätt att gå igenom demon", "vagvalGuide": "Starta guidad bana", "vagvalGuideText": "Rekommenderas. Cirka 5 minuter, åtta delar (A–H). Du kör varje åtgärd själv och ser vad som händer i flödet.", "vagvalFritt": "Utforska flödet själv", "vagvalFrittText": "Klicka på valfritt steg 1–6 i bilden och läs. Ingen ordning och ingen färdig väg.", "borjaHar": "Börja här!", "borjaStang": "Dölj tipset",
         "tillBilden": "↑ Till bilden",
         "seHandaRub": "Se det hända",
         "skickade": "Skickade mätvärden (exempel):",
-        "flikar": ["Kedjan 1–6", "Följ ett värde", "Auditlogg", "Suveränitet: KoV & ODRL", "Felinjektion", "Jobb"],
+        "flikar": ["Kedjan 1–6", "Följ ett värde", "Auditlogg", "Suveränitet: KoV & ODRL", "Scenarier", "Jobb"],
         "introH": "Följ data från modellen till stadens beslut",
+        "banaRub": "Guidad bana", "flodeRub": "Flödet", "introVisa": "Visa introduktionen", "introDolj": "Dölj introduktionen",
         "intro1": (
                 "Ett dataspace är ett sätt för organisationer att dela data "
-                "utan en gemensam databas. Data ligger kvar hos den som äger "
-                "det, och lämnas ut först när ett maskinellt avtal säger ja. "
-                "Villkoren följer med data via avtalets id och kontrolleras "
-                "automatiskt."),
+                "utan en gemensam databas. Data ligger kvar hos den som håller "
+                "dem, och lämnas ut först när ett maskinellt avtal säger ja. "
+                "Villkoren följer med som en referens, avtalets id, och "
+                "kontrolleras automatiskt."),
         "intro2": (
-                "Två organisationer är med. <b>DHI</b> mäter och räknar fram "
-                "data åt staden. <b>Göteborgs Stad</b> äger data. Inom staden "
-                "är <b>Kretslopp och Vatten (KoV)</b> den förvaltning som "
-                "bestämmer villkoren, och <b>Intraservice</b> driver stadens "
-                "connector och dataplattform."),
+                "Två organisationer är med. <b>DHI</b> håller data och räknar "
+                "fram dem åt staden. <b>Göteborgs Stad</b> hämtar data och "
+                "använder dem. Inom staden är <b>Kretslopp och Vatten (KoV)</b> "
+                "informationsägare och bestämmer villkoren, och "
+                "<b>Intraservice</b> driver stadens connector (programmet som "
+                "sköter avtal och beställningar) och dataplattform."),
         "ingress": (
                 "Sex steg från DHI:s modell av bräddbrunnarna, genom ett"
                 " riktigt dataspace mellan DHI och Göteborgs Stad, till att "
                 "staden använder data för analys och beslut. Klicka på ett "
                 "steg för att se vad som händer, varför, och vad knapparna gör."),
+        "ingressProj": "Den här PoC:en skapades inom ramen för projektet",
+        "ingressLank": "Vattendatalabbet (SVADA) ↗",
         "fakta1": (
                 "<b>Dataspace</b>: data delas på avtal och villkor, utan "
                 "gemensam databas."),
@@ -259,8 +278,12 @@ TEXTER = {
                    'Projektet finansieras av Energimyndigheten, Formas, Vinnova och Water Wise Societies. '
                    '<a href="https://vattendatalabbet.se/" target="_blank" rel="noopener">Vattendatalabbet ↗</a> · '
                    '<a href="https://www.vinnova.se/en/p/the-swedish-water-data-lab-svada--transition-for-smart-water-management" target="_blank" rel="noopener">Projektet hos Vinnova ↗</a>'),
-        "omKredH": "Skapad av",
-        "omKred": "Björn Hagström, expert på informationshantering och data spaces, och Niklas Fjellman.",
+        "omKredH": "Skapad av och källkod",
+        "omKred": "<b>Niklas Fjellman</b>: originaluppsättning av PoC:en: kravställning, arkitektur, utveckling av kod och test enligt Målarkitektur version 1.92, samt teknisk dokumentation.<br><b>Björn Hagström</b>: vidareutveckling av stödet för dataspaceprotokollen (identitet, verifierbara intyg, avtal) samt paketering för global kommunikation och begriplighet.",
+        "omAIH": "Byggd med AI-assistenter",
+        "omAI": "Koden, testerna och dokumentationen är utvecklade tillsammans med AI-assistenter (bland annat Claude, Codex och Gemini). Niklas Fjellman och Björn Hagström har styrt arbetet och tar ansvar för innehållet, men allt är inte oberoende granskat av människor.",
+        "omKod": ('Öppen källkod (Apache-2.0): koden, testerna och dokumentationen kan läsas, laddas ned och köras av andra. '
+                  '<br><a class="ghmarke" href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener" aria-label="Källkoden på GitHub (öppnas i ny flik, extern sida)">' + GITHUB_IKON + '<span>GitHub</span></a>'),
         "omBpH": "Följer DSSC Blueprint 3.0",
         "omBp": ('Demon följer <b>Blueprint 3.0</b> från Data Spaces Support Centre (DSSC), EU:s referensram för data spaces: roller (dataleverantör, datakonsument, operatör), '
                  'dataprodukter, avtal och policyer i ODRL, datautbyte med Dataspace Protocol och verifierbara intyg. Styrning, juridik och affärsmodell ingår inte i demon. '
@@ -302,14 +325,17 @@ TEXTER = {
                 "utdrag ur stadens system, liksom brunnsnamnen. Av 91 brunnar "
                 "är det bara den här som har en riktig mätserie; de övriga 90 "
                 "har påhittade serier som räknas fram ur brunnens id. En av de 91, "
-                "SSO1_01-Pump_490, är en bräddpunkt vid en pumpstation."),
+                "SSO1_01-Pump_490, är en bräddpunkt vid en pumpstation. Den riktiga "
+                "mätserien är bara ett par dygn lång; varje dygn i demon "
+                "räknas på samma mätvärden, så den brunnens dygnsvärden är lika."),
         "omKoordH": "Koordinater",
         "omKoord": (
                 "<b>Alla koordinater i demon är påhittade.</b> Brunnarnas "
                 "riktiga positioner är känsliga, så brunnarna är utplacerade "
                 "slumpvis på Liseberg. Krokängsparkens brunn ligger på "
                 "Lisebergsbanans spår. Det finns inget samband kvar att räkna "
-                "tillbaka till de riktiga positionerna."),
+                "tillbaka till de riktiga positionerna. Brunnarnas namn (gatukorsningar) "
+                "är däremot riktiga och får visas öppet enligt informationsägaren."),
         "omModellH": "Modellen",
         "omModell": (
                 "DHI:s riktiga Future City Flow är en hydrodynamisk modell av "
@@ -330,7 +356,7 @@ TEXTER = {
                 "stället för DHI:s modell. Allt från katalogen och framåt är "
                 "riktiga tjänster."),
         "ordningEtikett": "Prova i den här ordningen (klicka för att öppna steget; åtgärden körs där):", "nasta": "Nästa", "nastaKnapp": "Nästa: ", "nastaSlut": "Klart: du har gått igenom hela kedjan.",
-        "ordning": ["Kör batch", "Hämta katalog", "Förhandla B", "Leverera B", "Förhandla A + KoV", "Leverera A", "Analysera"],
+        "ordning": ["Kör batch", "Hämta katalog", "Förhandla B", "Leverera B", "Förhandla A + KoV", "Leverera A", "Ursprung", "Analysera"],
         "zon1": "Hos producenten",
         "zon1s": "DHI tar fram dataprodukten",
         "zon2": "Dataspace",
@@ -341,7 +367,7 @@ TEXTER = {
         "grans": "Organisationsgräns DHI | Göteborgs Stad",
         "stad": "Göteborgs Stad",
         "banaIs": "driver connector och plattform",
-        "banaKov": "äger data och villkoren",
+        "banaKov": "informationsägare, sätter villkoren",
         "kat": {"ds": "◆ Dataspace", "princip": "◇ Dataspace-princip syns här", "kedja": "□ Helhetskedjan"},
         "borja": "Börja här ↓",
         "statusTitel": "Komponenterna svarar (exempel)",
@@ -355,7 +381,19 @@ TEXTER = {
         "styrning": "Styrning (governance):",
         "dsH": {"kedja": "Är det här dataspace?", "ds": "Därför är det dataspace", "princip": "Dataspace-idén i steget"},
         "prova": "Prova själv",
+        "visaMer": "Visa mer om steget",
+        "oppnaAlla": "Öppna alla",
+        "stangAlla": "Stäng alla",
+        "samordnaren": "Samordnaren (Svada)",
+        "lasMerDs": "Begrepp och styrning",
         "dtGor": "Det här händer",
+        "nastaHint": "Klart! Nästa steg i guiden: klicka här.",
+        "gorHint": "Vad händer här? Läs det här innan du klickar på knappen.", "gorStang": "Dölj tipset",
+        "gorHintKov": "Nu är du KoV. Läs vad som händer och godkänn begäran för att släppa A.",
+        "tipsNasta": "Nästa tips →", "tipsAv": "{i} av {n}",
+        "tipsVad": "Vad händer här? Läs det här först.",
+        "tips5b": "Hitta adressen till avtalet (contractAgreementUrl) i värdet. Klickar du på den öppnas avtalet som en webbsida.",
+        "tips6b": "Välj A eller B och jämför: B saknar brunnarnas position, A har den.",
         "dtTitta": "Titta efter",
         "dtKraver": "Förutsätter",
         "akta": "Äkta",
@@ -370,7 +408,7 @@ TEXTER = {
         "avvisad": "jobbet klart · leveransen avvisades",
         "ingetavtal": "jobbet klart · inget avtal ingicks",
         "fel": "misslyckades",
-        "nekad": "nekad av spärren (så ska det vara)",
+        "nekad": "nekad av spärren – skyddet fungerade",
         "helaLogg": "Öppna hela loggen i fliken Jobb →",
         "roll": {
                 "demo": "demonstratör (simulerar en händelse)",
@@ -378,15 +416,21 @@ TEXTER = {
                 "stad": "staden (Intraservice)",
                 "kov": "KoV (Kretslopp och Vatten)",
             },
+        "rollForkl": {
+                "demo": "",
+                "dhi": "som håller data",
+                "stad": "som hämtar data",
+                "kov": "informationsägaren, som avgör vem som får hämta data",
+            },
         "agerarSom": "Du agerar som",
         "kovRub": "Agera som KoV",
         "kovIntro": (
-                "Här fattar du beslutet som Kretslopp och Vatten. I "
-                "verkligheten görs det av en handläggare på KoV. I demon gör du"
+                "Här fattar du beslutet som Kretslopp och Vatten, "
+                "informationsägaren. I verkligheten görs det av en handläggare på KoV. I demon gör du"
                 " det själv, och kontrollrummet bevisar KoV-rollen åt dig med "
                 "ett intyg."),
         "kovTillA": "Fatta beslutet som KoV i KoV-rutan.",
-        "distNyckel": "<b>B</b> = öppna data (klass K0R1T1, CC BY 4.0, utan brunnarnas positioner): avtalet tecknas automatiskt. <b>A</b> = skyddade data (klass K1R1T1, med brunnarnas positioner): kräver KoV:s godkännande och får inte spridas eller publiceras.",
+        "distNyckel": "<b>B</b> = öppna data (klass K0R1T1, CC BY 4.0, utan brunnarnas positioner): avtalet tecknas automatiskt. <b>A</b> = skyddade data (klass K1R1T1): innehåller brunnarnas koordinater, och det är det som gör dem skyddade. Kräver KoV:s godkännande och får inte spridas eller publiceras. I demon är koordinaterna påhittade och ligger inom Liseberg.",
         "kovSidlank": "Öppna hela KoV-sidan (fliken Suveränitet) →",
     },
     "en": {
@@ -404,7 +448,7 @@ TEXTER = {
                     " ODRL"),
                 "intro": (
                     "This is how the offers look in DHI's catalogue. The "
-                    "terms are set by whoever owns the data (KoV) and bind "
+                    "terms are set by the information owner (KoV) and bind "
                     "whoever receives it. They travel with the offer, but they are enforced "
                     "differently. The connector decides who may enter an "
                     "agreement (only the city for distribution A) and "
@@ -524,16 +568,24 @@ TEXTER = {
         "prov": {
                 "rub": "How the terms follow the data",
                 "intro": (
-                    "On the left a value in the city's data platform, "
-                    "shortened. The provenance field carries the agreement's id"
-                    " (contractAgreementId). On the right the same id looked up"
-                    " in the city's connector: that is where the agreement with"
-                    " its distribution, status and terms lives, first in plain"
-                    " words and then in ODRL. So the ODRL text is not copied "
-                    "into every value. The value points to the agreement, and "
-                    "the agreement carries the terms."),
-                "v1": "1. The value in the CIP with its provenance label",
-                "v2": "2. The agreement the id points to: the city connector's agreement (id, parties, terms) with status and address from the city's agreement register",
+                    "The terms follow the data without being copied into every "
+                    "value: the data carries the agreement's id, and the "
+                    "agreement carries the terms, first in plain words and "
+                    "then in ODRL."),
+                "v1": "1. The data: one chamber with its values",
+                "v1t": (
+                    "This is how a chamber looks in the city's data platform, "
+                    "shortened: the chamber's values and, highlighted, the "
+                    "provenance label with the agreement's id and, after a B "
+                    "delivery, a link to the agreement. Click the link to see "
+                    "the agreement."),
+                "v2": "2. The agreement itself",
+                "v2t": (
+                    "The agreement in code, as the city's connector holds it: "
+                    "id, parties, terms and status, with the address from the "
+                    "city's agreement register. After a B delivery the link to the "
+                    "agreement, here or in the box on the left, shows the same "
+                    "agreement as a web page."),
                 "not": (
                     "Shortened examples. The field names are the real ones from"
                     " the intake service."),
@@ -579,29 +631,35 @@ TEXTER = {
                     "catalogue in the box above and under Show example object "
                     "further down."),
             },
-        "stegradRub": "Steps:",
+        "stegradRub": "The flow:", "guideRub": "Guided path:", "guideAvsluta": "✕ End the guide", "guideStart": "Guided path →", "guideStegI": "step {n} in the flow", "guideNuRub": "Now:", "guideOm": "↺ Start over",
+        "vagvalRub": "Two ways through the demo", "vagvalGuide": "Start the guided path", "vagvalGuideText": "Recommended. About 5 minutes, eight parts (A–H). You run each action yourself and see what happens in the flow.", "vagvalFritt": "Explore the flow yourself", "vagvalFrittText": "Click any step 1–6 in the diagram and read. No order and no set route.", "borjaHar": "Start here!", "borjaStang": "Hide the hint",
         "tillBilden": "↑ To the diagram",
         "seHandaRub": "See it happen",
         "skickade": "Readings sent (example):",
-        "flikar": ["Chain 1–6", "Follow a value", "Audit log", "Sovereignty: KoV & ODRL", "Fault injection", "Jobs"],
+        "flikar": ["Chain 1–6", "Follow a value", "Audit log", "Sovereignty: KoV & ODRL", "Scenarios", "Jobs"],
         "introH": "Follow data from the model to the city's decision",
+        "banaRub": "Guided path", "flodeRub": "The flow", "introVisa": "Show the introduction", "introDolj": "Hide the introduction",
         "intro1": (
                 "A data space is a way for organisations to share data without "
                 "a shared database. The data stays with whoever holds it and is"
                 " released only when a machine-readable agreement says yes. The"
-                " terms travel with the data through the agreement's id and are"
-                " checked automatically."),
+                " terms follow along as a reference, the agreement's id, and "
+                "are checked automatically."),
         "intro2": (
-                "Two organisations take part. <b>DHI</b> measures and models "
-                "the data for the city. <b>The City of Gothenburg</b> owns the "
-                "data. Within the city, <b>Kretslopp och Vatten (KoV)</b>, the "
-                "water and sewage administration, sets the terms, and "
-                "<b>Intraservice</b> runs the city's connector and data platform."),
+                "Two organisations take part. <b>DHI</b> holds the data and "
+                "models it for the city. <b>The City of Gothenburg</b> fetches "
+                "the data and uses it. Within the city, <b>Kretslopp och "
+                "Vatten (KoV)</b>, the water and sewage administration, is the "
+                "information owner and sets the terms, and <b>Intraservice</b> "
+                "runs the city's connector (the program that handles "
+                "agreements and orders) and data platform."),
         "ingress": (
                 "Six steps from DHI's model of the overflow chambers, through a "
                 "real data space between DHI and the City of Gothenburg, to the "
                 "city using the data for analysis and decisions. Click a step "
                 "to see what happens, why, and what the buttons do."),
+        "ingressProj": "This PoC was created within the project",
+        "ingressLank": "Swedish Water Data Lab (SVADA) ↗",
         "fakta1": (
                 "<b>Data space</b>: data is shared under agreements and terms, "
                 "with no shared database."),
@@ -617,8 +675,12 @@ TEXTER = {
                    'The project is funded by the Swedish Energy Agency (Energimyndigheten), Formas, Vinnova and Water Wise Societies. '
                    '<a href="https://vattendatalabbet.se/" target="_blank" rel="noopener">Swedish Water Data Lab (in Swedish) ↗</a> · '
                    '<a href="https://www.vinnova.se/en/p/the-swedish-water-data-lab-svada--transition-for-smart-water-management" target="_blank" rel="noopener">The project at Vinnova ↗</a>'),
-        "omKredH": "Created by",
-        "omKred": "Björn Hagström, expert on information management and data spaces, and Niklas Fjellman.",
+        "omKredH": "Created by, and source code",
+        "omKred": "<b>Niklas Fjellman</b>: original setup of the PoC: requirements, architecture, and development of code and tests according to the Target Architecture (Målarkitektur) version 1.92, plus technical documentation.<br><b>Björn Hagström</b>: extended the PoC with data space protocol support (identity, verifiable credentials, agreements) and packaged it for global communication and clarity.",
+        "omAIH": "Built with AI assistants",
+        "omAI": "The code, the tests and the documentation were developed together with AI assistants (among them Claude, Codex and Gemini). Niklas Fjellman and Björn Hagström have directed the work and are responsible for the content, but not everything has been independently reviewed by humans.",
+        "omKod": ('Open source (Apache-2.0): the code, the tests and the documentation can be read, downloaded and run by others. '
+                  '<br><a class="ghmarke" href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener" aria-label="Source code on GitHub (opens in a new tab, external site)">' + GITHUB_IKON + '<span>GitHub</span></a>'),
         "omBpH": "Follows the DSSC Blueprint 3.0",
         "omBp": ('The demo follows <b>Blueprint 3.0</b> from the Data Spaces Support Centre (DSSC), the EU reference framework for data spaces: roles (data provider, data consumer, operator), '
                  'data products, agreements and policies in ODRL, data exchange with the Dataspace Protocol and verifiable credentials. Governance, legal and business model are not part of the demo. '
@@ -661,14 +723,19 @@ TEXTER = {
                 "extract of the city's system, as are the chamber names. Of 91 "
                 "chambers only this one has a real series; the other 90 have "
                 "made-up series computed from the chamber's id. One of the 91, "
-                "SSO1_01-Pump_490, is an overflow point at a pumping station."),
+                "SSO1_01-Pump_490, is an overflow point at a pumping station. The real "
+                "series is only a couple of days long; every day in the demo is "
+                "computed from the same measured values, so that chamber's daily "
+                "values are identical."),
         "omKoordH": "Coordinates",
         "omKoord": (
                 "<b>All coordinates in the demo are made up.</b> The chambers' "
                 "real positions are sensitive, so the chambers are placed at "
                 "random within Liseberg. The Krokängsparken chamber sits on the"
                 " Lisebergsbanan roller coaster track. There is no link left to"
-                " trace back to the real positions."),
+                " trace back to the real positions. The chambers' names (street "
+                "crossings) are real, however, and may be shown openly according "
+                "to the information owner."),
         "omModellH": "The model",
         "omModell": (
                 "DHI's real Future City Flow is a hydrodynamic model of the "
@@ -689,7 +756,7 @@ TEXTER = {
                 "calculation instead of DHI's model. Everything from the "
                 "catalogue onwards is real services."),
         "ordningEtikett": "Try in this order (click to open the step; the action runs there):", "nasta": "Next", "nastaKnapp": "Next: ", "nastaSlut": "Done: you have been through the whole chain.",
-        "ordning": ["Run batch", "Fetch catalogue", "Negotiate B", "Deliver B", "Negotiate A + KoV", "Deliver A", "Analyse"],
+        "ordning": ["Run batch", "Fetch catalogue", "Negotiate B", "Deliver B", "Negotiate A + KoV", "Deliver A", "Provenance", "Analyse"],
         "zon1": "At the producer",
         "zon1s": "DHI builds the data product",
         "zon2": "Data space",
@@ -700,7 +767,7 @@ TEXTER = {
         "grans": "Organisational boundary DHI | City of Gothenburg",
         "stad": "City of Gothenburg",
         "banaIs": "runs connector and platform",
-        "banaKov": "owns the data and the terms",
+        "banaKov": "information owner, sets the terms",
         "kat": {"ds": "◆ Data space", "princip": "◇ Data space principle visible here", "kedja": "□ End-to-end chain"},
         "borja": "Start here ↓",
         "statusTitel": "Components responding (example)",
@@ -714,7 +781,19 @@ TEXTER = {
         "styrning": "Governance:",
         "dsH": {"kedja": "Is this data space?", "ds": "Why this is data space", "princip": "The data space idea in this step"},
         "prova": "Try it yourself",
+        "visaMer": "Show more about this step",
+        "oppnaAlla": "Open all",
+        "stangAlla": "Close all",
+        "samordnaren": "The coordinator (Svada)",
+        "lasMerDs": "Concept and governance",
         "dtGor": "What happens",
+        "nastaHint": "Done! Next step in the guide: click here.",
+        "gorHint": "What happens here? Read this before you click the button.", "gorStang": "Hide the hint",
+        "gorHintKov": "You are now KoV. Read what happens and approve the request to release A.",
+        "tipsNasta": "Next tip →", "tipsAv": "{i} of {n}",
+        "tipsVad": "What happens here? Read this first.",
+        "tips5b": "Find the address of the agreement (contractAgreementUrl) in the value. Click it to open the agreement as a web page.",
+        "tips6b": "Choose A or B and compare: B lacks the chambers' positions, A has them.",
         "dtTitta": "Look for",
         "dtKraver": "Requires",
         "akta": "Genuine",
@@ -729,7 +808,7 @@ TEXTER = {
         "avvisad": "job done · delivery rejected",
         "ingetavtal": "job done · no agreement made",
         "fel": "failed",
-        "nekad": "refused by the safeguard (as it should be)",
+        "nekad": "refused by the safeguard – the protection worked",
         "helaLogg": "Open the full log in the Jobs tab →",
         "roll": {
                 "demo": "demonstrator (simulates an event)",
@@ -737,15 +816,21 @@ TEXTER = {
                 "stad": "the city (Intraservice)",
                 "kov": "KoV (Kretslopp och Vatten)",
             },
+        "rollForkl": {
+                "demo": "",
+                "dhi": "which holds the data",
+                "stad": "which fetches the data",
+                "kov": "the information owner, who decides who may fetch the data",
+            },
         "agerarSom": "You act as",
         "kovRub": "Act as KoV",
         "kovIntro": (
-                "Here you make the decision as Kretslopp och Vatten. In reality"
+                "Here you make the decision as Kretslopp och Vatten, the information owner. In reality"
                 " a case officer at KoV does this. In the demo you do it "
                 "yourself, and the control room proves the KoV role for you "
                 "with a credential."),
         "kovTillA": "Make the decision as KoV in the KoV box.",
-        "distNyckel": "<b>B</b> = open data (class K0R1T1, CC BY 4.0, without the chambers' positions): the agreement is made automatically. <b>A</b> = protected data (class K1R1T1, with the chambers' positions): needs KoV's approval and must not be passed on or published.",
+        "distNyckel": "<b>B</b> = open data (class K0R1T1, CC BY 4.0, without the chambers' positions): the agreement is made automatically. <b>A</b> = protected data (class K1R1T1): contains the coordinates of the chambers, and that is what makes it protected. Needs KoV's approval and must not be passed on or published. In the demo the coordinates are made up and lie within Liseberg, an amusement park in Gothenburg.",
         "kovSidlank": "Open the full KoV page (Sovereignty tab) →",
     },
 }
@@ -796,458 +881,6 @@ ORDTEXT = {
     },
 }
 
-# Ordlistan: id, regex (JavaScript-syntax) och förklaring per språk. cs=True
-# betyder skiftlägeskänslig matchning. Driver både tipsrutorna och fliken Ordlista.
-ORDLISTA = [
-    {"id": "poc",
-     "sv": {"term": "PoC (proof of concept)", "re": "PoC(?::e?n)?(?!\\p{L})", "cs": True,
-            "def": "Ett bevis på att något fungerar i praktiken: här en körbar demo i liten skala av hela kedjan, med riktiga komponenter men utan att vara en driftsatt tjänst."},
-     "en": {"term": "PoC (proof of concept)", "re": "PoC", "cs": True,
-            "def": "A proof that something works in practice: here a small-scale, runnable demo of the whole chain, with real components but not a deployed service."}},
-    {"id": "braddbrunn",
-     "sv": {"term": "Bräddbrunn",
-            "re": "bräddbrunn\\p{L}*",
-            "def": (
-                    "En brunn i avloppsnätet där vattnet kan rinna över till "
-                    "ett utsläpp när ledningen är full. Här sitter givaren som "
-                    "mäter.")},
-     "en": {"term": "Overflow chamber",
-            "re": "overflow chambers?",
-            "def": (
-                    "A chamber in the sewer network where water can spill over "
-                    "to an outlet when the pipe is full. This is where the "
-                    "measuring sensor sits.")},
-    },
-    {"id": "bradd",
-     "sv": {"term": "Bräddning, brädda",
-            "re": "brädd(?:ning\\p{L}*|ar|ade|a(?!\\p{L})|händelse\\p{L}*|flöde\\p{L}*|data)",
-            "def": (
-                    "När avloppsledningen är full, till exempel vid kraftigt "
-                    "regn, rinner en del av avloppsvattnet över och ut i ett "
-                    "vattendrag i stället för till reningsverket. Det kallas "
-                    "att det bräddar. Bräddning ska hållas så liten som "
-                    "möjligt.")},
-     "en": {"term": "Overflow",
-            "re": "overflows?(?! chamber)(?! data)|overflowing",
-            "def": (
-                    "When the sewer pipe is full, for example in heavy rain, "
-                    "some of the sewage spills over into a watercourse instead "
-                    "of going to the treatment plant. Overflow should be kept "
-                    "as small as possible.")},
-    },
-    {"id": "spillflode",
-     "sv": {"term": "Spillflöde",
-            "re": "spillflöde\\p{L}*",
-            "def": (
-                    "Den del av flödet som bräddar ut, mätt i kubikmeter per "
-                    "sekund (m³/s).")},
-     "en": {"term": "Spill flow",
-            "re": "spill flow",
-            "def": (
-                    "The part of the flow that overflows, measured in cubic "
-                    "metres per second (m³/s).")},
-    },
-    {"id": "totalflode",
-     "sv": {"term": "Totalflöde",
-            "re": "totalflöde\\p{L}*",
-            "def": "Allt vatten som rinner genom brunnen, mätt i m³/s."},
-     "en": {"term": "Total flow",
-            "re": "total flow",
-            "def": "All water flowing through the chamber, measured in m³/s."},
-    },
-    {"id": "eudataspace",
-     "lank": "https://digital-strategy.ec.europa.eu/en/policies/data-spaces",
-     "sv": {"term": "Gemensamma europeiska dataspaces",
-            "re": "europeiska dataspace\\p{L}*|Common European Data Spaces",
-            "def": (
-                    "EU:s satsning, enligt datastrategin från 2020, på "
-                    "dataspaces inom bland annat hälsa, energi, mobilitet, "
-                    "jordbruk och miljö. Bygger på gemensamma regler och "
-                    "byggstenar så att dataspaces kan kopplas ihop.")},
-     "en": {"term": "Common European data spaces",
-            "re": "common European data spaces|European ones",
-            "def": (
-                    "The EU initiative, under the 2020 data strategy, for data "
-                    "spaces in areas such as health, energy, mobility, "
-                    "agriculture and the environment. Built on shared rules and"
-                    " building blocks so data spaces can be connected.")},
-    },
-    {"id": "dsp",
-     "lank": "https://eclipse-dataspace-protocol-base.github.io/DataspaceProtocol/",   # specifikationen (L21)
-     "sv": {"term": "Dataspace Protocol (DSP)",
-            "re": "Dataspace Protocol|DSP(?!\\p{L})",
-            "cs": True,
-            "def": (
-                    "Standardprotokollet som connectorer använder för att visa "
-                    "katalog, förhandla avtal och styra överföringar.")},
-     "en": {"term": "Dataspace Protocol (DSP)",
-            "re": "Dataspace Protocol|DSP(?!\\p{L})",
-            "cs": True,
-            "def": (
-                    "The standard protocol connectors use to show catalogues, "
-                    "negotiate agreements and control transfers.")},
-    },
-    {"id": "dataspace",
-     "lank": "https://dssc.eu/",
-     "sv": {"term": "Dataspace",
-            "re": "dataspace\\p{L}*",
-            "def": (
-                    "Ett sätt för organisationer att dela data utan gemensam "
-                    "databas. Data ligger kvar hos den som har det och lämnas "
-                    "ut först när ett maskinellt avtal säger ja. Villkoren "
-                    "följer med och kontrolleras automatiskt.")},
-     "en": {"term": "Data space",
-            "re": "data spaces?",
-            "def": (
-                    "A way for organisations to share data without a shared "
-                    "database. Data stays with whoever holds it and is released"
-                    " only when a machine-readable agreement says yes. The "
-                    "terms travel with it and are checked automatically.")},
-    },
-    {"id": "connector",
-     "sv": {"term": "Connector",
-            "re": "connector\\p{L}*",
-            "def": (
-                    "Programvaran varje part kör för att delta i dataspacet. "
-                    "Den visar katalog, förhandlar avtal och styr överföringar."
-                    " Här används Eclipse EDC.")},
-     "en": {"term": "Connector",
-            "re": "connectors?",
-            "def": (
-                    "The software each party runs to take part in the data "
-                    "space. It shows the catalogue, negotiates agreements and "
-                    "controls transfers. Eclipse EDC is used here.")},
-    },
-    {"id": "edc",
-     "lank": "https://projects.eclipse.org/projects/technology.edc",
-     "sv": {"term": "Eclipse EDC",
-            "re": "Eclipse EDC|EDC(?!\\p{L})",
-            "cs": True,
-            "def": (
-                    "Connector med öppen källkod från Eclipse Foundation, en "
-                    "vanlig grund för dataspaces i EU.")},
-     "en": {"term": "Eclipse EDC",
-            "re": "Eclipse EDC|EDC(?!\\p{L})",
-            "cs": True,
-            "def": (
-                    "Open-source connector from the Eclipse Foundation, a "
-                    "common basis for data spaces in the EU.")},
-    },
-    {"id": "odrl",
-     "lank": "https://www.w3.org/TR/odrl-model/",
-     "sv": {"term": "ODRL",
-            "re": "ODRL",
-            "cs": True,
-            "def": (
-                    "W3C-standard för maskinläsbara användningsvillkor: vad som"
-                    " är tillåtet, vad som är förbjudet och vilka skyldigheter "
-                    "som gäller.")},
-     "en": {"term": "ODRL",
-            "re": "ODRL",
-            "cs": True,
-            "def": (
-                    "W3C standard for machine-readable usage terms: what is "
-                    "permitted, what is prohibited and which duties apply.")},
-    },
-    {"id": "intyg",
-     "lank": "https://www.w3.org/TR/vc-data-model-2.0/",
-     "sv": {"term": "Verifierbart intyg",
-            "re": "verifierbar\\p{L}* intyg\\p{L}*|intyg\\p{L}*|rollintyg\\p{L}*|VC(?![\\p{L}\\p{N}])",
-            "def": (
-                    "Digitalt intyg med kryptografisk signatur (W3C Verifiable "
-                    "Credential, VC) som bevisar vem en part är eller vilken "
-                    "roll den har. En grundteknik i dataspaces: intygen visas "
-                    "och kontrolleras i varje led, enligt protokollet DCP.")},
-     "en": {"term": "Verifiable credential",
-            "re": "verifiable credentials?|credentials?|VCs?(?![\\p{L}\\p{N}])",
-            "def": (
-                    "A digital certificate with a cryptographic signature (W3C "
-                    "Verifiable Credential, VC) that proves who a party is or "
-                    "which role it holds. A basic technique in data spaces: the "
-                    "credentials are shown and checked at every step, under the "
-                    "protocol DCP.")},
-    },
-    {"id": "dssc",
-     "lank": "https://dssc.eu/",
-     "sv": {"term": "DSSC",
-            "re": "DSSC",
-            "cs": True,
-            "def": (
-                    "Data Spaces Support Centre, EU:s stödcentrum för "
-                    "dataspaces. Förvaltar referensramen (Blueprint) med "
-                    "byggblock som PoC:en jämförs mot.")},
-     "en": {"term": "DSSC",
-            "re": "DSSC",
-            "cs": True,
-            "def": (
-                    "Data Spaces Support Centre, the EU support centre for data"
-                    " spaces. It maintains the reference framework (Blueprint) "
-                    "whose building blocks the PoC is compared against.")},
-    },
-    {"id": "ngsild",
-     "lank": "https://en.wikipedia.org/wiki/NGSI-LD",
-     "sv": {"term": "NGSI-LD",
-            "re": "NGSI-LD",
-            "cs": True,
-            "def": (
-                    "Standard för att beskriva saker och deras tillstånd över "
-                    "tid, till exempel en brunn och dess flöde.")},
-     "en": {"term": "NGSI-LD",
-            "re": "NGSI-LD",
-            "cs": True,
-            "def": (
-                    "A standard for describing things and their state over "
-                    "time, such as a chamber and its flow.")},
-    },
-    {"id": "kontextbroker",
-     "lank": "https://github.com/FIWARE/context.Orion-LD",
-     "sv": {"term": "Kontextbroker",
-            "re": "kontextbroker\\p{L}*",
-            "def": (
-                    "Databas som håller det senaste tillståndet för saker, här "
-                    "brunnar, och svarar på NGSI-LD. Här används Orion-LD.")},
-     "en": {"term": "Context broker",
-            "re": "context brokers?",
-            "def": (
-                    "A database holding the latest state of things, here "
-                    "chambers, answering in NGSI-LD. Orion-LD is used here.")},
-    },
-    {"id": "fiware",
-     "lank": "https://www.fiware.org/",
-     "sv": {"term": "FIWARE",
-            "re": "FIWARE",
-            "cs": True,
-            "def": (
-                    "Öppen plattform med komponenter för smarta städer, bland "
-                    "annat Orion-LD och Mintaka.")},
-     "en": {"term": "FIWARE",
-            "re": "FIWARE",
-            "cs": True,
-            "def": (
-                    "Open platform with components for smart cities, including "
-                    "Orion-LD and Mintaka.")},
-    },
-    {"id": "dataprodukt",
-     "sv": {"term": "Dataprodukt",
-            "re": "dataprodukt\\p{L}*",
-            "def": (
-                    "Data som paketerats tillsammans med beskrivning, klassning"
-                    " och användningsvillkor, så att det kan delas som en "
-                    "enhet.")},
-     "en": {"term": "Data product",
-            "re": "data products?",
-            "def": (
-                    "Data packaged together with a description, classification "
-                    "and usage terms, so it can be shared as one unit.")},
-    },
-    {"id": "klass",
-     "sv": {"term": "Informationsklass (K1R1T1, K0R1T1)",
-            "re": "K[01]R1T1|informationsklass\\p{L}*|klassning\\p{L}*",
-            "def": (
-                    "Stadens klassning av information efter konfidentialitet "
-                    "(K), riktighet (R) och tillgänglighet (T). K1 betyder "
-                    "känslig, K0 betyder öppen.")},
-     "en": {"term": "Information class (K1R1T1, K0R1T1)",
-            "re": "K[01]R1T1|information class\\p{L}*|classification",
-            "def": (
-                    "The city's classification of information by "
-                    "confidentiality (K), integrity (R) and availability (T). "
-                    "K1 means sensitive, K0 means open.")},
-    },
-    {"id": "kov",
-     "sv": {"term": "KoV",
-            "re": "KoV(?!-gate)",
-            "cs": True,
-            "def": (
-                    "Kretslopp och Vatten, Göteborgs Stads förvaltning för "
-                    "vatten och avlopp. Äger data och sätter villkoren, som "
-                    "binder den som tar emot data.")},
-     "en": {"term": "KoV",
-            "re": "KoV(?! gate)",
-            "cs": True,
-            "def": (
-                    "Kretslopp och Vatten, the City of Gothenburg's water and "
-                    "sewage administration. Owns the data and sets the terms, "
-                    "which bind whoever receives the data.")},
-    },
-    {"id": "intraservice",
-     "sv": {"term": "Intraservice",
-            "re": "Intraservice",
-            "cs": True,
-            "def": (
-                    "Göteborgs Stads förvaltning för digitala tjänster. Driver "
-                    "stadens connector och dataplattform och tar emot data på "
-                    "KoV:s uppdrag, bunden av KoV:s villkor.")},
-     "en": {"term": "Intraservice",
-            "re": "Intraservice",
-            "cs": True,
-            "def": (
-                    "The City of Gothenburg's digital services administration. "
-                    "Runs the city's connector and data platform and receives "
-                    "data on KoV's behalf, bound by KoV's terms.")},
-    },
-    {"id": "dhi",
-     "lank": "https://www.dhigroup.com/",
-     "sv": {"term": "DHI",
-            "re": "DHI(?!:)",
-            "cs": True,
-            "def": (
-                    "Konsultföretag inom vatten som tar fram data åt staden med"
-                    " modellen Future City Flow.")},
-     "en": {"term": "DHI",
-            "re": "DHI(?!')",
-            "cs": True,
-            "def": (
-                    "Water engineering consultancy that produces the data for "
-                    "the city with the Future City Flow model.")},
-    },
-    {"id": "fcf",
-     "lank": "https://www.dhigroup.com/se/teknologier/future-city-flow",
-     "sv": {"term": "Future City Flow",
-            "re": "Future City Flow",
-            "cs": True,
-            "def": (
-                    "DHI:s modell för flöden och bräddning i avloppsnätet. I "
-                    "PoC:en ersatt av en simulerad, enkel beräkning.")},
-     "en": {"term": "Future City Flow",
-            "re": "Future City Flow",
-            "cs": True,
-            "def": (
-                    "DHI's model for flows and overflow in the sewer network. "
-                    "Replaced in the PoC by a simple simulated calculation.")},
-    },
-    {"id": "batch",
-     "sv": {"term": "Batch",
-            "re": "batch\\p{L}*",
-            "def": (
-                    "En omgång beräknade data, här ett modellerat dygn för alla"
-                    " brunnar. Datumet sist i batch-id:t (till exempel"
-                    " batch-015-2026-06-29) är det modellerade dygnet, inte"
-                    " när batchen kördes.")},
-     "en": {"term": "Batch",
-            "re": "batch(?:es)?",
-            "def": (
-                    "One round of computed data, here a modelled day for all "
-                    "chambers. The date at the end of the batch id (for example "
-                    "batch-015-2026-06-29) is the modelled day, not when the "
-                    "batch was run.")},
-    },
-    {"id": "modellerat-dygn",
-     "sv": {"term": "Modellerat dygn",
-            "re": "modellerade? dygn\\p{L}*",
-            "def": (
-                    "Det dygn en batch avser. Demon visar inte mätningar i"
-                    " realtid: modellen räknar fram ett nytt dygn för varje"
-                    " batch (här en var tionde minut), och datumet står i"
-                    " batch-id:t. Det är alltså inte dagens datum och inte"
-                    " tiden då batchen kördes.")},
-     "en": {"term": "Modelled day",
-            "re": "modelled days?",
-            "def": (
-                    "The day a batch covers. The demo does not show"
-                    " measurements in real time: the model computes a new day"
-                    " for each batch (here one every ten minutes), and the date"
-                    " is in the batch id. It is neither today's date nor the"
-                    " time the batch was run.")},
-    },
-    {"id": "dsga",
-     "sv": {"term": "DSGA",
-            "re": "DSGA(?: 0\\.1)?",
-            "cs": True,
-            "def": "Data Space Governance Authority: den part som styr ett dataspace, med regler, medlemmar och intyg. I demon spelas den av Svadas utfärdare (version 0.1)."},
-     "en": {"term": "DSGA",
-            "re": "DSGA(?: 0\\.1)?",
-            "cs": True,
-            "def": "Data Space Governance Authority: the party that governs a data space, with rules, members and credentials. In the demo it is played by the Svada issuer (version 0.1)."}},
-    {"id": "cip",
-     "sv": {"term": "CIP",
-            "re": "CIP(?!-)",
-            "cs": True,
-            "def": (
-                    "Stadens dataplattform (City Information Platform) där data"
-                    " lagras och delas vidare.")},
-     "en": {"term": "CIP",
-            "re": "CIP(?!-)",
-            "cs": True,
-            "def": (
-                    "The city's data platform (City Information Platform), "
-                    "where data is stored and shared onwards.")},
-    },
-    {"id": "proveniens",
-     "lank": "https://www.w3.org/TR/prov-overview/",
-     "sv": {"term": "Ursprungsmärkning (proveniens)",
-            "re": "ursprungsmärkning\\p{L}*|proveniens\\p{L}*",
-            "def": (
-                    "Uppgifter som följer med varje värde om varifrån det "
-                    "kommer: avtal, batch, distribution och klass.")},
-     "en": {"term": "Provenance",
-            "re": "provenance",
-            "def": (
-                    "Information attached to every value about where it came "
-                    "from: agreement, batch, distribution and class.")},
-    },
-    {"id": "dcat",
-     "lank": "https://docs.dataportal.se/dcat/sv/",
-     "sv": {"term": "DCAT-AP-SE",
-            "re": "DCAT-AP(?:-SE)?",
-            "cs": True,
-            "def": (
-                    "Den svenska nationella profilen av DCAT-AP, EU:s "
-                    "gemensamma standard för att beskriva datamängder i "
-                    "kataloger, till exempel för Sveriges och EU:s portaler. "
-                    "Används inte i demon: DHI:s katalog bygger på DCAT i "
-                    "den form Dataspace Protocol beskriver.")},
-     "en": {"term": "DCAT-AP-SE",
-            "re": "DCAT-AP(?:-SE)?",
-            "cs": True,
-            "def": (
-                    "The Swedish national profile of DCAT-AP, the EU's common "
-                    "standard for describing datasets in catalogues, for example "
-                    "for Swedish and EU portals. Not used in the demo: "
-                    "DHI's catalogue is built on DCAT in the form the "
-                    "Dataspace Protocol describes.")},
-    },
-    {"id": "dcatbegrepp",
-     "lank": "https://www.w3.org/TR/vocab-dcat-3/",
-     "sv": {"term": "DCAT",
-            "re": "DCAT(?![-\\p{L}\\p{N}])",
-            "cs": True,
-            "def": (
-                    "Data Catalog Vocabulary, W3C:s standard för att beskriva "
-                    "datamängder och kataloger så att de kan läsas av maskiner. "
-                    "I demon beskrivs dataprodukten i DCAT i den form "
-                    "Dataspace Protocol använder i DHI:s katalog. Profilerna "
-                    "DCAT-AP och DCAT-AP-SE bygger på DCAT.")},
-     "en": {"term": "DCAT",
-            "re": "DCAT(?![-\\p{L}\\p{N}])",
-            "cs": True,
-            "def": (
-                    "Data Catalog Vocabulary, the W3C standard for describing "
-                    "datasets and catalogues so that machines can read them. "
-                    "In the demo the data product is described in DCAT in the "
-                    "form the Dataspace Protocol uses in DHI's catalogue. The "
-                    "profiles DCAT-AP and DCAT-AP-SE build on DCAT.")},
-    },
-    {"id": "dcp",
-     "lank": "https://eclipse-dataspace-dcp.github.io/decentralized-claims-protocol/",
-     "sv": {"term": "Decentralized Claims Protocol (DCP)",
-            "re": "DCP(?![\\p{L}\\p{N}])",
-            "cs": True,
-            "def": (
-                    "Protokollet för hur en part visar upp verifierbara intyg "
-                    "för en annan part i ett dataspace, utan en central "
-                    "tjänst. Demon använder det för att kontrollera medlemskap, "
-                    "deltagare och roller.")},
-     "en": {"term": "Decentralized Claims Protocol (DCP)",
-            "re": "DCP(?![\\p{L}\\p{N}])",
-            "cs": True,
-            "def": (
-                    "The protocol for how one party presents verifiable "
-                    "credentials to another in a data space, without a central "
-                    "service. The demo uses it to check membership, participants "
-                    "and roles.")},
-    },
-]
 
 
 # Gränssnittstexter som inte kommer ur mockupen, eller som rättats mot koden
@@ -1673,8 +1306,23 @@ nav { display: flex; flex-wrap: wrap; gap: .4rem; }
 
 /* intro */
 .intro { display: block; margin-bottom: 1.2rem; }
+.intro > summary { display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap; cursor: pointer; list-style: none; margin-bottom: .5rem; }
+.intro > summary::-webkit-details-marker { display: none; }
+.intro .introrub { font-size: 1.6rem; font-weight: 700; }
+.intro .introknapp { border: 1px solid var(--ds); color: var(--ds); border-radius: 999px; padding: .15rem .75rem; font-size: .85rem; font-weight: 600; white-space: nowrap; }
+.intro .introknapp::before { content: "▸ "; }
+.intro[open] .introknapp::before { content: "▾ "; }
+.intro > summary:hover .introknapp { background: var(--ds-ton); }
+.intro > summary:focus-visible { outline: 3px solid var(--fokus); outline-offset: 3px; border-radius: 6px; }
+.intro .id, .intro[open] .iv { display: none; }
+.intro[open] .id { display: inline; }
+.intro:not([open]) { margin-bottom: .6rem; }
+.intro:not([open]) > summary { margin-bottom: 0; }
+.intro:not([open]) .introrub { font-size: 1.1rem; }
+.sektionrub { font-size: 1.05rem; margin: 0 0 .4rem; flex-basis: 100%; }
 .intro .ingress { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: .2rem 2rem; align-items: start; }
 .intro .ingress h2 { grid-column: 1 / -1; }
+.intro .ingress p a { color: var(--akt); }   /* länken till Vattendatalabbet i samma färg som övriga länkar och knappar */
 .intro .ingress .omlank { grid-column: 1; justify-self: start; }
 .intro .fakta { grid-column: 2; grid-row: 2 / 4; }
 @media (max-width: 900px) { .intro .ingress { grid-template-columns: 1fr; } .intro .fakta { grid-column: 1; grid-row: auto; } }
@@ -1774,6 +1422,20 @@ svg.pilar marker#pilds path { fill: var(--ds); }
 .panel h3 { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dov); margin: 0 0 .25rem; font-weight: 650; }
 .panel p { margin: 0 0 .9rem; max-width: 65ch; }
 .dsruta { border-radius: 10px; padding: .8rem .9rem; }
+
+.mimruta { border: 1px solid #c7d2e0; border-left: 4px solid #3b6ea8; background: #f5f8fc; border-radius: 6px; padding: .6rem .9rem; margin: 1rem 0; font-size: .9rem; }
+.mimruta h3 { margin: 0 0 .2rem; font-size: .95rem; }
+.mimruta .mimintro { margin: 0 0 .4rem; color: #555; font-size: .82rem; }
+.mimruta ul { margin: 0; padding: 0; list-style: none; }
+.mimruta li { margin: .45rem 0; padding-left: .6rem; border-left: 3px solid #999; }
+.mimruta li.mim-ok { border-left-color: #2e7d32; }
+.mimruta li.mim-delvis { border-left-color: #b26a00; }
+.mimruta li.mim-nej { border-left-color: #b3261e; }
+.mimruta li > span { display: block; }
+.mimruta .mimvad { color: #444; }
+.mimruta .mimstatus em { font-style: normal; font-weight: 600; }
+.mimruta a { margin-left: .4rem; }
+
 .dsruta.ds { background: var(--ds-ton); border: 1px solid var(--ds-ram); }
 .dsruta.kedja { background: var(--kedja-ton); border: 1px solid var(--ram); }
 .dsruta.princip { background: var(--yta); border: 1.5px dashed var(--ds); }
@@ -1799,6 +1461,37 @@ svg.pilar marker#pilds path { fill: var(--ds); }
 .akta { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; border-top: 1px solid var(--ram); padding-top: 1rem; }
 .akta > div { min-width: 0; }
 .akta p { font-size: .92rem; }
+/* Visa mer: det som fördjupar ett steg ligger hopfällt; det centrala (Prova själv, Vad händer, dataspace-idén) syns alltid. */
+/* Namn på en sak (dataprodukten, ett system) i löptext: alltid samma markering, så att det syns att det är ett namn. Språkets egna citattecken. */
+.namn { font-weight: 600; quotes: "”" "”"; }
+html[lang="en"] .namn { quotes: "“" "”"; }
+.namn::before { content: open-quote; }
+.namn::after { content: close-quote; }
+section.visamer { border: 1px solid var(--ram); border-radius: 10px; margin-top: 1rem; background: var(--yta); }
+section.visamer .vmtopp { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .6rem 1rem; }
+section.visamer .vmtopp h3 { margin: 0; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dov); font-weight: 600; }
+section.visamer .vmalla { font-size: .8rem; padding: .25rem .7rem; min-height: 32px; }
+section.visamer > details.lasmer { margin: 0; border-top: 1px solid var(--ram); padding: 0 1rem; }
+section.visamer > details.lasmer > summary { font-size: .95rem; min-height: 44px; padding: .5rem 0; }
+section.visamer > details.lasmer .lasinnehall { padding: .1rem 0 1rem; }
+section.visamer > details.lasmer .lasinnehall > :first-child { margin-top: .2rem; }
+section.visamer > details.teknik { margin: 0; border-top: 1px solid var(--ram); padding: 0 1rem .7rem; }
+section.visamer > details.teknik > summary { font-size: .95rem; min-height: 44px; padding: .5rem 0; display: flex; align-items: center; gap: .4rem; list-style: none; }
+section.visamer > details.teknik > summary::-webkit-details-marker { display: none; }
+section.visamer > details.teknik > summary::before { content: '+'; font-weight: 700; width: .9rem; color: var(--akt); }
+section.visamer > details.teknik[open] > summary::before { content: '–'; }
+section.visamer > details.teknik > summary:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; border-radius: 6px; }
+/* Läs mer: en fördjupning direkt under den ruta den hör till (Varför under Vad händer, Begrepp och styrning under dataspace-idén). */
+details.lasmer { margin-top: .6rem; }
+details.lasmer > summary { cursor: pointer; font-weight: 600; font-size: .88rem; padding: .35rem 0; min-height: 32px; display: flex; align-items: center; gap: .4rem; list-style: none; }
+details.lasmer > summary::-webkit-details-marker { display: none; }
+details.lasmer > summary::before { content: '+'; font-weight: 700; width: .9rem; color: var(--akt); }
+details.lasmer[open] > summary::before { content: '–'; }
+details.lasmer > summary:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; border-radius: 6px; }
+details.lasmer .lasinnehall { padding: .1rem 0 .2rem; }
+details.lasmer .lasinnehall p { margin: .3rem 0 0; }
+.pgrid ul { margin: .3rem 0 .5rem 1.1rem; padding: 0; }
+.pgrid li { margin: .15rem 0; }
 details.teknik { border-top: 1px solid var(--ram); padding-top: .7rem; margin-top: .3rem; }
 details.teknik summary { cursor: pointer; font-weight: 600; font-size: .92rem; }
 .tgrid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1rem; margin-top: .7rem; font-size: .88rem; }
@@ -1839,6 +1532,9 @@ code { font-family: var(--mono); font-size: .85em; background: var(--kod); paddi
 /* logga */
 .krvanster { display: flex; align-items: center; gap: 1rem; min-width: 0; }
 img.logga { flex: none; height: 4.2rem; width: auto; display: block; }
+/* Loggan är länken till startsidan. Adressen bär #kedjan, och en adress med # öppnar aldrig välkomstrutan. */
+a.loggalank { flex: none; display: block; border-radius: 6px; }
+a.loggalank:focus-visible { outline: 3px solid var(--fokus); outline-offset: 3px; }
 .krvanster h1 { margin: 0; }
 
 /* språkväljare */
@@ -1865,6 +1561,7 @@ button.kor.bekrafta { outline: 2px solid var(--a); outline-offset: 2px; }
 @keyframes aterpuls { 0%, 100% { box-shadow: 0 0 0 0 rgba(179,38,30,.55); } 50% { box-shadow: 0 0 0 6px rgba(179,38,30,0); } }
 @media (prefers-reduced-motion: no-preference) { .aterstall.sista { animation: aterpuls 1.2s ease-in-out infinite; } }
 .aterstallremsa { margin: 0 0 .6rem; padding: .45rem .8rem; border-radius: 8px; font-size: .9rem; font-weight: 650; background: #fbeeec; color: #8a1c16; border: 2px solid #8a1c16; }
+.aterstallremsa.snart { background: #fff4d6; color: #6b4b00; border-color: #c98a00; }
 .aterstallremsa[hidden], .aterstall[hidden] { display: none; }
 .aterstallrad { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
 .aterstallinfo { width: 1.5rem; height: 1.5rem; padding: 0; border-radius: 50%; border: 1.5px solid var(--dov); background: transparent; color: var(--dov); font: 700 .85rem/1 system-ui, sans-serif; cursor: pointer; }
@@ -1910,6 +1607,43 @@ dialog.jobb .jkropp { padding: .8rem 1rem 1rem; display: grid; gap: .6rem; }
 dialog.jobb .jkropp p { margin: 0; font-size: .85rem; color: var(--dov); }
 dialog.jobb .logg { max-height: 50vh; overflow: auto; }
 
+/* Välkomstrutan (första besöket) och märkena för Blueprint och MIM:arna. Ikon + ord, aldrig bara färg. */
+dialog.jobb.valkomst { width: min(40rem, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; }
+dialog.jobb.valkomst .jkropp p { font-size: .92rem; color: var(--fg); }
+.valkomst .vtips { background: var(--kedja-ton); border-left: 4px solid var(--kedja); border-radius: 6px; padding: .55rem .8rem; }
+dialog.jobb .jkropp ul.vmarken { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; font-size: .8rem; }
+.valkomst .vmerke { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--ram); border-radius: 999px; padding: .2rem .65rem .2rem .4rem;
+  font-size: .8rem; color: var(--fg); text-decoration: none; background: var(--yta); }
+.valkomst a.vmerke:hover { background: var(--kod); }
+.valkomst .vikon { display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; color: #fff; font-size: .75rem; font-weight: 700; flex: none; }
+.valkomst .vmerke.ok .vikon, .valkomst .vikon.ok { background: #1b6b2a; }
+.valkomst .vmerke.delvis .vikon, .valkomst .vikon.delvis { background: #fff; color: #8a5a00; box-shadow: inset 0 0 0 2px #8a5a00; }
+.valkomst .vsr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.valkomst .vforklaring { font-size: .8rem; color: var(--dov); }
+.valkomst .vblueprint { border: 1px solid var(--ds-ram); background: var(--ds-ton); border-radius: 10px; padding: .6rem .9rem; }
+.valkomst .vblueprint h3 { margin: 0 0 .3rem; font-size: 1rem; display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.valkomst .vblueprint h3 small { font-weight: 400; color: var(--dov); }
+.valkomst .vikon.bp { background: var(--ds); }
+.valkomst .vblueprint p { margin: 0 0 .35rem; }
+.valkomst .vtekniker { margin: 0; padding-left: 1.1rem; display: grid; gap: .3rem; font-size: .88rem; }
+.valkomst .vbockar { font-size: .85rem; }
+.valkomst .vbockar summary { cursor: pointer; color: var(--ds); font-weight: 600; }
+.valkomst .vbockar p { margin: .35rem 0 0; color: var(--dov); }
+.valkomst .vbockar summary:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; border-radius: 4px; }
+.valkomst .vforklaring .vikon { width: 1.1rem; height: 1.1rem; font-size: .65rem; vertical-align: middle; }
+.valkomst .vmerke.bp .vikon { background: var(--ds); }
+.valkomst .vmerke small { color: var(--dov); }
+.valkomst .vknappar { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .3rem; }
+.valkomst .vknappar button { border: 1px solid var(--ram); background: var(--yta); color: var(--fg); border-radius: 8px; padding: .5rem 1rem; font: inherit; cursor: pointer; }
+.valkomst .vknappar button.primar { background: var(--ds); border-color: var(--ds); color: #fff; font-weight: 600; }
+.valkomst .vknappar button:focus-visible { outline: 3px solid var(--fokus); outline-offset: 2px; }
+.omlank.valkomstlank { margin-left: .5rem; }
+dialog.jobb.valkomst .jhuvud .sprak { margin-left: auto; }
+dialog.jobb.valkomst .jhuvud .sprak button { margin-left: 0; border: 0; border-radius: 0; padding: .25rem .7rem; }
+dialog.jobb.valkomst .jhuvud .sprak button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+dialog.jobb.valkomst .jhuvud > button { margin-left: .6rem; }
+.nod, #ordning { scroll-margin-top: 3.6rem; }
+
 .analys { border: 1px solid var(--ram); border-radius: 10px; padding: .8rem 1rem; margin-top: 1rem; background: var(--yta); }
 .analys h3, .analys h4 { margin: .6rem 0 .3rem; }
 .analyskontroll { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; align-items: end; margin: .6rem 0; }
@@ -1945,7 +1679,7 @@ dialog.jobb .logg { max-height: 50vh; overflow: auto; }
 svg.karta { display: block; width: 100%; max-width: 40rem; height: auto; }
 .analys .larm { border: 2px solid var(--a); background: #fbeeec; border-radius: 10px; padding: .6rem .9rem; }
 /* roller och KoV-ruta */
-.rollchip { align-self: flex-start; font-size: .75rem; color: var(--dov); border: 1px solid var(--ram); border-radius: 999px; padding: .05rem .5rem; }
+.rollchip { align-self: flex-start; max-width: 100%; font-size: .75rem; color: var(--dov); border: 1px solid var(--ram); border-radius: 999px; padding: .05rem .5rem; }
 .rollchip b { color: var(--fg); font-weight: 650; }
 .rollchip.kov { border-color: var(--ds); color: var(--ds); background: var(--ds-ton); }
 .rollchip.kov b { color: var(--ds); }
@@ -1995,8 +1729,8 @@ nav button.aktiv { background: var(--fg); color: var(--bg); border-color: var(--
 .ordlista dd { margin: 0; }
 .ordlista > div.markerad { background: var(--ds-ton); border-radius: 6px; }
 @media (max-width: 640px) { .ordlista > div { grid-template-columns: 1fr; gap: .2rem; } }
-/* tunn stegrad som syns när bilden har scrollats bort */
-.stegrad { flex-wrap: nowrap; position: fixed; top: 0; left: 0; right: 0; z-index: 40; background: var(--yta); border-bottom: 1px solid var(--ram); box-shadow: 0 2px 8px rgb(0 0 0 / .06); padding: calc(env(safe-area-inset-top, 0px) + .3rem) 16px .3rem; display: flex; align-items: center; gap: .3rem; overflow-x: auto; scrollbar-width: none; }
+/* tunn stegrad (miniversionen av banan): ligger överst på Flödet under sidhuvudet och sitter kvar överst i bild när man scrollar ned (sticky) */
+.stegrad { flex-wrap: nowrap; position: sticky; top: 0; z-index: 40; background: var(--yta); border: 1px solid var(--ram); border-radius: 10px; box-shadow: 0 2px 8px rgb(0 0 0 / .06); margin: 0 0 .8rem; padding: .3rem .5rem; display: flex; align-items: center; gap: .3rem; overflow-x: auto; scrollbar-width: none; }
 .stegrad[hidden] { display: none; }
 .stegrad .srub { font-size: .75rem; color: var(--dov); margin-right: .3rem; white-space: nowrap; }
 .stegrad button { flex: none; border: 1px solid var(--ram); background: var(--yta); border-radius: 999px; padding: .1rem .55rem; font-size: .78rem; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: .3rem; }
@@ -2005,6 +1739,49 @@ nav button.aktiv { background: var(--fg); color: var(--bg); border-color: var(--
 .stegrad button.s-kedja .si { color: var(--kedja); }
 .stegrad button[aria-current="step"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .stegrad button[aria-current="step"] .si { color: inherit; }
+/* vägvalet: guiden är huvudvalet, med en flytande "Börja här!"-bubbla som pekar på knappen */
+.vagval { margin: 1.8rem 0 1.2rem; }   /* liten luft mot introduktionen när bubblan är stängd */
+.vagval:has(.borjabubbla:not([hidden])) { margin-top: 3.4rem; }   /* medan bubblan syns ligger rubriken närmare korten än introduktionen */
+.vagval .vagvalrub { font-size: 1.35rem; margin: 0 0 .6rem; color: var(--fg); font-weight: 700; }   /* minst lika stor som knappen Starta guidad bana (1,05 rem) */
+.vagvalkort:has(.borjabubbla:not([hidden])) { margin-top: 3rem; }   /* plats över kortet för bubblan, bara medan den syns */
+.vagvalkort { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1rem; margin-top: 0; }
+.vagvalval { position: relative; border: 1px solid var(--ram); border-radius: 12px; padding: .9rem 1rem; background: var(--yta); display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
+.vagvalval.stor { border: 2px solid var(--akt); background: var(--ds-ton); }   /* båda korten börjar överst; "Börja här!"-bubblan ligger ovanför kortet */
+.vagvalval p { margin: 0; font-size: .9rem; max-width: 52ch; }
+.vagknapp { font-size: 1.05rem; font-weight: 700; padding: .55rem 1.1rem; min-height: 44px; border-radius: 8px; border: 2px solid var(--akt); background: var(--yta); color: var(--akt); cursor: pointer; }
+.vagvalval.stor .vagknapp { background: var(--akt); color: #fff; }
+.vagknapp:hover { background: var(--ds-ton); }
+.vagvalval.stor .vagknapp:hover { background: var(--akt-hover); }
+.vagknapp:focus-visible, .borjastang:focus-visible { outline: 3px solid var(--fokus); outline-offset: 3px; }
+.borjabubbla { position: absolute; top: -2.7rem; left: 1.1rem; display: flex; align-items: center; gap: .4rem; background: var(--fg); color: var(--bg); font-weight: 700; font-size: .95rem; padding: .3rem .4rem .3rem .8rem; border-radius: 14px; box-shadow: 0 3px 10px rgb(0 0 0 / .25); animation: borjaflyt 2.4s ease-in-out infinite; z-index: 2; }
+.borjabubbla[hidden] { display: none; }
+.borjabubbla::after { content: ""; position: absolute; left: 1.6rem; bottom: -.55rem; border: .6rem solid transparent; border-bottom: 0; border-top-color: var(--fg); }
+.borjastang { border: 0; background: transparent; color: inherit; font-size: .85rem; min-width: 28px; min-height: 28px; border-radius: 50%; cursor: pointer; opacity: .8; }
+.tipsnasta { border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; font-size: .8rem; padding: .15rem .6rem; border-radius: 12px; cursor: pointer; white-space: nowrap; }
+.tipsnasta:hover { background: rgb(255 255 255 / .18); }
+.tipsraknare { font-size: .75rem; font-weight: 400; opacity: .85; white-space: nowrap; }
+.borjastang:hover { opacity: 1; background: rgb(255 255 255 / .18); }
+.gorbubbla { display: flex; align-items: center; gap: .4rem; position: relative; width: fit-content; max-width: 100%; margin: .6rem 0 .8rem 1rem; background: var(--fg); color: var(--bg); font-weight: 700; font-size: .92rem; padding: .3rem .4rem .3rem .8rem; border-radius: 14px; box-shadow: 0 3px 10px rgb(0 0 0 / .25); animation: borjaflyt 2.4s ease-in-out infinite; }
+.gorbubbla::after { content: ""; position: absolute; left: 1.4rem; bottom: -.55rem; border: .6rem solid transparent; border-bottom: 0; border-top-color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { .gorbubbla { animation: none; } }
+.nastabubbla { position: fixed; z-index: 60; display: flex; align-items: center; gap: .4rem; background: var(--fg); color: var(--bg); font-weight: 700; font-size: .92rem; padding: .3rem .4rem .3rem .8rem; border-radius: 14px; box-shadow: 0 3px 10px rgb(0 0 0 / .25); max-width: calc(100vw - 16px); }
+.nastabubbla::before { content: ""; position: absolute; left: var(--pil, 1.4rem); top: -.55rem; margin-left: -.6rem; border: .6rem solid transparent; border-top: 0; border-bottom-color: var(--fg); }
+@keyframes borjaflyt { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .borjabubbla { animation: none; } }
+@media (max-width: 800px) { .vagvalkort { grid-template-columns: 1fr; } }
+.stegrad .sgrupp { display: inline-flex; align-items: center; gap: .3rem; }
+.stegrad [hidden] { display: none !important; }
+.stegrad button.sg { min-width: 1.9rem; justify-content: center; font-weight: 650; }
+.stegrad button.sg.klar { color: var(--akt); border-color: var(--akt); }
+.stegrad button.sg.klar::after, .ordning button[data-hopp].klar .snr::after { content: "✓"; font-size: .7em; margin-left: .15rem; }
+.stegrad button.sg[aria-current="step"] { background: var(--akt); color: #fff; border-color: var(--akt); }
+.stegrad .snu { font-size: .78rem; color: var(--fg); white-space: nowrap; margin-left: .3rem; }
+.stegrad button.snasta { background: var(--akt); color: #fff; border-color: var(--akt); font-weight: 650; }
+.stegrad button.sbornom { color: var(--dov); border-color: transparent; text-decoration: underline; }
+.stegrad.bornom-fraga { flex-wrap: wrap; }
+.stegrad.bornom-fraga button.sbornom.sakert { white-space: normal; text-align: left; flex: 1 1 100%; border-radius: 10px; }
+.stegrad button.sbornom.sakert { color: var(--a); text-decoration: none; font-weight: 650; border-color: var(--a); }
+.stegrad button.sstart, .stegrad button.savsluta { color: var(--dov); border-color: transparent; text-decoration: underline; }
 .stegrad .upp { margin-left: auto; color: var(--fokus); border-color: transparent; }
 /* se hur det ser ut */
 .sehur { margin-top: 1rem; border-top: 1px solid var(--ram); padding-top: 1rem; }
@@ -2021,6 +1798,8 @@ nav button.aktiv { background: var(--fg); color: var(--bg); border-color: var(--
 .sinnehall p { font-size: .9rem; margin: 0 0 .5rem; }
 .katpar { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: .8rem; }
 .katpar > div { min-width: 0; }
+.provfor { margin: 0 0 .5rem; font-size: .88rem; color: var(--dim, inherit); }
+.provblock { background: color-mix(in srgb, var(--akt) 18%, transparent); box-decoration-break: clone; -webkit-box-decoration-break: clone; border-radius: 3px; }
 .katpar h4 { margin: 0 0 .35rem; font-size: .9rem; }
 .katpar .logg { max-height: 34rem; }
 .brunnjamfor { margin-top: 1rem; }
@@ -2087,6 +1866,12 @@ nav button.aktiv { background: var(--fg); color: var(--bg); border-color: var(--
 /* EU-ruta */
 .omprojekt { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; margin: 1.2rem 0; padding-top: 1rem; border-top: 1px solid var(--ds-ram); }
 .omprojekt h3 { margin: 0 0 .3rem; font-size: .95rem; }
+.omprojekt p + p { margin-top: .5rem; }
+svg.gh { width: 1em; height: 1em; vertical-align: -.125em; margin-right: .3em; }
+.omprojekt a.ghmarke { display: inline-flex; align-items: center; gap: .55rem; margin-top: .5rem; padding: .55rem 1rem; background: #24292f; color: #fff; border-radius: 6px; font-weight: 650; font-size: 1rem; text-decoration: none; }
+.omprojekt a.ghmarke:hover { background: #000; }
+.omprojekt a.ghmarke:focus-visible { outline: 3px solid var(--fokus); outline-offset: 3px; }
+.omprojekt a.ghmarke svg.gh { width: 1.6rem; height: 1.6rem; margin: 0; }
 .omprojekt p { margin: 0; font-size: .92rem; }
 .euruta { border: 1px solid var(--ds-ram); background: var(--ds-ton); border-radius: 10px; padding: .7rem .9rem; margin: 0; }
 .euruta h3 { margin: 0 0 .3rem; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ds); }
@@ -2184,6 +1969,7 @@ pre { font-family: var(--mono); font-size: 0.82rem; white-space: pre-wrap;
 .res-HAVT, .res-UTGANGET, .res-OKAND, .res-UTESTANGD { color: var(--ned); }
 .res-INSATT { color: var(--upp); }
 .res-VANTANDE, .res-REQUESTED, .res-PÅ, .res-kör { color: var(--vanta); }
+.res-AUTOMATISKT { color: #8a4b00; font-weight: 600; }       /* inte grönt: ett automatiskt beslut är inte ett KoV-godkännande */
 footer { color: var(--dov); font-size: 0.82rem; margin-top: 2rem;
          border-top: 1px solid var(--ram); padding-top: 0.8rem; }
 .rad { display: flex; flex-wrap: wrap; gap: 1rem; align-items: baseline; }
@@ -2279,19 +2065,21 @@ button.kor.sek:hover { background: var(--ds-ton); color: var(--akt-hover); borde
 /* Statusmärken och roller är inte klickbara: platta, fyrkantiga och grå, aldrig rundade med fyllning. */
 .rollchip, .chip { border-radius: 4px; border-color: transparent; background: var(--kod); }
 /* Nästa rimliga åtgärd: märket "Nästa" på knappen (sätts av markeraNasta). */
+/* Märket får plats inom knappen även när kolumnen är smal (1359 px: det stack ut och klipptes): knappen med märke får bryta rad. */
+.knappkort button.kor.nasta, .kovval button.kor.nasta { white-space: normal; text-align: left; }
 button.kor.nasta::after { content: attr(data-nasta); font-size: .7rem; font-weight: 700; background: #fff; color: var(--akt); border-radius: 4px; padding: 0 .4rem; margin-left: .3rem; }
 /* Ordningsraden: numrerade fyrkantiga steg, och en riktig knapp för nästa steg. */
 .ordning button[data-hopp] { border-radius: 6px; background: var(--kod); border: 1px solid var(--ram); padding: .25rem .6rem; }
-.ordning button[data-hopp] .snr { display: inline-block; min-width: 1.4em; text-align: center; background: var(--fg); color: #fff; border-radius: 4px; margin-right: .4rem; }
+.ordning button[data-hopp] .snr { display: inline-block; min-width: 1.25em; text-align: center; background: var(--fg); color: #fff; border-radius: 4px; margin-right: .3rem; }
 /* Etikett och nästa-knapp på en rad, själva stegen på en egen rad under (besökartestet 2026-10-22: allt på en rad bröts i två). */
 .ordning { display: block; }
 .ordningtopp { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; margin-bottom: .45rem; }
-.ordningsteg { display: flex; flex-wrap: nowrap; align-items: flex-end; gap: .2rem; }
-.ordningsteg button { white-space: nowrap; padding: .25rem .5rem; font-size: .84rem; }
-.ordningsteg .pil { flex: none; }
+.ordningsteg { display: flex; flex-wrap: nowrap; align-items: center; gap: .1rem; }      /* center: pilarna ska ligga i chipens höjdmitt, inte vid underkanten */
+.ordningsteg button { white-space: nowrap; padding: .25rem .35rem; font-size: .8rem; }
+.ordningsteg .pil { flex: none; line-height: 1; }
 @media (max-width: 1250px) { .ordningsteg { flex-wrap: wrap; row-gap: .35rem; } }
 @media (max-width: 700px) { .ordning button.nastaknapp, .ordningsteg button { min-height: 32px; } }
-.ordning button.nastaknapp { border: 1px solid var(--akt); background: var(--akt); color: #fff; font-weight: 650; font-size: .84rem; padding: .25rem .8rem; min-height: 0; line-height: normal; border-radius: 6px; margin-left: .7rem; white-space: nowrap; box-shadow: none; }
+.ordning button.nastaknapp { border: 1px solid var(--akt); background: var(--akt); color: #fff; font-weight: 650; font-size: .8rem; padding: .25rem .6rem; min-height: 0; line-height: normal; border-radius: 6px; margin-left: .7rem; white-space: nowrap; box-shadow: none; }
 .ordning button.nastaknapp:hover { background: var(--akt-hover); border-color: var(--akt-hover); }
 .ordning button.nastaknapp:focus-visible { outline: 3px solid var(--fokus); outline-offset: 3px; }
 .ordning button.nastaknapp[hidden] { display: none; }
@@ -2370,10 +2158,18 @@ const sov = ms => new Promise(klar => setTimeout(klar, ms));
 const talFormat = n => Number(n).toLocaleString(SPRAK === 'en' ? 'en-GB' : 'sv-SE');
 
 async function api(sokvag, metod, kropp) {
-  const svar = await fetch(sokvag, {
-    method: metod || 'GET',
-    headers: kropp ? {'content-type': 'application/json', 'x-svada-lang': SPRAK} : {'x-svada-lang': SPRAK},
-    body: kropp ? JSON.stringify(kropp) : undefined});
+  /* Ett nätavbrott (wifi, VPN, dator som vilar) får inte bli ett ohanterat fel: pollningarna hoppar då bara över rundan. Anroparna
+     hanterar redan ok === false; status 0 betyder att inget svar kom alls. (Förr räknades varje misslyckad pollning som ett js_fel i
+     statistiken; provrunda 2026-10-28.) */
+  let svar;
+  try {
+    svar = await fetch(sokvag, {
+      method: metod || 'GET',
+      headers: kropp ? {'content-type': 'application/json', 'x-svada-lang': SPRAK} : {'x-svada-lang': SPRAK},
+      body: kropp ? JSON.stringify(kropp) : undefined});
+  } catch (e) {
+    return {ok: false, status: 0, data: {}};
+  }
   const data = await svar.json().catch(() => ({}));
   return {ok: svar.ok, status: svar.status, data};
 }
@@ -2425,6 +2221,8 @@ const FLIKAR = ['kedjan', 'folj', 'audit', 'suveranitet',
    N, jobb-ID öppnar fliken Jobb med jobbet valt, ordlista-ID öppnar
    ordlistan vid ett begrepp. */
 function visa(namn, historik) {
+  doljNastaHint();   // en bubbla under Nästa-knappen hör till Flödet och får inte följa med till en annan flik
+  introFalls();
   /* historik: 'push' (ett flikbyte, så att webbläsarens Bakåt går tillbaka till föregående flik, M3), 'replace' (samma flik
      eller när adressen redan ändrats av Bakåt/Framåt). Utan värde: push vid byte av flik, annars replace. */
   let steg = null, ordfokus = null, m;
@@ -2465,7 +2263,7 @@ function visa(namn, historik) {
   if (namn === 'folj') laddaFolj();
   if (namn === 'audit') laddaAudit();
   if (namn === 'suveranitet') laddaKov();
-  if (namn === 'felinjektion') laddaFel();
+  if (namn === 'felinjektion') { laddaFel(); laddaScenario(); }
   if (namn === 'jobb') laddaJobb();
   if (namn === 'ordlista') markeraOrd(ordfokus);
   if (ordfokus === 'omdata') $('#omdata').scrollIntoView({block: 'start'});
@@ -2499,7 +2297,7 @@ const L = (sv, en) => SPRAK === 'en' ? en : sv;
 try { if (/(?:^|; )svada-test=1(?:;|$)/.test(document.cookie)) { const tl = document.getElementById('testlage'); if (tl) { tl.hidden = false; tl.textContent = L(' · Testläge: besöket räknas inte i statistiken (avsluta med ?test=0)', ' · Test mode: this visit is not counted in the statistics (end with ?test=0)'); } } } catch (e) {}
 /* Svenska statuskoder är identifierare (CSS-klass, nyckel); bara visningen översätts. Se i18n.py (KODER). */
 const KODER_EN = __KODER__;
-const KODER_SV = {VANTANDE: 'VÄNTANDE', GODKAND: 'GODKÄND', HAVT: 'HÄVT', UTGANGET: 'UTGÅNGET', GALLANDE: 'GÄLLER', OKAND: 'OKÄND', UTESTANGD: 'UTESTÄNGD', PABORJAD: 'PÅBÖRJAD'};
+const KODER_SV = {VANTANDE: 'VÄNTANDE', AUTOMATISKT: 'AUTOMATISKT', GODKAND: 'GODKÄND', HAVT: 'HÄVT', UTGANGET: 'UTGÅNGET', GALLANDE: 'GÄLLER', OKAND: 'OKÄND', UTESTANGD: 'UTESTÄNGD', PABORJAD: 'PÅBÖRJAD'};
 const resKod = c => SPRAK === 'en' ? (KODER_EN[c] || c) : (KODER_SV[c] || c);
 
 function renderaExempel(d) {
@@ -2520,8 +2318,10 @@ async function oppnaExempel(el, nr) {
 
 /* --------------------------------------------- följ ett värde */
 /* Avtalets adress i en grå ruta blir en länk (besökartestet 2026-10-22). Tar redan HTML-escapad text. */
-function lankaAvtal(escHtml) {
-  return escHtml.replace(/(https?:\/\/[^\s"<>&]+\/avtal\/[0-9A-Za-z-]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+function lankaAvtal(escHtml, fran) {
+  /* Länken bär vyns språk och var besökaren kom ifrån, så att avtalssidan visas på rätt språk och Tillbaka går till rätt ställe (steg 5, Följ ett värde …). */
+  const q = '?lang=' + SPRAK + '&amp;fran=' + fran;
+  return escHtml.replace(/(https?:\/\/[^\s"<>&]+\/avtal\/[0-9A-Za-z-]+)/g, '<a href="$1' + q + '" target="_blank" rel="noopener">$1</a>');
 }
 async function laddaFolj() {
   const {ok, data} = await api('/api/folj?lang=' + SPRAK);
@@ -2534,7 +2334,7 @@ async function laddaFolj() {
   $('#foljhopp').innerHTML = data.hopp.map(h => {
     let pre = esc(h.innehall);
     /* markera tråden (avtals-id:t) i nyttoklartexten */
-    pre = lankaAvtal(pre);
+    pre = lankaAvtal(pre, 'folj');
     /* tråden markeras bara utanför länkarna (ett <mark> i en href skulle bryta länken) */
     if (trad) pre = pre.split(/(<a [^>]*>.*?<\/a>)/).map((d, i) => i % 2 ? d : d.split(esc(trad)).join('<mark>' + esc(trad) + '</mark>')).join('');
     const mk = h.markering
@@ -2580,10 +2380,13 @@ async function laddaStatus() {
   $$('button.kor[data-atgard]:not([data-svada])').forEach(b => { b.disabled = !!aktivt || skyddPausNu; });
   jobbAktivtNu = !!aktivt || skyddPausNu;
   if (!aktivt) sattPagar(null); else if (aktivt.atgard) sattPagar(aktivt.atgard);
+  sessionerPa = !!(data.borjaOm || data.sessioner); tillampaLage();
   nastaId = data.nasta || null; markeraNasta();
   if (!aktivt) $$('.upptagetfel').forEach(el => el.remove());
   kovKnappar();
   const faktisktJobb = data.jobbAktivt;          // inte platshållaren från låsfönstret (den saknar etikett och id)
+  const forraAktiva = statusAktivtId; statusAktivtId = faktisktJobb ? faktisktJobb.id : null;
+  if (forraAktiva !== null && statusAktivtId === null && $('section.flik.aktiv#jobb')) laddaJobb();     // jobbet är klart: rita om listan med slutstatusen
   $('#jobbrad').innerHTML = faktisktJobb
     ? (faktisktJobb.status === 'kö' ? fmt(TX.jobbRadKo, {etikett: esc(faktisktJobb.etikett), id: faktisktJobb.id, plats: faktisktJobb.kopos || '…'})
                                     : fmt(TX.jobbRad, {etikett: esc(faktisktJobb.etikett), id: faktisktJobb.id}))
@@ -2600,9 +2403,12 @@ const KOV_KNAPP = {'kov-godkann': 'godkann', 'kov-avsla': 'avsla', 'kov-hav': 'h
 function knapparFor(atgard) {
   return KOV_KNAPP[atgard] ? $$(`button.kor[data-kovbeslut="${KOV_KNAPP[atgard]}"]`) : $$(`button.kor[data-atgard="${atgard}"]:not([data-svada])`);
 }
+let pagandeAtgard = null;   // åtgärden som kör just nu: guideraden står kvar på det steget (servern säger inget "nästa" medan den kör)
 function sattPagar(atgard) {
   $$('button.kor.pagar').forEach(b => { b.classList.remove('pagar'); b.removeAttribute('aria-busy'); });
   if (atgard) knapparFor(atgard).forEach(b => { b.classList.add('pagar'); b.setAttribute('aria-busy', 'true'); });
+  const forut = pagandeAtgard; pagandeAtgard = atgard || null;
+  if (forut !== pagandeAtgard && typeof markeraNasta === 'function') markeraNasta();
 }
 let aktuellaVantande = null;      // id:n som väntar på KoV-beslut enligt senaste läsningen av providerns kö (null = okänt)
 /* F4: en avstängd knapp ska säga varför. Under ett jobb visar knappen som startades en snurra (ingen text); rättvisepausen och orsaken vid KoV-knapparna står som en rad till höger om knappen. */
@@ -2623,6 +2429,7 @@ function kovKnappar() {
        (aria-disabled): ett klick på den visar en kort ruta som förklarar varför, och orsaken står också som mouseover och
        som rad till höger om knappen. */
     const brist = !jobbAktivtNu && !behov;
+    /* Knappens namn är dess synliga text (även under bekräftelsen "Klicka igen …"); orsaken ligger i title, som bara är en beskrivning. */
     b.disabled = jobbAktivtNu;
     const orsakKort = brist ? (b.dataset.kovbeslut === 'hav' ? L('Inget gällande avtal om A att häva.', 'There is no current agreement for A to revoke.')
                                        : L('Ingen förfrågan väntar på beslut.', 'No request is waiting for a decision.')) : '';
@@ -2668,7 +2475,7 @@ async function kor(atgard, argument, val) {
     if (status === 429) hamtaSkydd();
     laddaStatus();                    // låser upp igen om inget jobb kör (annars står knapparna kvar tills jobbet är klart)
     /* 409 (ett jobb kör redan) försvinner av sig själv när jobbet är klart, även i en annan flik (L3). */
-    if (plats) plats.innerHTML = `<p class="felrad${status === 409 ? ' upptagetfel' : ''}">${esc(fmt(TX.jobbFelStart, {fel}))}</p>`;
+    if (plats) plats.innerHTML = `<p class="felrad${status === 409 && data.kod !== 'fel.uppdatering_strax' ? ' upptagetfel' : ''}">${esc(fmt(TX.jobbFelStart, {fel}))}</p>`;
     else lanknotis(fmt(TX.jobbFelStart, {fel}));      // F2: en rad i sidan, aldrig en dialog som låser fliken
     return;
   }
@@ -2690,6 +2497,9 @@ function tillJobblogg() {
 
 /* Jobbstatus och avtalsstatus hålls isär: ett jobb kan vara klart medan
    avtalet väntar. Statusmärket beskriver jobbet. */
+/* Fliken Jobb: ett jobb som statusraden fortfarande räknar som aktivt visas som körande, så att listan och raden "Jobb körs" ändras tillsammans med knapparnas lås. */
+let statusAktivtId = null;
+function jobbSt(j) { const s = loggStatus(j); return (j.id === statusAktivtId && s !== 'ko') ? 'kor' : s; }
 function loggStatus(j) {
   if (j.status === 'kör') return 'kor';
   if (j.status === 'kö') return 'ko';           // i kö bakom en annan besökares jobb (sessioner)
@@ -2729,8 +2539,10 @@ async function uppdateraVantande() {
 /* Nästa rimliga åtgärd: servern säger vilken (data.nasta, besökarens egna jobb); en väntande KoV-förfrågan går före.
    Knappen får märket "Nästa", och ordningsraden en riktig knapp till rätt steg. */
 let nastaId = null;
-const NASTA_IDX = {'kor-batch': 0, 'hamta-katalog': 1, 'forhandla-b': 2, 'transfer-b': 3, 'forhandla-a': 4, 'transfer-a': 5, 'kov-godkann': 4, 'analysera': 6};
+let effSenast = null;   // senaste effektiva nästa åtgärd (inte tom medan ett jobb kör): när den ändras är ett steg i guiden klart
+const NASTA_IDX = {'kor-batch': 0, 'hamta-katalog': 1, 'forhandla-b': 2, 'transfer-b': 3, 'forhandla-a': 4, 'transfer-a': 5, 'kov-godkann': 4, 'ursprung': 6, 'analysera': 7};
 /* Efter Leverera A är sista steget att se analysen (steg 6). Raden pekar dit tills besökaren öppnat steg 6; därefter tar den slut. */
+const ursprungSedd = () => { try { return sessionStorage.getItem('svada-ursprung-sedd') === '1'; } catch (e) { return false; } };
 const analysSedd = () => { try { return sessionStorage.getItem('svada-analys-sedd') === '1'; } catch (e) { return false; } };
 /* En kort ruta intill en knapp som ser avstängd ut: försvinner av sig själv (4 s, längre medan musen eller tangentbordsfokus är i den), vid nästa klick, tangent (Esc stänger bara rutan) eller rullning. */
 let knappTipsTimer = null;
@@ -2757,15 +2569,164 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { knappTipsBort(); e.stopImmediatePropagation(); e.preventDefault(); } else if (e.target.closest('.knapptips')) return; else if (!['Shift', 'Control', 'Alt', 'Meta', 'Tab'].includes(e.key)) knappTipsBort();
 }, true);
 window.addEventListener('scroll', () => { if ($('.knapptips')) knappTipsBort(); }, {passive: true});
-function markeraNasta() {
-  /* Idempotent: en knapp som redan är markerad rörs inte (annars sattes märket om vid varje statusrunda), och en avstängd knapp markeras aldrig (besökartestet 2026-10-22: KoV-knappen blinkade medan den var grå). */
-  const id = (aktuellaVantande && aktuellaVantande.size) ? 'kov-godkann' : nastaId;
+/* ---- Guidad bana (A–H) i raden som följer med: klara delar får bock, nästa del är markerad ---- */
+let guideIdx = -1;
+let sessionerPa = false;      // servern kan nollställa guiden (ny session, eller lokalt det delade tillståndet): då visas Börja om
+function guideChips() { return $$('#ordning .ordningsteg button[data-hopp]:not(.nastaknapp)'); }
+function markeraGuide(id) {
+  guideIdx = (id === 'analysera' && analysSedd()) ? 8 : (id && id in NASTA_IDX ? NASTA_IDX[id] : -1);
+  const remsa = guideChips();
+  remsa.forEach((b, i) => b.classList.toggle('klar', guideIdx >= 0 && i < guideIdx));
+  $$('#stegrad .sg').forEach(b => {
+    const i = +b.dataset.gi;
+    b.classList.toggle('klar', guideIdx >= 0 && i < guideIdx);
+    if (i === guideIdx) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+  });
+  synkaGuideRad();
+}
+/* Raden speglar Nästa-knappen i remsan: samma text, samma mål. */
+function synkaGuideRad() {
+  const nk = $('#nastaknapp'), sn = $('#snasta'), snu = $('#snu');
+  if (!sn || !snu) return;
+  const guide = lage() === 'guide';
+  const nu = $$('#stegrad .sg')[guideIdx];
+  const syns = guide && nk && !nk.hidden && !!nk.textContent;
+  sn.hidden = !syns;
+  if (syns) { sn.textContent = nk.textContent + ' →'; sn.dataset.hopp = nk.dataset.hopp; }
+  snu.hidden = !(guide && nu);
+  if (nu) snu.textContent = TX.guideNuRub + ' ' + nu.textContent + ' · ' + nu.title;
+}
+/* Börja om: två klick (ingen dialog som låser sidan). Första klicket ber om bekräftelse; det andra ger en ny session på servern och laddar om. */
+let bornOmTimer = null;
+async function bornOm(knapp) {
+  if (!knapp.classList.contains('sakert')) {
+    knapp.classList.add('sakert'); knapp.dataset.text = knapp.textContent;
+    knapp.textContent = L('Klicka igen: dina körningar i den här sessionen glöms', 'Click again: your runs in this session are forgotten');
+    const rad = $('#stegrad'); if (rad) rad.classList.add('bornom-fraga');   // raden bryter rad så hela frågan syns (annars hamnar den utanför fönstret)
+    const tillbaka = () => { knapp.classList.remove('sakert'); knapp.textContent = knapp.dataset.text; if (rad) rad.classList.remove('bornom-fraga'); };
+    knapp._tillbaka = tillbaka;
+    clearTimeout(bornOmTimer); bornOmTimer = setTimeout(tillbaka, 6000);
+    return;
+  }
+  clearTimeout(bornOmTimer);
+  const {ok, data} = await api('/api/session/ny', 'POST');
+  if (!ok) { knapp._tillbaka(); lanknotis(data.fel || L('Det gick inte att börja om.', 'Could not start over.')); return; }
+  try { sessionStorage.removeItem('svada-analys-sedd'); sessionStorage.removeItem('svada-ursprung-sedd'); sessionStorage.removeItem('svada-borja'); sessionStorage.setItem('svada-lage', 'flode'); } catch (e) {}
+  effSenast = null;
+  stang();                          // överblicken: ingen öppen panel, adressen #kedjan (annars bär omladdningen med sig det öppna steget)
+  try { sessionStorage.removeItem('svada-borja'); } catch (e) {}   // efter stang(): doljBorja() sätter flaggan, och "Börja här!" ska komma tillbaka
+  location.reload();
+}
+/* "Vad händer här?": en bubbla som visas varje gång ett steg öppnas (tills någon stänger en bubbla) och pekar på texten "Det här händer" under knappen. */
+/* Steg utan knappar (5 och 6) har en följd av tips: "Vad händer här?" och sedan den del av steget man ska titta på. Varje bubbla säger "i av n" och har Nästa tips, som rullar till nästa bubbla. */
+function stegTips(nr) {
+  const p = document.getElementById('steg-' + nr); if (!p) return [];
+  /* Tips 2 i steg 5 pekar på avtalets adress och visas bara när värdet är live (den statiska bilden före första B-leveransen har ingen länk). */
+  if (nr === 5) return [{mal: $('.pgrid', p), text: TX.tipsVad}].concat($('#provvarde a', p) ? [{mal: $('#provvarde', p), text: TX.tips5b}] : []);
+  if (nr === 6) return [{mal: $('.pgrid', p), text: TX.tipsVad}, {mal: $('.analyskontroll', p), text: TX.tips6b}];
+  return [];
+}
+function visaStegTips(nr, i) {
+  doljGorHint();
+  const lista = stegTips(nr).filter(t => t.mal && t.mal.offsetParent);
+  if (bubblorAv() || !lista[i]) return;
+  const b = document.createElement('div'); b.className = 'gorbubbla'; b.id = 'gorbubbla'; b.setAttribute('role', 'note');
+  const t = document.createElement('span'); t.textContent = lista[i].text; b.append(t);
+  if (lista.length > 1) {
+    const r = document.createElement('span'); r.className = 'tipsraknare'; r.textContent = fmt(TX.tipsAv, {i: i + 1, n: lista.length}); b.append(r);
+    if (i + 1 < lista.length) {
+      const n = document.createElement('button'); n.type = 'button'; n.className = 'tipsnasta'; n.textContent = TX.tipsNasta;
+      n.addEventListener('click', () => { visaStegTips(nr, i + 1); const nb = document.getElementById('gorbubbla'); if (nb) nb.scrollIntoView({block: 'center', behavior: lugnt() ? 'auto' : 'smooth'}); });
+      b.append(n);
+    }
+  }
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'borjastang'; x.dataset.gorStang = '1';
+  x.setAttribute('aria-label', TX.gorStang); x.title = TX.gorStang; x.textContent = '✕'; b.append(x);
+  lista[i].mal.before(b);
+}
+function visaGorHint() {
+  doljGorHint();
+  if (bubblorAv()) return;
+  if (valt === 5 || valt === 6) { visaStegTips(valt, 0); return; }
+  /* I guiden pekar bubblan på åtgärden som står på tur (Nästa) när den ligger i det öppna steget; annars på stegets första åtgärdskort. */
   const nk = $('#nastaknapp');
-  if (id && id !== 'analysera') { try { sessionStorage.removeItem('svada-analys-sedd'); } catch (e) {} }      // en ny runda ska peka på analysen igen
+  const kandidater = [];
+  if (lage() === 'guide' && nk && nk.dataset.fokus) kandidater.push($(nk.dataset.fokus));
+  if (valt !== null) { const p = document.getElementById('steg-' + valt); kandidater.push(p && $('.knappkort .kor, .kovval .kor', p)); }
+  let dl = null;
+  for (const k of kandidater) { const kort = k && k.closest('.knappkort, .kovval'); const d = kort && $('dl', kort); if (d && d.offsetParent) { dl = d; break; } }
+  if (!dl) return;
+  const b = document.createElement('div'); b.className = 'gorbubbla'; b.id = 'gorbubbla'; b.setAttribute('role', 'note');
+  const t = document.createElement('span'); t.textContent = (dl.closest('.kovval') ? TX.gorHintKov : TX.gorHint);
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'borjastang'; x.dataset.gorStang = '1';
+  x.setAttribute('aria-label', TX.gorStang); x.title = TX.gorStang; x.textContent = '✕';
+  b.append(t, x); dl.before(b);
+}
+/* Efter ett klart steg i guiden: en bubbla under Nästa-knappen i den klibbiga raden. */
+function visaNastaHint() {
+  doljNastaHint();
+  const sn = $('#snasta'); if (bubblorAv() || lage() !== 'guide' || !sn || sn.hidden) return;
+  const r = sn.getBoundingClientRect();
+  const b = document.createElement('div'); b.className = 'nastabubbla'; b.id = 'nastabubbla'; b.setAttribute('role', 'note');
+  const t = document.createElement('span'); t.textContent = TX.nastaHint;
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'borjastang'; x.dataset.nastaStang = '1';
+  x.setAttribute('aria-label', TX.gorStang); x.title = TX.gorStang; x.textContent = '✕';
+  b.append(t, x); b.style.left = '8px'; document.body.append(b);
+  placeraNastaHint();
+  /* Knappen flyttar sig (raden är klibbig och byter text): bubblan följer med så att pilen alltid pekar på knappens mitt. */
+  requestAnimationFrame(placeraNastaHint); setTimeout(placeraNastaHint, 300); setTimeout(placeraNastaHint, 1200);
+}
+function placeraNastaHint() {
+  const b = document.getElementById('nastabubbla'), sn = $('#snasta');
+  if (!b) return;
+  if (!sn || sn.hidden || !sn.checkVisibility() || lage() !== 'guide') { b.remove(); return; }
+  const r = sn.getBoundingClientRect(), bredd = b.getBoundingClientRect().width;
+  const vanster = Math.max(8, Math.min(r.left, window.innerWidth - bredd - 8));
+  b.style.top = (r.bottom + 12) + 'px'; b.style.left = vanster + 'px';
+  b.style.setProperty('--pil', Math.max(14, Math.min(bredd - 14, r.left + r.width / 2 - vanster)) + 'px');
+}
+addEventListener('scroll', placeraNastaHint, {passive: true}); addEventListener('resize', placeraNastaHint);
+function doljNastaHint() { const b = document.getElementById('nastabubbla'); if (b) b.remove(); }
+function doljGorHint() { const b = document.getElementById('gorbubbla'); if (b) b.remove(); }
+function lage() { let l = null; try { l = sessionStorage.getItem('svada-lage'); } catch (e) {} return l === 'guide' ? 'guide' : 'flode'; }
+function sattLage(l) {
+  doljNastaHint();
+  try { sessionStorage.setItem('svada-lage', l); } catch (e) {}
+  tillampaLage();
+}
+function tillampaLage() {
+  const r = $('#stegrad'); if (!r) return;
+  const l = lage();
+  r.dataset.lage = l;
+  $$('[data-grupp], [data-for]', r).forEach(x => { x.hidden = (x.dataset.grupp || x.dataset.for) !== l; });
+  const st = $('.sstart', r), av = $('.savsluta', r);
+  if (st) st.hidden = l === 'guide';
+  if (av) av.hidden = l !== 'guide';
+  const bo = $('#sbornom'); if (bo) bo.hidden = !(l === 'guide' && sessionerPa);
+  r.setAttribute('aria-label', $('[data-for="' + l + '"]', r).textContent.replace(/:$/, ''));
+  synkaGuideRad();
+}
+function markeraNasta() { markeraNasta0(); synkaGuideRad(); }   /* raden läser Nästa-knappen efter att den uppdaterats */
+function markeraNasta0() {
+  /* Idempotent: en knapp som redan är markerad rörs inte (annars sattes märket om vid varje statusrunda), och en avstängd knapp markeras aldrig (besökartestet 2026-10-22: KoV-knappen blinkade medan den var grå). */
+  let id = (aktuellaVantande && aktuellaVantande.size) ? 'kov-godkann' : nastaId;
+  /* Efter Leverera A kommer först ursprunget (steg 5: villkor, klass och avtal följer med data), sedan analysen. Båda är steg utan knapp. */
+  if (id === 'analysera' && !ursprungSedd() && !analysSedd()) id = 'ursprung';
+  const nk = $('#nastaknapp');
+  /* Medan ett jobb kör flyttar servern "nästa" framåt för B-stegen (åtgärder som pågår hoppas över) och går tillbaka om jobbet faller.
+     Därför spåras ändringen bara när inget jobb kör: bubblan "Klart!" kommer när jobbet är klart OCH något faktiskt gått framåt. */
+  if (id && !jobbAktivtNu) {
+    const forut = effSenast; effSenast = id;
+    if (forut && forut !== id && !(forut === 'ursprung' && id === 'analysera')) setTimeout(() => { if (lage() !== 'guide' || bubblorAv()) return;
+      /* Ligger nästa åtgärd i det öppna steget (KoV-godkännandet) pekar bubblan direkt på den; annars på Nästa-knappen. */
+      if (id === 'kov-godkann' && valt === 3) { visaGorHint(); const g = document.getElementById('gorbubbla'); if (g) g.scrollIntoView({block: 'center', behavior: lugnt() ? 'auto' : 'smooth'}); } else visaNastaHint(); }, 0);
+  }
+  if (id && id !== 'analysera' && id !== 'ursprung') { try { sessionStorage.removeItem('svada-analys-sedd'); sessionStorage.removeItem('svada-ursprung-sedd'); } catch (e) {} }      // en ny runda ska peka på analysen igen
   /* "analysera" är ett steg utan knapp (steg 6): bara ordningsraden pekar dit, och bara tills steg 6 öppnats. */
-  const sel = (id && id in NASTA_IDX && id !== 'analysera') ? (id === 'kov-godkann' ? 'button.kor[data-kovbeslut="godkann"]' : `button.kor[data-atgard="${id}"]`) : null;
+  const sel = (id && id in NASTA_IDX && id !== 'analysera' && id !== 'ursprung') ? (id === 'kov-godkann' ? 'button.kor[data-kovbeslut="godkann"]' : `button.kor[data-atgard="${id}"]`) : null;
   $$('button.kor.nasta').forEach(b => { if (!sel || !b.matches(sel) || ejAktiv(b)) { b.classList.remove('nasta'); b.removeAttribute('data-nasta'); } });
-  const visaAnalys = id === 'analysera' && !analysSedd();
+  const visaAnalys = (id === 'analysera' && !analysSedd()) || id === 'ursprung';
+  markeraGuide(pagandeAtgard && pagandeAtgard in NASTA_IDX ? pagandeAtgard : id);   // medan ett jobb kör står guideraden kvar på det steget, annars ser det ut som om guiden inte är startad
   /* Slutet på raden: efter Leverera A och när steg 6 setts säger raden uttryckligen att kedjan är genomgången (provrunda 2026-10-26). */
   const slut = $('#nastaslut');
   if (slut) { const klar = id === 'analysera' && analysSedd(); slut.hidden = !klar; slut.textContent = klar ? TX.nastaSlut : ''; }
@@ -2774,7 +2735,7 @@ function markeraNasta() {
   const chip = $$('#ordning .ordningsteg button[data-hopp]:not(.nastaknapp)')[NASTA_IDX[id]];
   if (nk && chip) {
     nk.hidden = false;
-    nk.textContent = TX.nastaKnapp + chip.textContent.replace(/^\s*\d+\s*/, '');
+    nk.textContent = TX.nastaKnapp + chip.textContent.replace(/^\s*[A-H]\s*✓?\s*/, '');
     nk.dataset.hopp = chip.dataset.hopp;
     /* Bara en väntande förfrågan skickar till KoV-rutan; annars hamnar besökaren på knappen som ska tryckas (F3). */
     if (id === 'kov-godkann' && chip.dataset.kov) nk.dataset.kov = chip.dataset.kov; else delete nk.dataset.kov;
@@ -2792,30 +2753,40 @@ async function foljJobb(jid, plats) {
   plats.dataset.jid = String(jid);
   senastFoljd = {jid, plats, slut: null};
   plats.innerHTML = `<p class="meta">${esc(TX.jobbStartar)}</p>`;
+  let sista = null;
   for (let forsok = 0; forsok < 400; forsok++) {
     if (!minRuta()) return;
-    const {ok, data} = await api('/api/jobb/' + jid);
+    const {ok, status, data} = await api('/api/jobb/' + jid);
     if (!minRuta()) return;
+    if (!ok && status === 0 && forsok < 399) { await sov(1500); continue; }   // nätavbrott: jobbet kan ha gått klart, fråga igen
     if (!ok) {
       plats.innerHTML = `<p class="felrad">${esc(fmt(TX.jobbSvararInte, {fel: data.fel || ''}))}</p>`;
       return;
     }
-    skrivLoggruta(plats, data);
     if (data.status !== 'kör' && data.status !== 'kö') {
+      /* Rutan får inte säga "klart" medan knappen fortfarande snurrar: slutstatusen skrivs först när kön, avtalen och
+         knapparnas lås lästs om (nedan), så att texten och knappen ändras i samma ögonblick. Tills dess står den senaste
+         körningsvyn kvar. */
       if (senastFoljd && senastFoljd.jid === jid) senastFoljd.slut = Date.now();
       if (data.utfall === 'nekad') handelse('atgard_nekad');
+      sista = data;
       await uppdateraVantande();
       if (!minRuta()) return;
-      skrivLoggruta(plats, data);
       break;
     }
+    skrivLoggruta(plats, data);
     await sov(1500);
   }
   if (!minRuta()) return;
   /* Kön och avtalen läses FÖRST, så att knapparna aldrig hinner vara aktiva mot
      en förhandling som just avgjorts (ett nytt klick skulle då kunna häva avtal). */
   if (valt === 3) await laddaKovRuta();
-  laddaStatus(); laddaDetaljer();
+  if (!minRuta()) return;
+  if (sista) lasTill = 0;               // jobbet är klart: låsfönstret efter klicket får inte hålla snurran kvar
+  await laddaStatus();                  // släpper snurran och låset (om inget annat jobb kör)
+  if (!minRuta()) return;
+  if (sista) skrivLoggruta(plats, sista);
+  laddaDetaljer();
 }
 
 /* ------------------------------------------------------------------ jobb */
@@ -2834,7 +2805,7 @@ function ritaJobb(data) {
   if (valtJobb === null && jobb.length) valtJobb = jobb[0].id;
   $('#jobblista').innerHTML = jobb.map(j =>
     `<tr><td><a href="#jobb-${j.id}">${j.id}</a></td><td>${esc(j.etikett)}</td>
-     <td class="res-${esc((j.utfall === 'nekad' ? 'klar' : j.utfall ? 'AVVISAD' : j.status).toUpperCase())}">${['kor', 'ko'].includes(loggStatus(j)) ? '<span class="snurr" aria-hidden="true"></span>' : ''}${esc(TX[LSTATUS[loggStatus(j)]])}</td>
+     <td class="res-${esc((jobbSt(j) === 'kor' ? 'kör' : j.utfall === 'nekad' ? 'klar' : j.utfall ? 'AVVISAD' : j.status).toUpperCase())}">${['kor', 'ko'].includes(jobbSt(j)) ? '<span class="snurr" aria-hidden="true"></span>' : ''}${esc(TX[LSTATUS[jobbSt(j)]])}</td>
      <td>${esc(j.startad)}</td></tr>`).join('')
     || `<tr><td colspan="4">${L('Inget jobb har körts ännu.', 'No job has run yet.')}</td></tr>`;
   const j = data.jobb.find(x => x.id === valtJobb);
@@ -2842,7 +2813,7 @@ function ritaJobb(data) {
     notisJobb = valtJobb;
     lanknotis(L(`Jobb ${valtJobb} finns inte (längre). Välj ett jobb i listan.`, `Job ${valtJobb} does not exist (any more). Pick a job in the list.`));
   }
-  const pagar = $('#jobbpagar'), arIgang = !!j && ['kor', 'ko'].includes(loggStatus(j));
+  const pagar = $('#jobbpagar'), arIgang = !!j && ['kor', 'ko'].includes(jobbSt(j));
   pagar.innerHTML = arIgang ? `<span class="snurr" aria-hidden="true"></span>${esc(fmt(TX.jobbPagar, {id: j.id, etikett: j.etikett}))}` : '';
   $('#jobblogg').textContent = j
     ? j.rader.map(r => `${r.tid}  ${r.text}`).join('\n')
@@ -2899,6 +2870,7 @@ async function laddaKov() {
   laddaOdrl();
   laddaAvtalLista();
   const [{ok, data}, reg] = await Promise.all([api('/api/kov'), api('/api/avtal')]);
+  if ($('#kovlista') && $('#kovlista').querySelector('button.bekrafta')) return;   // pågår en bekräftelse (Avslå): bygg inte om knappen
   /* DHI:s avtals-id -> status i stadens register, så att hävda avtal inte visas som bara FINALIZED. */
   const hav = {};
   (reg.ok ? reg.data.avtal : []).forEach(a => { if (a.dhiAvtalId && a.status !== 'GALLANDE') hav[a.dhiAvtalId] = a.status === 'UTGANGET' ? L('utgånget', 'expired') : L('hävt', 'revoked'); });
@@ -2919,7 +2891,7 @@ async function laddaKov() {
     <tr><td><code>${esc(f.id)}</code></td>
         <td>${esc(f.assetId)}</td>
         <td>${esc(f.state)}${f.pending ? ' (pending)' : ''}</td>
-        <td class="res-${esc(f.kovBeslut)}">${esc(resKod(f.kovBeslut))}</td>
+        <td class="res-${f.betroddAutomatiskt ? 'AUTOMATISKT' : esc(f.kovBeslut)}">${f.betroddAutomatiskt ? esc(L('AUTOMATISKT: betrodd organisation, ingen KoV-prövning', 'AUTOMATIC: trusted organisation, no KoV review')) : esc(resKod(f.kovBeslut))}</td>
         <td>${f.kovBeslut === 'VANTANDE' ? `
           <button class="kor godkann" data-kov-id="${esc(f.id)}" data-kov-val="godkann">${L('Godkänn', 'Approve')}</button>
           <button class="kor fara" data-kov-id="${esc(f.id)}" data-kov-val="avsla">${L('Avslå', 'Reject')}</button>`
@@ -2932,6 +2904,8 @@ async function laddaAvtalLista() {
   const {ok, data} = await api('/api/avtal');
   const kropp = $('#avtallista');
   if (!kropp) return;
+  /* Pågår en bekräftelse ("Klicka igen för att häva") ska tabellen inte byggas om: den nya knappen skulle sakna fönstret för det andra klicket (besökartestet 2026-11-01). */
+  if (kropp.querySelector('button.bekrafta')) return;
   if (!ok) { kropp.innerHTML = `<tr><td colspan="5">${esc(data.fel || '')}</td></tr>`; return; }
   const namn = {GALLANDE: L('GÄLLER', 'VALID'), HAVT: L('HÄVT', 'REVOKED'), UTGANGET: L('UTGÅNGET', 'EXPIRED'), OKAND: L('OKÄND', 'UNKNOWN')};
   $('#avtalantal').textContent = L(`${data.avtal.length} avtal i stadens register`, `${data.avtal.length} agreements in the city's register`);
@@ -2941,8 +2915,8 @@ async function laddaAvtalLista() {
                               (r.plikter || []).map(x => L('plikt: ', 'duty: ') + x)).join('; ');
     const orsakNamn = {AVSLAG: L('avslag på ny begäran', 'rejection of a new request'), EXPLICIT: L('KoV häver direkt', 'KoV revoked directly')};
     const havning = a.havning ? ` (${esc(orsakNamn[a.havning.orsak] || a.havning.orsak)}, ${esc(String(a.havning.tid || '').slice(0, 19).replace('T', ' '))} UTC)` : '';
-    return `<tr><td><a href="/avtal/${esc(a.id)}?lang=${SPRAK}"><code>${esc(String(a.id).slice(0, 8))}…</code></a></td>
-      <td>${esc(a.distribution)}</td>
+    return `<tr><td><a href="/avtal/${esc(a.id)}?lang=${SPRAK}&fran=suveranitet"><code>${esc(String(a.id).slice(0, 8))}…</code></a></td>
+      <td>${esc(a.distribution)}${a.tillkomst === 'betrodd-organisation' ? ` <b class="res-AUTOMATISKT">(${L('betrodd organisation, ingen KoV-prövning', 'trusted organisation, no KoV review')})</b>` : ''}</td>
       <td class="res-${esc(a.status)}">${esc(namn[a.status] || a.status)}${havning}</td>
       <td>${esc(villkor)}</td>
       <td>${a.distribution === 'A' && a.status === 'GALLANDE' && a.dhiAvtalId
@@ -2978,7 +2952,7 @@ function renderaOdrl(data, rubrik, klass) {
   $('#odrlsvar').innerHTML = `
     <div class="ruta ${klass}">
       <h2>${esc(rubrik)}</h2>
-      <p><b>${L('Dataägare:', 'Data owner:')}</b> ${esc(data.dataRightsHolder)}<br>
+      <p><b>${L('Informationsägare:', 'Information owner:')}</b> ${esc(data.dataRightsHolder)}<br>
          <b>${L('ODRL-villkor i erbjudandet:', 'ODRL terms in the offer:')}</b> ${esc(data.odrlTerms)}</p>
       <ul>${data.motivering.map(m => `<li>${esc(m.text)}</li>`).join('')}</ul>
       <table><tr><th>permission</th><th>prohibition</th><th>obligation</th></tr>
@@ -3018,6 +2992,22 @@ async function laddaFel() {
   hamtaSkydd();
   laddaLeveranser();
 }
+
+/* Avtalsscenariot "betrodd organisation": besökarens eget val. Utpekningen hos providern görs först när hennes egen A-förhandling startar (jobb.py). */
+async function laddaScenario() {
+  const {ok, data} = await api('/api/scenario');
+  const ruta = $('#betroddval'); if (!ok || !ruta) return;
+  ruta.checked = !!data.betrodd;
+  $('#betroddtext').textContent = data.betrodd
+    ? L(`PÅ: din nästa begäran om A skrivs direkt, utan KoV-prövning. Staden pekas ut hos DHI i högst ${data.sek} s, bara under din förhandling, och utpekningen tas bort direkt efteråt.`, `ON: your next request for A is written directly, without a KoV review. The city is designated at DHI for at most ${data.sek} s, only during your negotiation, and the designation is removed right afterwards.`)
+    : L('AV: din begäran om A väntar på KoV:s godkännande (steg 3), som vanligt.', 'OFF: your request for A waits for KoV\'s approval (step 3), as usual.');
+}
+document.addEventListener('change', async e => {
+  if (e.target && e.target.id === 'betroddval') {
+    await api('/api/scenario', 'POST', {betrodd: e.target.checked});
+    laddaScenario();
+  }
+});
 
 async function sattFel(namn, varde) {
   const kropp = {}; kropp[namn] = varde;
@@ -3069,7 +3059,7 @@ let valt = null;
 function laddaPanel(nr) {
   if (nr === 2) laddaOdrlVillkor();
   if (nr === 3) { laddaKovRuta(); laddaSvada(); }
-  if (nr === 5) laddaProv();
+  if (nr === 5) { laddaProv(); try { sessionStorage.setItem('svada-ursprung-sedd', '1'); } catch (e) {} setTimeout(markeraNasta, 0); }
   if (nr === 6) { forvarmaKarta(); laddaAnalys(); try { sessionStorage.setItem('svada-analys-sedd', '1'); } catch (e) {} setTimeout(markeraNasta, 0); }
 }
 /* Steg 6: så snart steget öppnas förbereds kartan: kartbiblioteket laddas (lokalt) och anslutningen till kartplattorna förberedds,
@@ -3084,8 +3074,9 @@ function forvarmaKarta() {
   document.head.appendChild(l);
 }
 
-function oppna(nr, flytta, kovFokus) {
+function oppna(nr, flytta, kovFokus, tillNod) {
   if (!(nr >= 1 && nr <= 6)) return;
+  introFalls();
   if (nr !== valt && harRort) handelse('steg_' + nr);
   valt = nr;
   $$('.panel').forEach(p => { p.hidden = p.id !== 'steg-' + nr; });
@@ -3093,13 +3084,18 @@ function oppna(nr, flytta, kovFokus) {
     String(n.id === 'nod-' + nr || (n.id === 'nod-kov' && nr === 3 && !!kovFokus))));
   placera();
   try { history.replaceState(null, '', '#steg-' + nr); } catch (e) {}
-  try { localStorage.setItem('svada-steg', String(nr)); } catch (e) {}
   uppdateraStegrad();
   laddaPanel(nr);
+  setTimeout(visaGorHint, 0);   // Vad händer här? på varje steg, tills någon stänger en bubbla
   const panel = document.getElementById('steg-' + nr);
   $$('.kovruta').forEach(r => r.classList.toggle('fokus', !!kovFokus));
   if (kovFokus) { const r = $('#kovruta'); if (r) setTimeout(() => r.scrollIntoView({block: 'nearest'}), 50); }
-  else if (flytta) panel.scrollIntoView({behavior: lugnt() ? 'auto' : 'smooth', block: 'start'});
+  else if (flytta) {
+    /* Från remsan "Guidad bana" och Nästa (tillNod): scrolla till stegets nod i bilden, inte till panelen. På bred skärm ligger panelen under hela
+       bilden och på smal direkt under noden, så i båda fallen syns noden överst och panelen strax under. Stegraden och klick i bilden går till panelen. */
+    const mal = (tillNod && document.getElementById('nod-' + nr)) || panel;
+    mal.scrollIntoView({behavior: lugnt() ? 'auto' : 'smooth', block: 'start'});
+  }
 }
 
 /* Bred skärm: panelen ligger under bilden. Smal skärm: direkt under det
@@ -3118,11 +3114,11 @@ function placera() {
 }
 
 function stang() {
+  introFalls();
   const nr = valt; valt = null;
   $$('.panel').forEach(p => { p.hidden = true; });
   $$('.nod').forEach(n => n.setAttribute('aria-expanded', 'false'));
   try { history.replaceState(null, '', '#kedjan'); } catch (e) {}
-  try { localStorage.setItem('svada-steg', 'stangd'); } catch (e) {}
   uppdateraStegrad();
   const nod = nr && document.getElementById('nod-' + nr);
   if (nod) nod.focus();
@@ -3160,9 +3156,10 @@ let bildSynlig = true;
 function uppdateraStegrad() {
   const r = $('#stegrad');
   if (!r) return;
+  if (r.dataset.lage !== lage() || !r.dataset.klar) { tillampaLage(); r.dataset.klar = '1'; }
   const iKedjan = !!$('section#kedjan.aktiv');
-  /* På smal skärm ligger panelerna inne i bilden, så bildens synlighet säger inget: stegraden visas när man scrollat bort från toppen. */
-  r.hidden = !iKedjan || window.scrollY < 120 || (!smal.matches && bildSynlig);
+  /* Miniversionen av banan visas alltid på Flödet: överst under sidhuvudet och sedan klibbigt överst i bild (position: sticky). */
+  r.hidden = !iKedjan;
   $$('[data-steg]', r).forEach(b => {
     if (+b.dataset.steg === valt) b.setAttribute('aria-current', 'step');
     else b.removeAttribute('aria-current');
@@ -3180,6 +3177,7 @@ function markeraRullning() {
 }
 setInterval(markeraRullning, 1500);
 window.addEventListener('resize', markeraRullning);
+window.addEventListener('resize', () => doljNastaHint());
 
 let stegradVantar = false;
 window.addEventListener('scroll', () => {
@@ -3229,14 +3227,16 @@ async function hamtaAterstall() {
   const sim = new URLSearchParams(location.search).get('aterstall');
   if (sim !== null && sim.trim() !== '' && !isNaN(Number(sim))) {
     const nu = Date.now();
+    const upd = new URLSearchParams(location.search).get('typ') === 'uppdatering';    /* ?aterstall=12&typ=uppdatering simulerar en planerad uppdatering */
     aterstallInfo = {nastaUtc: new Date(nu + Number(sim) * 60000).toISOString(), nuUtc: new Date(nu).toISOString(),
-                     klockslag: '04:00', varaktighetMin: 10, simulerad: true};
+                     klockslag: '04:00', varaktighetMin: upd ? 3 : 10, typ: upd ? 'uppdatering' : 'nollstallning', simulerad: true};
     aterstallForskjutning = 0;
     uppdateraAterstall();
     return;
   }
   const {ok, data} = await api('/api/aterstallning');
-  if (!ok || !data || !data.nastaUtc) { aterstallInfo = null; uppdateraAterstall(); return; }
+  if (!ok || !data) return;           /* hämtningen misslyckades, som medan dashboard byggs om: behåll det senast kända läget, så remsan "pågår" ligger kvar */
+  if (!data.nastaUtc) { aterstallInfo = null; uppdateraAterstall(); return; }
   aterstallInfo = data;
   aterstallForskjutning = Date.parse(data.nuUtc) - Date.now();
   uppdateraAterstall();
@@ -3266,6 +3266,15 @@ function oppnaAterstallInfo() {
   if (r.pausS) delar.push([`efter ett jobb väntar du ${r.pausS} s så att andra besökare också hinner före`, `after a job you wait ${r.pausS} s so other visitors get their turn`]);
   const regler = delar.length ? `<li>${esc(L('Några saker städar sig själva under dagen: ' + delar.map(d => d[0]).join(', ') + '.',
     'A few things clean up by themselves during the day: ' + delar.map(d => d[1]).join(', ') + '.'))}</li>` : '';
+  if (aterstallInfo.typ === 'uppdatering') {
+    $('#aterstalldialogrubrik').textContent = L('Varför uppdateras demon?', 'Why is the demo being updated?');
+    $('#aterstalldialogtext').innerHTML = `<p>${esc(L(`Nästa uppdatering är ${nar}.`, `The next update is ${nar}.`))}</p><ul>
+      <li>${esc(L('Demon uppdateras med en ny version. Det tar normalt några sekunder till ett par minuter.', 'The demo is updated to a new version. It normally takes a few seconds to a couple of minutes.'))}</li>
+      <li>${esc(L('Det som händer: pågående körningar avbryts och sidan kan vara otillgänglig en kort stund; ladda om den sedan. Plattformens data finns kvar, men din egen vy kan börja om och du kan behöva starta om det du höll på med. De sista två minuterna före uppdateringen, och medan den pågår, startas inga nya körningar.', 'What happens: runs in progress are cancelled and the page may be unavailable for a short while; reload it afterwards. The platform\'s data stays, but your own view may start over and you may need to restart what you were doing. In the last two minutes before the update, and while it runs, no new runs are started.'))}</li>
+      <li>${esc(L('Inget du gör här påverkar riktig data. Allt är en demo med modellerade värden.', 'Nothing you do here affects real data. Everything is a demo with modelled values.'))}</li></ul>`;
+    $('#aterstalldialog').showModal();
+    return;
+  }
   $('#aterstalldialogrubrik').textContent = L('Varför nollställs demon?', 'Why is the demo reset?');
   $('#aterstalldialogtext').innerHTML = `<p>${esc(L(`Nästa nollställning är ${nar}, och sedan varje natt.`, `The next reset is ${nar}, and then every night.`))}</p><ul>
     <li>${esc(L('Demon är delad: alla besökare ser samma kedja. Därför återställs den varje natt, så att nästa besökare börjar rent.', 'The demo is shared: all visitors see the same chain. It is therefore reset every night so the next visitor starts clean.'))}</li>
@@ -3301,21 +3310,33 @@ function uppdateraAterstall() {
   el.hidden = false;
   el.className = 'aterstall' + (tillstand === 'snart' ? ' snart' : (tillstand === 'nu' || tillstand === 'pagar') ? ' nu' : '') + (tillstand === 'nu' && kvar <= 60000 ? ' sista' : '');
   const kl = aterstallTid(new Date(aterstallInfo.nastaUtc));    // besökarens egen klocka
+  const upd = aterstallInfo.typ === 'uppdatering';              // planerad uppdatering (varselfilen): fasta texter, data finns kvar
+  const infoNamn = upd ? L('Om uppdateringen', 'About the update') : L('Om nollställningen', 'About the reset');
+  info.setAttribute('aria-label', infoNamn); info.setAttribute('title', infoNamn);
+  remsa.classList.toggle('snart', upd && tillstand === 'snart');
   if (pagar) {
-    el.textContent = L('Nollställning pågår', 'Reset in progress');
+    el.textContent = upd ? L('Uppdatering pågår', 'Update in progress') : L('Nollställning pågår', 'Reset in progress');
     remsa.hidden = false;
-    $('#aterstallremsatext').textContent = L('Demon nollställs just nu. Sidan kan vara otillgänglig i upp till tio minuter; ladda om den sedan.',
-      'The demo is being reset right now. The page may be unavailable for up to ten minutes; reload it afterwards.');
+    $('#aterstallremsatext').textContent = upd
+      ? L('Demon uppdateras just nu. Sidan kan vara otillgänglig i upp till tre minuter; ladda om den sedan. Plattformens data finns kvar.',
+          'The demo is being updated right now. The page may be unavailable for up to three minutes; reload it afterwards. The platform\'s data stays.')
+      : L('Demon nollställs just nu. Sidan kan vara otillgänglig i upp till tio minuter; ladda om den sedan.',
+          'The demo is being reset right now. The page may be unavailable for up to ten minutes; reload it afterwards.');
   } else {
     const sim = aterstallInfo.simulerad ? ` <small>(${esc(L('simulering', 'simulation'))})</small>` : '';
+    const verb = upd ? L('Uppdateras', 'Updates') : L('Nollställs', 'Resets');
     el.innerHTML = tillstand === 'nu'
-      ? `${esc(L('Nollställs om', 'Resets in'))} ${esc(aterstallMmss(kvar))}${sim}`      // röd och stor: minuter och sekunder
-      : `<span class="lang">${esc(L('Nollställs', 'Resets'))} ${esc(kl)} · </span>${esc(L('om', 'in'))} ${esc(aterstallRest(min))}${sim}`;
-    el.setAttribute('title', L(`Demon nollställs varje natt klockan ${kl} (din tid). Allt data raderas och du börjar om från steg 1.`,
-      `The demo is reset every night at ${kl} (your time). All data is deleted and you start over from step 1.`));
-    remsa.hidden = tillstand !== 'nu';
+      ? `${esc(upd ? L('Uppdateras om', 'Updates in') : L('Nollställs om', 'Resets in'))} ${esc(aterstallMmss(kvar))}${sim}`      // röd och stor: minuter och sekunder
+      : `<span class="lang">${esc(verb)} ${esc(kl)} · </span>${esc(L('om', 'in'))} ${esc(aterstallRest(min))}${sim}`;
+    el.setAttribute('title', upd
+      ? L(`Demon uppdateras klockan ${kl} (din tid). Pågående körningar avbryts; plattformens data finns kvar.`, `The demo is updated at ${kl} (your time). Runs in progress are cancelled; the platform's data stays.`)
+      : L(`Demon nollställs varje natt klockan ${kl} (din tid). Allt data raderas och du börjar om från steg 1.`,
+          `The demo is reset every night at ${kl} (your time). All data is deleted and you start over from step 1.`));
+    remsa.hidden = !(tillstand === 'nu' || (upd && tillstand === 'snart'));        // en uppdatering kommer med kort varsel: remsan redan vid 15 minuter
     const resten = kvar < 60000 ? L('mindre än en minut', 'less than a minute') : aterstallRest(min);   // 0:28 i raden ska inte stå som "1 min" i bannern
-    if (tillstand === 'nu') $('#aterstallremsatext').textContent = L(`Demon nollställs om ${resten}. Pågående körningar avbryts och allt data raderas; efteråt börjar du om från steg 1.`,
+    if (upd && !remsa.hidden) $('#aterstallremsatext').textContent = L(`Demon uppdateras om ${resten} (kl. ${kl}). Pågående körningar avbryts och du kan behöva börja om; plattformens data finns kvar. ${tillstand === 'nu' ? 'Avsluta det du gör.' : 'De sista två minuterna startas inga nya körningar.'}`,
+      `The demo is updated in ${resten} (at ${kl}). Runs in progress are cancelled and you may need to start over; the platform's data stays. ${tillstand === 'nu' ? 'Finish what you are doing.' : 'In the last two minutes no new runs are started.'}`);
+    else if (tillstand === 'nu') $('#aterstallremsatext').textContent = L(`Demon nollställs om ${resten}. Pågående körningar avbryts och allt data raderas; efteråt börjar du om från steg 1.`,
       `The demo is reset in ${resten}. Runs in progress are cancelled and all data is deleted; afterwards you start over from step 1.`);
   }
   /* En skärmläsare får besked bara när tillståndet ändras, inte varje minut. */
@@ -3331,7 +3352,7 @@ setInterval(uppdateraAterstall, 1000);
 setInterval(tickaSkydd, 1000);
 setInterval(hamtaSkydd, 3000);
 hamtaSkydd();
-setInterval(hamtaAterstall, 600000);
+setInterval(hamtaAterstall, 60000);      /* en minut: ett varsel som sätts med 15 minuters varsel syns inom en minut */
 
 /* ---- KoV-beslutet i steg 3 (K4) ---- */
 async function laddaKovRuta() {
@@ -3552,7 +3573,12 @@ async function visaKartbakgrund() {
     setTimeout(sprid, 150);
     karta.on('zoomend', () => setTimeout(sprid, 50));
     /* Når inga plattor inom några sekunder: ta bort kartan och behåll den schematiska reserven. */
-    setTimeout(() => { if (!plattorOk && osmInstans === karta) { stadaKarta(); rot.hidden = true; } }, 8000);
+    setTimeout(() => {
+      if (plattorOk || osmInstans !== karta) return;
+      stadaKarta(); rot.hidden = true;
+      const n = $('#kartnot');       // säg det: annars ser besökaren bara den schematiska bilden och tror att kartan saknas (långsamt mobilnät, blockerad kartserver)
+      if (n && !n.dataset.reserv) { n.dataset.reserv = '1'; n.textContent += ' ' + L('Kartbakgrunden från OpenStreetMap kunde inte hämtas (nätet kan vara för långsamt eller kartservern blockerad), så den schematiska kartan visas.', 'The OpenStreetMap background could not be fetched (the network may be too slow or the map server blocked), so the schematic map is shown.'); }
+    }, 15000);
   } catch (e) { rot.hidden = true; }
 }
 
@@ -3650,13 +3676,13 @@ async function laddaAnalys(automatisk) {
     }
     ut.innerHTML = `<div class="ruta larm" role="alert"><h4>${L('Distribution A kan inte läsas just nu', 'Distribution A cannot be read right now')}</h4>
       <p>${esc(orsak)}${hav}</p>
-      ${b.avtal ? `<p><a href="/avtal/${esc(b.avtal)}?lang=${SPRAK}">${L('Visa avtalet', 'Show the agreement')}</a></p>` : ''}
+      ${b.avtal ? `<p><a href="/avtal/${esc(b.avtal)}?lang=${SPRAK}&fran=steg-6">${L('Visa avtalet', 'Show the agreement')}</a></p>` : ''}
       <p>${L('Distribution B är öppen och fungerar fortfarande: välj B ovan.', 'Distribution B is open and still works: choose B above.')}</p></div>`;
     return;
   }
   const u = data.ursprung || {}, s = data.sammanfattning || {};
   const avtalId = (data.avtal && data.avtal.id) || u.avtal;
-  st.innerHTML = `${L('Bygger på', 'Based on')}: ${L('distribution', 'distribution')} <b>${esc(u.distribution || data.lage)}</b> (${esc(u.klass || '–')}), batch <code>${esc(u.batch || '–')}</code>, ${L('avtal', 'agreement')} ${avtalId ? `<a href="/avtal/${esc(avtalId)}?lang=${SPRAK}"><code>${esc(String(avtalId).slice(0, 8))}…</code></a>` : '–'} · ${L('demon räknar fram en ny batch var tionde minut, så siffrorna ändras', 'the demo computes a new batch every ten minutes, so the figures change')}`;
+  st.innerHTML = `${L('Bygger på', 'Based on')}: ${L('distribution', 'distribution')} <b>${esc(u.distribution || data.lage)}</b> (${esc(u.klass || '–')}), batch <code>${esc(u.batch || '–')}</code>, ${L('avtal', 'agreement')} ${avtalId ? `<a href="/avtal/${esc(avtalId)}?lang=${SPRAK}&fran=steg-6"><code>${esc(String(avtalId).slice(0, 8))}…</code></a>` : '–'} · ${L('demon räknar fram en ny batch var tionde minut, så siffrorna ändras', 'the demo computes a new batch every ten minutes, so the figures change')}`;
   const antalTopp = Math.max(1, data.topp || 10);
   const visa = data.rader.slice(0, antalTopp);
   const rad = r => `<tr class="${r.inspektera ? 'inspektera' : ''}"><td>${r.rang}</td><td><code>${esc(r.id)}</code>${r.namn ? ' ' + esc(r.namn) : ''}</td>
@@ -3725,7 +3751,7 @@ async function laddaBrunnJamforelse() {
         [L('Mottagare', 'Recipient'), esc(r.recipient || '–')],
         [L('Position (bredd, längd)', 'Position (lat, lon)'), k === 'A' ? `<b>${pos}</b>` : `<i>${pos}</i>`],
         [L('Distribution och klass', 'Distribution and class'), `${esc(r.distribution || k)} (${esc(r.klass || '–')})`],
-        [L('Avtal', 'Agreement'), r.avtal ? `<a href="/avtal/${esc(r.avtal)}?lang=${SPRAK}"><code>${esc(String(r.avtal).slice(0, 8))}…</code></a>` : '–'],
+        [L('Avtal', 'Agreement'), r.avtal ? `<a href="/avtal/${esc(r.avtal)}?lang=${SPRAK}&fran=steg-6"><code>${esc(String(r.avtal).slice(0, 8))}…</code></a>` : L('inte ett avtal du har tecknat (data kan komma från en annan besökares körning)', "not an agreement you made (the data may come from another visitor's run)")],
         ['Batch', `<code>${esc(r.batch || '–')}</code>`]];
       inne = `<table>${rader.map(([a, b]) => `<tr><th scope="row">${a}</th><td>${b}</td></tr>`).join('')}</table>`;
     }
@@ -3754,7 +3780,11 @@ async function laddaOdrlVillkor() {
   if (not) not.textContent = TX.odrlLive;
 }
 
-/* ---- ursprungsmärkningen i steg 5 (K22): ett riktigt värde ur CIP:en ---- */
+/* ---- ursprungsmärkningen i steg 5 (K22): ett riktigt värde ur stadens dataplattform ---- */
+/* Ursprungsmärkningen (provenance) markeras i det visade värdet så att den syns direkt (motsvarar _markera_prov i Python). */
+function provMark(html) {
+  return html.replace(/(\n {2}&quot;provenance&quot;: \{[\s\S]*?\n {2}\}[^\n]*)/, m => '\n<mark class="provblock">' + m.slice(1) + '</mark>');
+}
 async function laddaProv() {
   const pre = $('#provvarde'), avtal = $('#provavtal');
   if (!pre || !avtal) return;
@@ -3763,10 +3793,12 @@ async function laddaProv() {
      exemplen kvar (aldrig ett värde ur distribution A). */
   const {ok, data} = await api('/api/steg/5/ursprung?lang=' + SPRAK);
   if (!ok || !data.varde || !data.avtal) return;
-  pre.innerHTML = lankaAvtal(esc(data.varde));
-  avtal.innerHTML = lankaAvtal(esc(data.avtal));
+  pre.innerHTML = provMark(lankaAvtal(esc(data.varde), 'steg-5'));
+  avtal.innerHTML = lankaAvtal(esc(data.avtal), 'steg-5');
   const not = $('#provstatus');
   if (not) not.textContent = TX.provLive;
+  /* Länken kom efter att första tipset ritats (tips 2 finns bara när värdet är live): rita om tipsen från början, bara om de just visas. */
+  if (valt === 5 && document.getElementById('gorbubbla') && !bubblorAv()) visaStegTips(5, 0);
 }
 
 /* ---- begrepp: tipsrutor vid hover, fokus och tryck (K9) ---- */
@@ -3812,7 +3844,7 @@ function markeraBegrepp(rot) {
 
 /* Första förekomsten per block, så att varje kort och ruta förklarar sina egna ord. */
 function markeraAllt() {
-  $$('.intro, #om .omkol, #om .omdata, .pgrid, .sinnehall p, .odrlintro, .forklaring, .knappkort, .kovruta, .svadaruta, .teknikruta, .anteckning, .ingaknappar, .provruta')
+  $$('.intro, #om .omkol, #om .omdata, .pgrid, .sinnehall p, .odrlintro, .forklaring, .knappkort, .kovruta, .svadaruta, .teknikruta, .anteckning, .ingaknappar, .provruta, .nedladdning .lintro, .nedladdning .linfo, .nedladdning .lhur, .mimruta .mimintro, .mimruta li, .distnyckel, .laslista li, .akta p')
     .forEach(markeraBegrepp);
 }
 
@@ -3930,12 +3962,29 @@ document.addEventListener('click', e => {
 
   const nod = e.target.closest('.nod');
   if (nod) { oppna(nod.id === 'nod-kov' ? 3 : +nod.dataset.steg, true, nod.id === 'nod-kov'); return; }
+  if (e.target.closest('[data-nasta-stang]')) { stangBubblor(); return; }
+  if (e.target.closest('#snasta, #nastaknapp, #stegrad .savsluta, #sbornom')) doljNastaHint();
+  if (e.target.closest('[data-gor-stang]')) { stangBubblor(); return; }
+  if (e.target.closest('button.kor')) doljGorHint();
+  if (e.target.closest('#nastaknapp')) setTimeout(visaGorHint, 0);
+  if (e.target.closest('[data-borja-stang]')) { stangBubblor(); return; }
+  if (e.target.closest('[data-utforska]')) { doljBorja(); sattLage('flode'); const f = $('#rubrik-flode'); if (f) f.scrollIntoView({behavior: lugnt() ? 'auto' : 'smooth', block: 'start'}); return; }
+  if (e.target.closest('[data-start]')) { doljBorja(); sattLage('guide');
+    /* Guiden startar i åtgärden som står på tur (Nästa), annars steg 1: besökaren landar på själva steget, inte på remsan (som då hamnade intill den klibbiga raden). */
+    const nk = $('#nastaknapp');
+    if (nk && !nk.hidden) nk.click(); else oppna(1, true, false, false);
+    return; }
+  if (e.target.closest('[data-avsluta]')) { sattLage('flode'); return; }
+  if (e.target.closest('[data-bornom]')) { bornOm(e.target.closest('[data-bornom]')); return; }
+  if (e.target.closest('#snasta')) { const nk = $('#nastaknapp'); if (nk) nk.click(); return; }
   const hopp = e.target.closest('[data-hopp]');
   if (hopp) {
-    oppna(+hopp.dataset.hopp, true, hopp.dataset.kov === '1');
+    if (hopp.closest('#ordning, #stegrad')) sattLage('guide');   // länkar i stegtexter (KoV-länken, steg 6:s länkar) ändrar inte läget
+    /* Stegknapparna i remsan landar på stegets nod i bilden; "Nästa" landar på själva steget, där något händer (panelen, och sedan knappen som ska tryckas). */
+    oppna(+hopp.dataset.hopp, true, hopp.dataset.kov === '1', hopp.id !== 'nastaknapp');
     /* "Nästa" flyttar fokus till knappen som ska tryckas, så att den syns och går att aktivera med tangentbordet. */
     if (!hopp.dataset.fokus && hopp.id === 'nastaknapp') setTimeout(() => { const p = document.getElementById('steg-' + hopp.dataset.hopp); if (p) { p.tabIndex = -1; p.focus({preventScroll: true}); } }, 250);
-    if (hopp.dataset.fokus) setTimeout(() => { const b = $(hopp.dataset.fokus); if (b && !ejAktiv(b)) { b.scrollIntoView({block: 'center', behavior: lugnt() ? 'auto' : 'smooth'}); b.focus({preventScroll: true}); } }, 250);
+    if (hopp.dataset.fokus) setTimeout(() => { const b = $(hopp.dataset.fokus); if (b && !ejAktiv(b)) { b.scrollIntoView({block: 'nearest', behavior: lugnt() ? 'auto' : 'smooth'}); b.focus({preventScroll: true}); } }, 250);   /* 'nearest': syns knappen redan rör sig sidan inte mer */
     return;
   }
   const hoppid = e.target.closest('[data-hoppid]');
@@ -3999,7 +4048,7 @@ document.addEventListener('mouseover', e => {
   if (t) visaTips(t); else if (e.target.closest('#tips')) clearTimeout(tipsTimer);
 });
 document.addEventListener('mouseout', e => { if (e.target.closest('.term, #tips')) doljTips(); });
-document.addEventListener('focusin', e => { const t = e.target.closest('.term'); if (t) visaTips(t); });
+document.addEventListener('focusin', e => { const t = e.target.closest('.term'); if (t) visaTips(t); else if (!tips.hidden && !e.target.closest('#tips')) doljTips(true); });
 document.addEventListener('focusout', e => {
   if (e.target.closest('.term') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#tips'))) doljTips();
   if (e.target.closest('#tips') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#tips'))) doljTips();
@@ -4044,19 +4093,133 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft' && valt > 1) oppna(valt - 1, false);
 }, true);
 
+/* Välkomstrutan: visas första gången (minnet i webbläsaren), inte vid djuplänk, inte i testläge (kakan svada-test) och inte för styrd webbläsare
+   (navigator.webdriver), så att automatiska prov inte får en ruta framför sig. ?valkomst=1 tvingar fram den; knappen "Om demon" öppnar den igen. */
+/* Introduktionen: öppen första gången, hopfälld vid senare besök (webbläsaren minns), och ett klick öppnar den igen. Testläge och styrd
+   webbläsare får den alltid öppen om inget annat är sparat, så att prov ser samma sida varje gång. */
+/* Visa mer: varje del med egen rubrik (Varför, Begrepp och styrning, Ladda ned, MIM-märken, Det här körs, Mer teknik, ...) öppnas och stängs för sig;
+   "Öppna alla" öppnar alla delar i steget. Standard: hopfällt. Testläge och styrd webbläsare får dem öppna så att prov ser samma sida varje gång
+   (samma regel som introduktionen); ?visamer=0 tvingar hopfällt och ?visamer=1 öppet. En länk till något inuti öppnar delen. */
+function visaMerInit() {
+  const alla = () => $$('details[data-visamer]');
+  const param = (/[?&]visamer=([01])(?:&|$)/.exec(location.search) || [])[1];
+  const test = /(?:^|; )svada-test=1(?:;|$)/.test(document.cookie) || navigator.webdriver === true;
+  const oppna = param === '1' || (param === undefined && test);
+  alla().forEach(d => { d.open = oppna; });
+  const uppdateraKnapp = grupp => {
+    const k = grupp.querySelector('[data-vm-alla]'); if (!k) return;
+    const delar = [...grupp.querySelectorAll('details[data-visamer]')];
+    const allaOppna = delar.length > 0 && delar.every(d => d.open);
+    k.textContent = allaOppna ? k.dataset.stang : k.dataset.oppna;
+    k.setAttribute('aria-pressed', String(allaOppna));
+  };
+  $$('section.visamer').forEach(g => {
+    g.addEventListener('toggle', () => uppdateraKnapp(g), true);
+    uppdateraKnapp(g);
+  });
+  document.addEventListener('click', e => {
+    const k = e.target.closest('[data-vm-alla]'); if (!k) return;
+    const g = k.closest('section.visamer');
+    const delar = [...g.querySelectorAll('details[data-visamer]')];
+    const oppnaNu = !delar.every(d => d.open);
+    delar.forEach(d => { d.open = oppnaNu; });
+    uppdateraKnapp(g);
+  });
+  const tillMal = () => {
+    const id = decodeURIComponent((location.hash || '').slice(1));
+    const m = id && document.getElementById(id);
+    let v = m && m.closest && m.closest('details[data-visamer]');
+    while (v) { if (!v.open) v.open = true; v = v.parentElement && v.parentElement.closest('details[data-visamer]'); }
+  };
+  window.addEventListener('hashchange', tillMal);
+  tillMal();
+}
+/* Introduktionen är utfälld på den första sidan man kommer till (också ett djupt steg, #steg-4, från en länk) och
+   fälls ihop så fort man går vidare: byter steg eller flik, eller stänger steget. Inget sparas mellan besök. */
+let introNavigerat = false;
+function introFalls() {
+  if (!introNavigerat) return;
+  doljBorja();
+  const d = document.getElementById('intro');
+  if (d && d.open) d.open = false;
+}
+/* "Börja här!": visas för en besökare som inte har valt väg i det här besöket; försvinner när man går vidare, väljer väg eller stänger den. */
+function doljBorja() { const b = document.getElementById('borjabubbla'); if (b) b.hidden = true; }   // döljer bara i den här sidvisningen; bubblan kommer tillbaka vid nästa sida tills någon stänger en bubbla (stangBubblor)
+/* Pratbubblorna (Börja här!, Vad händer här?, Klart! Nästa steg) visas på varje sida och steg tills besökaren stänger någon av dem med ✕. Då är alla av, tills Börja om. */
+function bubblorAv() { try { return sessionStorage.getItem('svada-borja') === '1'; } catch (e) { return false; } }
+function stangBubblor() {
+  try { sessionStorage.setItem('svada-borja', '1'); } catch (e) {}
+  doljBorja(); doljGorHint(); doljNastaHint();
+}
+function borjaInit() {
+  const b = document.getElementById('borjabubbla'); if (!b) return;
+  b.hidden = bubblorAv() || lage() === 'guide';
+}
+function introInit() {
+  const d = document.getElementById('intro');
+  if (!d) return;
+  d.open = true;
+  try { localStorage.removeItem('svada-intro'); localStorage.removeItem('svada-steg'); } catch (e) {}
+  introNavigerat = true;
+}
+function valkomstInit(harHash) {
+  const d = document.getElementById('valkomstdialog');
+  if (!d || typeof d.showModal !== 'function') return;
+  /* Språkbyte inifrån rutan laddar om sidan: rutan öppnas då igen på det nya språket (flaggan gäller en omladdning). */
+  let igen = false; try { igen = sessionStorage.getItem('svada-valkomst-igen') === '1'; sessionStorage.removeItem('svada-valkomst-igen'); } catch (e) {}
+  const tvinga = igen || /[?&]valkomst(?:=1)?(?:&|$)/.test(location.search);
+  let sedd = false; try { sedd = localStorage.getItem('svada-valkomst') === '1'; } catch (e) {}
+  const test = /(?:^|; )svada-test=1(?:;|$)/.test(document.cookie) || navigator.webdriver === true;
+  if (tvinga || (!sedd && !test && !harHash)) valkomstOppna();
+}
+function valkomstOppna() {
+  const d = document.getElementById('valkomstdialog');
+  if (!d || d.open) return;
+  try { localStorage.setItem('svada-valkomst', '1'); } catch (e) {}
+  d.showModal();
+}
+/* Loggan: till startsidan, alltså kedjebilden överst utan öppen stegpanel, vilken flik man än är på. Ingen välkomstruta (den öppnas bara vid
+   inläsning utan # i adressen, och här byter vi vy i sidan). Ett klick med Cmd/Ctrl/Skift får länken sköta sig själv (ny flik). */
+function tillStartsidan() {
+  valt = null;
+  $$('.panel').forEach(p => { p.hidden = true; });
+  $$('.nod').forEach(n => n.setAttribute('aria-expanded', 'false'));
+  visa('kedjan', 'push');
+  window.scrollTo({top: 0, behavior: lugnt() ? 'auto' : 'smooth'});
+}
+document.addEventListener('click', e => {
+  const l = e.target.closest('a.loggalank');
+  if (l && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) { e.preventDefault(); tillStartsidan(); }
+});
+document.addEventListener('click', e => {
+  const d = document.getElementById('valkomstdialog');
+  if (!d) return;
+  const sb = e.target.closest('#valkomstdialog .sprak button');
+  if (sb) { if (sb.dataset.lang !== SPRAK) { try { sessionStorage.setItem('svada-valkomst-igen', '1'); } catch (x) {} } return; }
+  if (e.target.closest('[data-valkomst-oppna]')) { valkomstOppna(); return; }
+  if (e.target.closest('[data-valkomst-start]')) {
+    /* Den guidade banan är remsan "Prova i den här ordningen" överst: visa den och lägg fokus på Nästa, så att nästa tryck tar dig till steg 1. */
+    d.close();
+    const rem = document.getElementById('ordning'); if (rem) rem.scrollIntoView({behavior: lugnt() ? 'auto' : 'smooth', block: 'start'});
+    setTimeout(() => { const n = document.getElementById('nastaknapp'); (n && !n.hidden ? n : document.querySelector('#ordning button'))?.focus({preventScroll: true}); }, 300);
+    return;
+  }
+  if (e.target.closest('[data-valkomst-stang]') || e.target === d) d.close();
+});
+
 window.addEventListener('DOMContentLoaded', () => {
   if (synkaSprak()) return;
+  const harHash0 = !!location.hash.slice(1);
   document.body.appendChild(tips);
   markeraAllt();
-  /* Startvy: #steg-N, annars steget som var öppet senast, annars steg 6.
-     Ett uttryckligt #kedjan ger bilden utan öppen panel. */
-  let start = location.hash.slice(1);
-  if (!start) {
-    let sp = null;
-    try { sp = localStorage.getItem('svada-steg'); } catch (e) {}
-    start = sp === 'stangd' ? 'kedjan' : 'steg-' + (+sp >= 1 && +sp <= 6 ? +sp : 3);
-  }
+  /* Startvy: #steg-N (en länk till ett steg), annars överblicken: bilden utan öppen panel, samma vy som loggan leder till.
+     Inget minns vilket steg som var öppet senast, så startsidan är densamma för alla. */
+  const start = location.hash.slice(1) || 'kedjan';
   visa(start);
+  introInit();
+  borjaInit();
+  visaMerInit();
+  valkomstInit(harHash0);
   /* Webbläsaren har redan hoppat till fragmentet innan JS hann köra – rulla
      tillbaka så att sidhuvudet syns. */
   window.scrollTo(0, 0);
@@ -4139,9 +4302,9 @@ def _gamla_flikar(troskel, sprak="sv"):
   <div class="ruta">
     <h2>{S('Auditlogg – hela kedjan i kronologisk ordning', 'Audit log – the whole chain in chronological order')}</h2>
     <p class="text"><b>{S('Det komponenterna kan bevisa efteråt.', 'What the components can prove afterwards.')}</b>
-       {S('Det du själv körde, med raderna från körningen, finns under Jobb.', 'What you ran yourself, with the lines from the run, is under Jobs.')}
+       {S('En auditlogg är en gemensam tidslinje över vad som har hänt i kedjan, så att man i efterhand kan se vem som gjorde vad och när. Den visar vad programmen själva har registrerat, inte bara vad du klickade på. Det du själv körde, med raderna från körningen, finns under Jobb.', 'An audit log is a shared timeline of what has happened in the chain, so that afterwards you can see who did what and when. It shows what the programs themselves have recorded, not just what you clicked. What you ran yourself, with the lines from the run, is under Jobs.')}
        <button class="kor sek" onclick="visa('jobb')">{S('Till jobben', 'To the jobs')}</button></p>
-    <p class="text">{S('Ingen komponent äger loggen. Den sammanställs ur stadens connector (förhandlingar och leveranser), DHI:s KoV-kö, mottagningens kvitton och avvisningar och hävda avtal, och kompletteras med kontrollrummets egna knapptryck.', 'No component owns the log. It is compiled from the city’s connector (negotiations and deliveries), DHI’s KoV queue, the intake’s receipts and rejections and revoked agreements, and complemented with the control room’s own button presses.')}</p>
+    <p class="text">{S('Ingen komponent äger loggen. Den sammanställs ur stadens connector (förhandlingar och leveranser), DHI:s KoV-kö (begäranden som väntar på informationsägarens svar), mottagningens kvitton och avvisningar (bekräftelser och nej från stadens mottagning) och hävda avtal, och kompletteras med kontrollrummets egna knapptryck.', 'No component owns the log. It is compiled from the city’s connector (negotiations and deliveries), DHI’s KoV queue (requests waiting for the information owner’s answer), the intake’s receipts and rejections (confirmations and refusals from the city’s intake) and revoked agreements, and complemented with the control room’s own button presses.')}</p>
     <p class="meta" id="auditsammanfattning"></p>
     <p class="meta" id="auditkedja"></p>
     <label>{S('Filtrera på steg:', 'Filter by step:')}
@@ -4161,13 +4324,13 @@ def _gamla_flikar(troskel, sprak="sv"):
 
 <section id="suveranitet" class="flik">
   <div class="ruta">
-    <h2>{S('KoV-godkännande – dataägarens beslut', 'KoV approval – the data owner’s decision')}</h2>
+    <h2>{S('KoV-godkännande – informationsägarens beslut', 'KoV approval – the information owner’s decision')}</h2>
     <p class="text">{S('Knapparna går till <b>DHI:s</b> connector', 'The buttons go to <b>DHI’s</b> connector')}<span id="kovapirad" hidden> (<code id="kovapi"></code>)</span>.
-       {S('Spärren sitter hos den som lämnar ut data. Stadens connector har ingen sådan funktion alls, så det finns ingen bakväg att klicka på.', 'The barrier sits with the party releasing the data. The city’s connector has no such function at all, so there is no back door to click.')}</p>
+       {S('KoV (Kretslopp och Vatten) är informationsägare och avgör om staden får hämta den skyddade distributionen A. Spärren sitter hos den som håller data, alltså DHI. Stadens connector har ingen sådan funktion alls, så det finns ingen bakväg att klicka på.', 'KoV (Kretslopp och Vatten) is the information owner and decides whether the city may fetch the protected distribution A. The barrier sits with the party that holds the data, that is DHI. The city’s connector has no such function at all, so there is no back door to click.')}</p>
     <div class="roll-banner">
-      <p class="text">{S('<b>Här agerar du KoV.</b> I steget Förhandla A (i kedjevyn) är du en tekniker som startar en förhandling. När du klickar Godkänn eller Avslå (knapparna visas bredvid en väntande förhandling) byter du roll: du fattar det beslut som i verkligheten hör hemma hos Kretslopp och Vatten, inte hos den som driver kedjan. Kontrollrummet ska alltid visa VEM som agerar, så att rollerna aldrig glider ihop till en enda anonym operatör.', '<b>Here you act as KoV.</b> In the Negotiate A step (in the chain view) you are an engineer starting a negotiation. When you click Approve or Reject (the buttons appear next to a waiting negotiation) you change role: you make the decision that in reality belongs to Kretslopp och Vatten, not to whoever runs the chain. The control room must always show WHO is acting, so that the roles never blur into one anonymous operator.')}</p>
+      <p class="text">{S('<b>Här agerar du KoV.</b> I steget Förhandla A (i kedjevyn) är du en tekniker som startar en förhandling. När du klickar Godkänn eller Avslå (knapparna visas bredvid en väntande förhandling) byter du roll: du fattar det beslut som i verkligheten hör hemma hos Kretslopp och Vatten som informationsägare, inte hos den som driver kedjan. Kontrollrummet ska alltid visa VEM som agerar, så att rollerna aldrig glider ihop till en enda anonym operatör.', '<b>Here you act as KoV.</b> In the Negotiate A step (in the chain view) you are an engineer starting a negotiation. When you click Approve or Reject (the buttons appear next to a waiting negotiation) you change role: you make the decision that in reality belongs to Kretslopp och Vatten as the information owner, not to whoever runs the chain. The control room must always show WHO is acting, so that the roles never blur into one anonymous operator.')}</p>
     </div>
-    <p class="text">{S('När du kör Förhandla A väntar jobbet högst 25 sekunder (oftast 3–8) och läser sedan av providerns kö. Det är inte en tidsfrist för beslutet, utan tid för förhandlingen att hinna fram och registreras som väntande. Görs inget beslut händer inget dramatiskt: jobbet blir klart och förhandlingen ligger kvar i kön tills någon godkänner eller avslår den, om fem sekunder eller nästa dag. När du godkänner eller avslår väntar jobbet upp till 60 sekunder på att stadens förhandling får sitt avtal, så du behöver inte köra Förhandla A igen.', 'When you run Negotiate A the job waits up to 25 seconds (usually 3–8) and then reads the provider’s queue. That is not a deadline for the decision, but time for the negotiation to arrive and be registered as waiting. If no decision is made nothing dramatic happens: the job completes and the negotiation stays in the queue until someone approves or rejects it, in five seconds or the next day. When you approve or reject, the job waits up to 60 seconds for the city’s negotiation to get its agreement, so you do not need to run Negotiate A again.')}</p>
+    <p class="text">{S('När du kör Förhandla A väntar jobbet högst 25 sekunder (oftast 3–8) och läser sedan av DHI:s kö (DHI är providern, den som håller data). Det är inte en tidsfrist för beslutet, utan tid för förhandlingen att hinna fram och registreras som väntande. Görs inget beslut händer inget dramatiskt: jobbet blir klart och förhandlingen ligger kvar i kön tills någon godkänner eller avslår den, om fem sekunder eller nästa dag. När du godkänner eller avslår väntar jobbet upp till 60 sekunder på att stadens förhandling får sitt avtal, så du behöver inte köra Förhandla A igen.', 'When you run Negotiate A the job waits up to 25 seconds (usually 3–8) and then reads DHI’s queue (DHI is the provider, the party that holds the data). That is not a deadline for the decision, but time for the negotiation to arrive and be registered as waiting. If no decision is made nothing dramatic happens: the job completes and the negotiation stays in the queue until someone approves or rejects it, in five seconds or the next day. When you approve or reject, the job waits up to 60 seconds for the city’s negotiation to get its agreement, so you do not need to run Negotiate A again.')}</p>
     <div class="framtid">
       <p><b>{S('I framtiden', 'In the future')}</b> – {S('DHI:s spärr kräver redan i dag ett kryptografiskt verifierat KoV-rollintyg innan ett godkännande eller avslag accepteras, och kontrollrummet hämtar intyget åt dig. Det som återstår är själva automatiseringen: i dag klickar en människa (du, som KoV). Om den som startar en förhandling i stället själv bar ett verifierat KoV-intyg skulle spärren kunna godkänna automatiskt. Knapparna blir då en manuell reservväg. Ändringen ligger i spärrens policy, inte i var beslutet fattas eller i identitetskontrollen, som redan finns.', 'DHI’s barrier already requires a cryptographically verified KoV role credential before an approval or rejection is accepted, and the control room fetches the credential for you. What remains is the automation itself: today a human (you, as KoV) clicks. If the party starting a negotiation itself carried a verified KoV credential, the barrier could approve automatically. The buttons would then become a manual fallback. The change lies in the barrier’s policy, not in where the decision is made or in the identity check, which already exists.')}</p>
     </div>
@@ -4193,8 +4356,12 @@ def _gamla_flikar(troskel, sprak="sv"):
 
 <section id="felinjektion" class="flik">
   <div class="ruta">
+    <h2>{S('Scenarier: prova vad som händer när förutsättningarna ändras', 'Scenarios: try what happens when the conditions change')}</h2>
+    <p class="text">{S('Ett scenario är ett sätt att medvetet ändra förutsättningarna för att se hur kedjan reagerar. Det är inte så demon beter sig annars. Här ändrar du förutsättningarna för din egen körning av kedjan. Två scenarier finns: <b>fel i data</b> (felinjektion) och ett <b>annat sätt att ingå avtal</b> (betrodd organisation). I den delade varianten med besökarsessioner är båda dina egna val: de gäller bara dina egna körningar och påverkar ingen annan besökare. Utan sessioner (lokal körning) är de gemensamma.', 'A scenario is a way of deliberately changing the conditions to see how the chain reacts. It is not how the demo otherwise behaves. Here you change the conditions for your own run of the chain. There are two scenarios: <b>faults in the data</b> (fault injection) and <b>another way of making agreements</b> (trusted organisation). In the shared variant with visitor sessions both are your own choices: they apply only to your own runs and affect no other visitor. Without sessions (a local run) they are shared.')}</p>
+  </div>
+  <div class="ruta">
     <h2>{S('Felinjektion i modellen – och vad mottagningen gör med den', 'Fault injection in the model – and what the intake does with it')}</h2>
-    <p class="text">{S('Lägena manipulerar dataprodukten <b>tyst</b>: nyttolasten bär ingen flagga om att den är felaktig. Stadens mottagning ska upptäcka det själv: schemadrift och saknade parametrar mot avtalet, och framför allt <code>gis_i_b</code>, som är ett rent avtalsbrott: brunnarnas position tillbaka i den distribution som är öppna data.', 'The modes tamper with the data product <b>silently</b>: the payload carries no flag saying it is faulty. The city’s intake must detect it on its own: schema drift and missing parameters against the agreement, and above all <code>gis_i_b</code>, which is a plain breach of the agreement: chamber positions back in the distribution that is open data.')}</p>
+    <p class="text">{S('Felinjektion betyder att vi medvetet lägger in fel i modellens data för att se om stadens mottagning upptäcker dem. Lägena manipulerar dataprodukten <b>tyst</b>: nyttolasten (själva data som skickas) bär ingen flagga om att den är felaktig. Stadens mottagning ska upptäcka det själv: schemadrift (data har fått en annan form än avtalet säger) och saknade parametrar mot avtalet, och framför allt <code>gis_i_b</code>, som är ett rent avtalsbrott: brunnarnas position (GIS, koordinaterna) tillbaka i den distribution som är öppna data. Koordinaterna är det som skyddar A, så de får aldrig finnas i B.', 'Fault injection means we deliberately put faults into the model’s data to see whether the city’s intake catches them. The modes tamper with the data product <b>silently</b>: the payload (the data that is sent) carries no flag saying it is faulty. The city’s intake must detect it on its own: schema drift (the data has a different shape than the agreement says) and missing parameters against the agreement, and above all <code>gis_i_b</code>, which is a plain breach of the agreement: chamber positions (GIS, the coordinates) back in the distribution that is open data. The coordinates are what protect A, so they must never be in B.')}</p>
     <p class="meta" id="felomfattning"></p>
     <div id="felreglage" data-stabil></div>
     <p id="felstatus"></p>
@@ -4212,6 +4379,11 @@ def _gamla_flikar(troskel, sprak="sv"):
     <table><tr><th>{S('Tid', 'Time')}</th><th>{S('Resultat', 'Result')}</th><th>{S('Detalj', 'Detail')}</th></tr>
       <tbody id="felresultat" data-stabil></tbody></table>
   </div>
+  <div class="ruta" id="betroddruta">
+    <h2>{S('Avtalsscenario: betrodd organisation', 'Agreement scenario: trusted organisation')}</h2>
+    <p class="text">{S('Normalt väntar en begäran om distribution A på KoV:s godkännande hos DHI. Här simulerar du att KoV, som informationsägare, i förväg har pekat ut <b>staden som betrodd organisation</b>, alltså sagt på förhand att staden får hämta A utan att svaret avgörs varje gång: DHI:s connector skriver då avtalet direkt, utan att vänta. Avgörandet ligger kvar hos <b>providern</b> (DHI), och avtalet märks <i>betrodd organisation, ingen KoV-prövning</i> i auditloggen och på avtalssidan, så att det aldrig kan förväxlas med ett godkännande. Det här är en simulering av en annan styrningsmodell, inte så Svada fungerar i dag.', 'Normally a request for distribution A waits for KoV’s approval at DHI. Here you simulate that KoV, as the information owner, has designated <b>the city as a trusted organisation</b> in advance, that is, has said beforehand that the city may fetch A without a decision each time: DHI’s connector then writes the agreement directly, without waiting. The decision still lies with the <b>provider</b> (DHI), and the agreement is marked <i>trusted organisation, no KoV review</i> in the audit log and on the agreement page, so it can never be mistaken for an approval. This is a simulation of another governance model, not how Svada works today.')}</p>
+    <label class="reglage"><input type="checkbox" id="betroddval" aria-label="{S('Staden är betrodd organisation: avtal om A skrivs direkt', 'The city is a trusted organisation: agreements for A are written directly')}"> <b>{S('Staden är betrodd organisation', 'The city is a trusted organisation')}</b> – <span id="betroddtext"></span></label>
+  </div>
 </section>
 
 <section id="jobb" class="flik">
@@ -4219,11 +4391,11 @@ def _gamla_flikar(troskel, sprak="sv"):
     <button class="kor sek" onclick="tillbakaFranJobb()">{S('← Tillbaka', '← Back')}</button>
     <h2>{S('Jobb – körda steg', 'Jobs – steps that have run')}</h2>
     <p class="text"><b>{S('Jobb och auditlogg är inte samma sak.', 'Jobs and the audit log are not the same thing.')}</b>
-       {S('Ett jobb är <b>det du körde</b>: ett knapptryck och raderna som körningen skrev medan den pågick. Auditloggen är <b>det komponenterna kan bevisa efteråt</b>: förhandlingar, avtal, kvitton och avvisningar hämtade ur connectorerna och mottagningen, i kronologisk ordning och hash-kedjade.', 'A job is <b>what you ran</b>: one button press and the lines the run wrote while it was going. The audit log is <b>what the components can prove afterwards</b>: negotiations, agreements, receipts and rejections fetched from the connectors and the intake, in chronological order and hash-chained.')}
+       {S('Ett jobb är <b>det du körde</b>: ett knapptryck och raderna som körningen skrev medan den pågick. Auditloggen är <b>det komponenterna kan bevisa efteråt</b>: förhandlingar, avtal, kvitton och avvisningar hämtade ur connectorerna och mottagningen, i kronologisk ordning och hash-kedjade (varje rad bär ett fingeravtryck av raden före, så att en ändrad rad i efterhand syns).', 'A job is <b>what you ran</b>: one button press and the lines the run wrote while it was going. The audit log is <b>what the components can prove afterwards</b>: negotiations, agreements, receipts and rejections fetched from the connectors and the intake, in chronological order and hash-chained (each row carries a fingerprint of the row before it, so a row changed afterwards shows).')}
        <button class="kor sek" onclick="visa('audit')">{S('Till auditloggen', 'To the audit log')}</button></p>
     <p class="meta">{S('Ett jobb i taget: kedjan körs i följd, annars blir utfallet obegripligt för den som tittar. Tillbaka stänger den här vyn och för dig till fliken du kom ifrån, kvar där du var.', 'One job at a time: the chain runs in sequence, otherwise the outcome becomes incomprehensible to the viewer. Back closes this view and takes you to the tab you came from, where you were.')}</p>
     <div class="roll-banner">
-      <p class="text">{S('<b>Ett kört jobb är inte samma sak som ett beslut.</b> Förhandla distribution A startar bara förhandlingen. Den ligger sedan och väntar tills någon agerar <b>KoV</b> och godkänner eller avslår den. Det gör du inte här, utan i kedjevyn (steg 3) eller i fliken', '<b>A job that has run is not the same as a decision.</b> Negotiate distribution A only starts the negotiation. It then waits until someone acts as <b>KoV</b> and approves or rejects it. You do not do that here, but in the chain view (step 3) or in the')}
+      <p class="text">{S('<b>Ett kört jobb är inte samma sak som ett beslut.</b> Förhandla distribution A startar bara förhandlingen. Den ligger sedan och väntar tills någon agerar <b>KoV</b> (informationsägaren) och godkänner eller avslår den. Det gör du inte här, utan i kedjevyn (steg 3) eller i fliken', '<b>A job that has run is not the same as a decision.</b> Negotiate distribution A only starts the negotiation. It then waits until someone acts as <b>KoV</b> (the information owner) and approves or rejects it. You do not do that here, but in the chain view (step 3) or in the')}
          <button class="kor sek" onclick="visa('suveranitet')">{S('Suveränitet', 'Sovereignty')}</button>{S('', ' tab')}.</p>
     <p class="text">{S('<b>Vad "klar" betyder.</b> <b>Förhandla distribution B</b> blir ett avtal direkt: B förhandlas fram automatiskt, så när jobbet är klart är avtalet tecknat och gäller (se Avtal). <b>Förhandla distribution A</b> är klart när förhandlingen är startad; avtalet finns först efter KoV:s godkännande, och tills dess står statusen "väntar på KoV".', '<b>What "done" means.</b> <b>Negotiate distribution B</b> turns into an agreement straight away: B is negotiated automatically, so when the job is done the agreement is made and valid (see Agreements). <b>Negotiate distribution A</b> is done when the negotiation has started; the agreement exists only after KoV approves, and until then the status says "waiting for KoV".')}</p>
     </div>
@@ -4243,8 +4415,41 @@ def e(text):
 
 
 def fet(text):
-    """Escapar text och gör **fet** till <b>. Stegtexterna i steg.py skrivs så."""
-    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", e(text))
+    """Escapar text och gör **fet** till <b> och {{namn}} till <span class="namn">. Stegtexterna i steg.py skrivs så.
+    {{…}} markerar NAMNET på en sak (dataprodukten, ett system), så att den som läser ser att det är ett namn och inte löptext.
+    Citattecknen och vikten sätts av CSS (språkets egna citattecken), så texten i steg.py är densamma på alla ställen."""
+    return re.sub(r"\{\{(.+?)\}\}", r'<span class="namn">\1</span>', re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", e(text)))
+
+
+def _las(rubrik_html, innehall):
+    """En hopfälld del med egen rubrik (<details>). data-visamer: startläget styrs av visaMerInit (hopfälld, öppen i testläge)."""
+    return ('<details class="lasmer" data-visamer><summary>%s</summary><div class="lasinnehall">%s</div></details>'
+            % (rubrik_html, innehall))
+
+
+def _las_html(html):
+    """Gör en färdig ruta med egen <h3> till en hopfälld del: rubriken blir summary, resten innehållet (rubriken ska inte stå två gånger)."""
+    m = re.search(r"<h3>(.*?)</h3>", html, re.S)
+    if not m:
+        return html
+    return _las(m.group(1), html.replace(m.group(0), "", 1))
+
+
+def stegtext(text):
+    """Som fet(), men radbrytningar ger stycken och rader som börjar med "- " blir en punktlista (<ul>)."""
+    ut, lista = [], []
+    def stang():
+        if lista:
+            ut.append("<ul>%s</ul>" % "".join("<li>%s</li>" % fet(x) for x in lista)); lista.clear()
+    for rad in text.split("\n"):
+        if rad.startswith("- "):
+            lista.append(rad[2:])
+        else:
+            stang()
+            if rad.strip():
+                ut.append("<p>%s</p>" % fet(rad))
+    stang()
+    return "".join(ut)
 
 
 def _mall(mall, **varden):
@@ -4267,7 +4472,8 @@ _FLIKINDEX = {"folj": 1, "suveranitet": 3, "felinjektion": 4}
 _FLIKORDNING = ("kedjan", "folj", "audit", "suveranitet",
                 "felinjektion", "jobb", "om", "ordlista")
 # "Prova i den här ordningen": vilket steg varje knapp i remsan hoppar till
-_ORDNING_HOPP = (1, 2, 3, 4, 3, 4, 6)
+_ORDNING_HOPP = (1, 2, 3, 4, 3, 4, 5, 6)
+_GUIDEBOKSTAV = "ABCDEFGH"      # guidens delar heter A–H; siffrorna 1–6 är flödets steg
 
 # Nycklar i TEXTER som webbläsarens JavaScript behöver
 _JS_NYCKLAR = (
@@ -4275,7 +4481,7 @@ _JS_NYCKLAR = (
     "jobbFelStart", "jobbSvararInte", "loggRub", "tidigare1", "tidigareN",
     "helaLogg", "klar", "vantar", "avvisad", "ingetavtal", "fel", "nekad", "kovVantar", "kovInget", "kovFel",
     "kovAvtal", "kovAvtalN", "kovIngetAvtal", "kovIngetStart", "avtalFel", "odrlLive", "odrlStatisk", "provLive", "kunde", "kovVantarN", "svarar", "tidUtc",
-    "statusNamn", "nasta", "nastaKnapp", "nastaSlut")
+    "statusNamn", "nasta", "nastaKnapp", "nastaSlut", "guideStegI", "guideNuRub", "gorHint", "gorStang", "nastaHint", "gorHintKov", "tipsNasta", "tipsAv", "tipsVad", "tips5b", "tips6b")
 
 
 def _antal_teknik(steg):
@@ -4305,8 +4511,9 @@ def _sidlank(flik, t, text=None):
 
 
 def _rollchip(roll, t):
-    return ('<span class="rollchip %s">%s: <b>%s</b></span>'
-            % (e(roll), e(t["agerarSom"]), e(t["roll"][roll])))
+    forkl = t["rollForkl"].get(roll, "")
+    return ('<span class="rollchip %s">%s: <b>%s</b>%s</span>'
+            % (e(roll), e(t["agerarSom"]), e(t["roll"][roll]), (", " + e(forkl)) if forkl else ""))
 
 
 # ---------------------------------------------------------------------------
@@ -4328,7 +4535,7 @@ def _sidhuvud(t, sprak):
 <header>
   <div class="krtopp">
     <div class="krvanster">
-      <img class="logga" src="{LOGGA_DATAURI}" alt="SVADA – Svenska vattendatalabbet" width="194" height="240">
+      <a class="loggalank" href="/?lang={sprak}#kedjan" aria-label="{S('SVADA – Svenska vattendatalabbet: till startsidan', 'SVADA – Swedish Water Data Lab: to the start page')}"><img class="logga" src="{LOGGA_DATAURI}" alt="SVADA – Svenska vattendatalabbet" width="194" height="240"></a>
       <div>
         <h1>{e(t['h1'])}</h1>
         <p class="underrubrik">{e(t['under'])} <span id="sammanfattning">{e(t['hamtar'])}</span></p>
@@ -4336,6 +4543,7 @@ def _sidhuvud(t, sprak):
     </div>
     <div class="krhoger">
       <div class="sprak" role="group" aria-label="Språk / Language">{sprakknappar}</div>
+      <p class="mimmenyrad">{mim.menylank(sprak)}</p>
       <div class="aterstallrad">
         <p class="aterstall" id="aterstall" hidden></p>
         <button type="button" class="aterstallinfo" id="aterstallinfo" hidden aria-haspopup="dialog"
@@ -4359,30 +4567,130 @@ def _sidhuvud(t, sprak):
 </header>"""
 
 
-def _intro(t, antal):
+_VALKOMST = {
+    "sv": {
+        "rub": "Välkommen till ett dataspace för vattendata",
+        "p1": "Det här är ett dataspace för vattendata, byggt som en teknisk proof of concept: från mätning i en bräddbrunn till en tjänst som använder data, i sex steg. "
+              "Det som gör det till ett dataspace är att parterna delar data på avtal och villkor, utan gemensam databas, och att villkoren följer med de data som delas. Kedjan körs på riktigt, med riktiga mjukvaror och protokoll. Vattendata är modellerad och delvis syntetisk, och det som är förenklat eller simulerat säger vi öppet i stegen.",
+        "tips": "Tips: låt demon guida dig. Tryck på knappen Nästa under Guidad bana, så går du igenom hela kedjan ett steg i taget.",
+        "bpnamn": "DSSC Blueprint v3.0",
+        "bpin": "Vi utgår från DSSC Blueprint v3.0 och dess grundtekniker. Så här visar demon dem, på riktigt:",
+        "bp1": "<b>Dataspace Protocol (DSP):</b> parterna hittar katalogen, förhandlar avtal och startar överföringen (steg 2–4).",
+        "bp2": "<b>ODRL:</b> villkoren i avtalet, till exempel att Distribution A kräver KoV:s godkännande och inte får spridas (steg 3). Villkoren följer med de data som delas och syns i leveransen (steg 5).",
+        "bp3": "<b>Verifierbara intyg och DCP:</b> varje part bevisar vem den är med intyg som den andra parten kontrollerar (steg 2–4).",
+        "bp4": "<b>Connector:</b> Eclipse EDC hos både DHI och staden sköter protokollen åt sina parter: katalog, avtal och överföring (steg 2–4).",
+        "bp5": "<b>DCAT-AP:</b> EU:s gemensamma standard för att beskriva datamängder i kataloger. I demon beskrivs dataprodukten i DCAT i den form Dataspace Protocol använder (steg 2); den fullständiga profilen DCAT-AP används inte i demon.",
+        "mimin": "Vi bedömer oss också mot OASC:s MIM:ar (version 9.0). Märkena är vår egen bedömning, inte en certifiering. Klicka på ett MIM för att se vad vi gör och vad som fattas.",
+        "bockrub": "Vad betyder bockarna?",
+        "ordforkl": "Orange bock betyder att vi följer MIM:en men att något fattas, främst för att detta är en teknisk PoC och till exempel saknar styrning (governance), avtalsmallar och regelverk. MIM7 har inga numrerade krav att bedöma mot, så vi redovisar vad vi gör.",
+        "start": "Starta den guidade banan", "sjalv": "Utforska själv", "stang": "Stäng", "oppna": "Om demon",
+        "ok": "Grön bock: följs", "delvis": "Orange bock: följs med förbehåll",
+        "ny": "öppnas i ny flik", "mimlista": "Bedömning mot MIM:ar", "mimlank": "Läs mer om MIM:arna (OASC)",
+    },
+    "en": {
+        "rub": "Welcome to a data space for water data",
+        "p1": "This is a data space for water data, built as a technical proof of concept: from a measurement in an overflow chamber to a service that uses the data, in six steps. "
+              "What makes it a data space is that the parties share data under agreements and terms, without a common database, and that the terms travel with the data that is shared. The chain runs for real, with real software and protocols. The water data is modelled and partly synthetic, and what is simplified or simulated is stated openly in the steps.",
+        "tips": "Tip: let the demo guide you. Press the Next button under Guided path to go through the whole chain one step at a time.",
+        "bpnamn": "DSSC Blueprint v3.0",
+        "bpin": "We take DSSC Blueprint v3.0 and its core technologies as our starting point. This is how the demo shows them, for real:",
+        "bp1": "<b>Dataspace Protocol (DSP):</b> the parties find the catalogue, negotiate an agreement and start the transfer (steps 2–4).",
+        "bp2": "<b>ODRL:</b> the terms of the agreement, for example that Distribution A needs KoV's approval and must not be distributed (step 3). The terms travel with the data that is shared and show in the delivery (step 5).",
+        "bp3": "<b>Verifiable credentials and DCP:</b> each party proves who it is with credentials that the other party checks (steps 2–4).",
+        "bp4": "<b>Connector:</b> Eclipse EDC at both DHI and the City handles the protocols for its party: catalogue, agreement and transfer (steps 2–4).",
+        "bp5": "<b>DCAT-AP:</b> the EU's common standard for describing datasets in catalogues. In the demo the data product is described in DCAT in the form the Dataspace Protocol uses (step 2); the full DCAT-AP profile is not used in the demo.",
+        "mimin": "We also assess ourselves against OASC's MIMs (version 9.0). The badges are our own assessment, not a certification. Click a MIM to see what we do and what is missing.",
+        "bockrub": "What do the ticks mean?",
+        "ordforkl": "An orange tick means we follow the MIM but something is missing, mainly because this is a technical PoC and, for example, lacks governance, contract templates and regulation. MIM7 has no numbered requirements to assess against, so we state what we do.",
+        "start": "Start the guided path", "sjalv": "Explore on my own", "stang": "Close", "oppna": "About the demo",
+        "ok": "Green tick: followed", "delvis": "Orange tick: followed with reservations",
+        "ny": "opens in a new tab", "mimlista": "Assessment against the MIMs", "mimlank": "Read more about the MIMs (OASC)",
+    },
+}
+_VALKOMST_MIM = ("MIM0", "MIM1", "MIM2", "MIM3", "MIM6", "MIM7")
+
+
+def _valkomst(sprak):
+    """Rutan som visas första gången någon kommer in. Först Blueprint och dess grundtekniker, sedan märkena för MIM:arna. Märkena följer mim.MIM:
+    grön bock där nivån är ok, orange (ring) där något fattas; bockarnas förklaring ligger bakom ett klick. Inget märke säger mer än bedömningen."""
+    v = _VALKOMST[sprak]
+    marken = []
+    for nyckel in _VALKOMST_MIM:
+        kort, n_sv, n_en, _vs, _ve, _sida, _ss, _se, niva = mim.MIM[nyckel]
+        namn = n_sv if sprak == "sv" else n_en
+        status = _ss if sprak == "sv" else _se          # MIM-sidans egen statusrad: den säger det som är sant för just den MIM:en
+        marken.append(f'<li><a class="vmerke {niva}" href="/mim?lang={sprak}" title="{e(status)}"><span class="vikon" aria-hidden="true">✓</span>'
+                      f'<span><b>{e(kort)}</b> {e(namn)}<span class="vsr"> – {e(status)}</span></span></a></li>')
+    tekniker = "".join(f"<li>{v[k]}</li>" for k in ("bp1", "bp2", "bp3", "bp4", "bp5"))
+    sprakknappar = "".join(
+        '<button type="button" data-lang="%s" aria-pressed="%s">%s</button>'
+        % (sp, "true" if sp == sprak else "false", sp.upper()) for sp in SPRAK)
     return f"""
-  <div class="intro">
+  <dialog class="jobb valkomst" id="valkomstdialog" aria-labelledby="valkomstrubrik">
+    <div class="jhuvud"><h2 id="valkomstrubrik">{e(v['rub'])}</h2>
+      <div class="sprak" role="group" aria-label="Språk / Language">{sprakknappar}</div>
+      <button type="button" data-valkomst-stang>{e(v['stang'])}</button></div>
+    <div class="jkropp">
+      <p>{e(v['p1'])}</p>
+      <section class="vblueprint" aria-labelledby="vbprub">
+        <h3 id="vbprub"><span class="vikon bp" aria-hidden="true">◆</span>
+          <a href="https://blueprint.dssc.eu" target="_blank" rel="noopener noreferrer">{e(v['bpnamn'])}</a> <small>({e(v['ny'])})</small></h3>
+        <p>{e(v['bpin'])}</p>
+        <ul class="vtekniker">{tekniker}</ul>
+      </section>
+      <p class="vtips">{e(v['tips'])}</p>
+      <p>{e(v['mimin'])}</p>
+      <ul class="vmarken" aria-label="{e(v['mimlista'])}">{''.join(marken)}</ul>
+      <details class="vbockar"><summary>{e(v['bockrub'])}</summary>
+        <p><span class="vikon ok" aria-hidden="true">✓</span> {e(v['ok'])}. <span class="vikon delvis" aria-hidden="true">✓</span> {e(v['delvis'])}.</p>
+        <p>{e(v['ordforkl'])}</p></details>
+      <p class="vforklaring"><a href="https://mims.oascities.org/" target="_blank" rel="noopener noreferrer">{e(v['mimlank'])}</a> ({e(v['ny'])})</p>
+      <div class="vknappar">
+        <button type="button" class="primar" data-valkomst-start>{e(v['start'])}</button>
+        <button type="button" data-valkomst-stang>{e(v['sjalv'])}</button>
+      </div>
+    </div>
+  </dialog>"""
+
+
+def _intro(t, antal, sprak):
+    return f"""
+  <details class="intro" id="intro" open>
+    <summary><span class="introrub">{e(t['introH'])}</span>
+      <span class="introknapp"><span class="iv">{e(t['introVisa'])}</span><span class="id">{e(t['introDolj'])}</span></span></summary>
     <div class="ingress">
-      <h2>{e(t['introH'])}</h2>
-      <p>{e(t['ingress'])}</p>
+      <p>{e(t['ingress'])} {e(t['ingressProj'])} <a href="https://vattendatalabbet.se/" target="_blank" rel="noopener">{e(t['ingressLank'])}</a>.</p>
       <ul class="fakta">
         <li><span class="fikon f-ds">◆</span><span>{t['fakta1']}</span></li>
         <li><span class="fikon f-akta">✓</span><span>{_mall(t['faktaAkta'], a=antal['akta'], f=antal['forenklad'], r=antal['simulerad'])}</span></li>
         <li><span class="fikon f-gps">⌖</span><span>{t['fakta3']}</span></li>
       </ul>
-      <button type="button" class="omlank" data-flik="om">{e(t['omLank'])} →</button>
+      <button type="button" class="omlank" data-flik="om">{e(t['omLank'])} →</button><button type="button" class="omlank valkomstlank" data-valkomst-oppna>{e(_VALKOMST[sprak]['oppna'])}</button>
     </div>
-  </div>"""
+  </details>"""
+
+
+def _vagval(t):
+    """Två vägar in: guiden (huvudvalet, med en flytande "Börja här!"-bubbla) och att utforska flödet själv."""
+    return ('<section class="vagval" id="vagval" aria-labelledby="vagval-rub"><h2 class="vagvalrub" id="vagval-rub">%s</h2>'
+            '<div class="vagvalkort">'
+            '<div class="vagvalval stor"><div class="borjabubbla" id="borjabubbla" role="note" hidden><span>%s</span>'
+            '<button type="button" class="borjastang" data-borja-stang="1" aria-label="%s">✕</button></div>'
+            '<button type="button" class="vagknapp" data-start="1">%s</button><p>%s</p></div>'
+            '<div class="vagvalval"><button type="button" class="vagknapp" data-utforska="1">%s</button><p>%s</p></div>'
+            '</div></section>'
+            % (e(t["vagvalRub"]), e(t["borjaHar"]), e(t["borjaStang"]), e(t["vagvalGuide"]), e(t["vagvalGuideText"]),
+               e(t["vagvalFritt"]), e(t["vagvalFrittText"])))
 
 
 def _ordningsremsa(t):
-    knappar = ['<button type="button" data-hopp="%d"%s><span class="snr">%d</span>%s</button>'
-               % (hopp, ' data-kov="1"' if i == 4 else "", hopp, e(namn))
+    knappar = ['<button type="button" data-hopp="%d"%s title="%s"><span class="snr">%s</span>%s</button>'
+               % (hopp, ' data-kov="1"' if i == 4 else "", e(t["guideStegI"].format(n=hopp)), _GUIDEBOKSTAV[i], e(namn))
                for i, (hopp, namn) in enumerate(zip(_ORDNING_HOPP, t["ordning"]))]
-    return ('<div class="ordning" id="ordning"><div class="ordningtopp"><span class="etikett">%s</span></div>'
+    return ('<div class="ordning" id="ordning"><h2 class="sektionrub" id="rubrik-bana">%s</h2><div class="ordningtopp"><span class="etikett">%s</span></div>'
             '<div class="ordningsteg">%s<button type="button" class="nastaknapp" id="nastaknapp" hidden></button>'
             '<span class="nastaslut" id="nastaslut" role="status" hidden></span></div></div>'
-            % (e(t["ordningEtikett"]), '<span class="pil">→</span>'.join(knappar)))
+            % (e(t["banaRub"]), e(t["ordningEtikett"]), '<span class="pil">→</span>'.join(knappar)))
 
 
 # ---------------------------------------------------------------------------
@@ -4460,6 +4768,7 @@ def _bild(steg, t, sprak):
 
 
 def _stegrad(steg, t, sprak):
+    """Raden som följer med vid scroll. Två lägen med eget namn: Flödet (steg 1–6, systemet) och Guidad bana (A–H, berättelsen)."""
     knappar = "".join(
         '<button type="button" class="s-%s" data-steg="%d" title="%s" aria-label="%d. %s">'
         '<span class="si" aria-hidden="true">%s</span>%d</button>'
@@ -4467,10 +4776,22 @@ def _stegrad(steg, t, sprak):
            e(stegmodul.text(s["pedagogik"]["titel"], sprak).replace("­", "")),
            s["nr"], e(stegmodul.text(s["pedagogik"]["titel"], sprak).replace("­", "")),
            _KAT[s["pedagogik"]["kategori"]][1], s["nr"]) for s in steg)
-    return ('<nav class="stegrad" id="stegrad" aria-label="%s" hidden>'
-            '<span class="srub">%s</span>%s'
+    guide = "".join(
+        '<button type="button" class="sg" data-hopp="%d"%s data-gi="%d" title="%s" aria-label="%s %s, %s">%s</button>'
+        % (hopp, ' data-kov="1"' if i == 4 else "", i, e(namn + " · " + t["guideStegI"].format(n=hopp)),
+           _GUIDEBOKSTAV[i], e(namn), e(t["guideStegI"].format(n=hopp)), _GUIDEBOKSTAV[i])
+        for i, (hopp, namn) in enumerate(zip(_ORDNING_HOPP, t["ordning"])))
+    return ('<nav class="stegrad" id="stegrad" data-lage="flode" aria-label="%s" hidden>'
+            '<span class="srub" data-for="flode">%s</span><span class="sgrupp" data-grupp="flode">%s</span>'
+            '<span class="srub" data-for="guide" hidden>%s</span><span class="sgrupp" data-grupp="guide" hidden>%s</span>'
+            '<span class="snu" id="snu" aria-live="polite" hidden></span>'
+            '<button type="button" class="snasta" id="snasta" hidden></button>'
+            '<button type="button" class="sstart" data-start="1">%s</button>'
+            '<button type="button" class="savsluta" data-avsluta="1" hidden>%s</button>'
+            '<button type="button" class="sbornom" id="sbornom" data-bornom="1" hidden>%s</button>'
             '<button type="button" class="upp" data-upp="1">%s</button></nav>'
-            % (e(t["stegradRub"]), e(t["stegradRub"]), knappar, e(t["tillBilden"])))
+            % (e(t["stegradRub"]), e(t["stegradRub"]), knappar, e(t["guideRub"]), guide,
+               e(t["guideStart"]), e(t["guideAvsluta"]), e(t["guideOm"]), e(t["tillBilden"])))
 
 
 # ---------------------------------------------------------------------------
@@ -4511,7 +4832,7 @@ def _kovruta(kovknappar, t, sprak):
           </div>""" for aid, k in kovknappar)
     return f"""
         <div class="kovruta" id="kovruta" data-id="">
-          <div class="kovtopp"><span class="rollchip kov">{e(t['agerarSom'])}: <b>{e(t['roll']['kov'])}</b></span></div>
+          <div class="kovtopp">{_rollchip('kov', t)}</div>
           <h4>{e(t['kovRub'])}</h4>
           <p class="kovintro">{e(t['kovIntro'])}</p>
           <p class="kovko"><span class="vantar" id="kovprick"></span><span id="kovstatus">{e(t['ladda'])}</span></p>
@@ -4653,11 +4974,17 @@ def _analysruta(t, sprak):
     </div>"""
 
 
+def _markera_prov(html):
+    """Markerar ursprungsmärkningen (provenance) i det utskrivna värdet så att den syns direkt (motsvarar provMark i JS)."""
+    return re.sub(r'(\n {2}&quot;provenance&quot;: \{[\s\S]*?\n {2}\}[^\n]*)',
+                  lambda m: '\n<mark class="provblock">' + m.group(1)[1:] + '</mark>', html, count=1)
+
+
 def _provruta(t, sprak="sv"):
     o = t["prov"]
     return (f'<div class="sehur provruta"><h3>{e(o["rub"])}</h3><p>{e(o["intro"])}</p>'
-            f'<div class="katpar"><div><h4>{e(o["v1"])}</h4><pre class="logg" id="provvarde">{e(_EX_PROV)}</pre></div>'
-            f'<div><h4>{e(o["v2"])}</h4><pre class="logg" id="provavtal">{e(_ex_sprak(_EX_AVTAL, sprak))}</pre></div></div>'
+            f'<div class="katpar"><div><h4>{e(o["v1"])}</h4><p class="provfor">{e(o["v1t"])}</p><pre class="logg" id="provvarde">{_markera_prov(e(_EX_PROV))}</pre></div>'
+            f'<div><h4>{e(o["v2"])}</h4><p class="provfor">{e(o["v2t"])}</p><pre class="logg" id="provavtal">{e(_ex_sprak(_EX_AVTAL, sprak))}</pre></div></div>'
             f'<p class="anteckning" id="provstatus">{e(o["not"])}</p></div>')
 
 
@@ -4694,7 +5021,7 @@ def _teknikdetaljer(s, komponenter, t, sprak, variant):
         if blue:
             intern = ('<p class="anteckning"><b>Relation till målarkitekturen.</b> %s</p>' % e(blue))
     return f"""
-    <details class="teknik">
+    <details class="teknik" data-visamer>
       <summary>{e(tt['mer'])}</summary>
       <div class="tgrid">
         <div>{'' if variant == 'extern' else f"<p><b>{e(tt['kompEtikett'])}</b> <code>{e(ped['komponenter'])}</code></p>"}
@@ -4724,16 +5051,26 @@ def _panel(s, steg, komponenter, t, sprak, variant, utestangning=True):
                  if ped.get("byggblock") else "")
     styrning = ('<div class="styrning"><b>%s</b> %s</div>' % (e(t["styrning"]), e(stegmodul.text(ped["styrning"], sprak)))
                 if ped.get("styrning") else "")
+    # Fördjupningen av dataspace-idén (begrepp i DSSC, styrbeslut) ligger direkt under idén, hopfälld.
+    ds_mer = _las(e(t['lasMerDs']), byggblock + styrning) if (byggblock or styrning) else ""
+    varfor_mer = _las(e(t['varfor']), '<p>%s</p>' % fet(stegmodul.text(ped['varfor'], sprak)))
     sehanda = ""
-    extra_ruta = ""
+    extra_ruta = ""          # det centrala för steget: syns alltid
+    mer_delar = []           # det som fördjupar: varje del har egen rubrik och är hopfälld under "Visa mer om steget"
     if nr == 2:
-        extra_ruta = _odrlruta(t) + _sehur(t, sprak)
+        extra_ruta = _odrlruta(t)
+        mer_delar.append(_las_html(_sehur(t, sprak)))
     if nr == 5:
         extra_ruta = _provruta(t, sprak)
     if nr == 3:
-        extra_ruta = _svadaruta(t, sprak, utestangning)
+        mer_delar.append(_las(e(t['samordnaren']), _svadaruta(t, sprak, utestangning)))
     if nr == 6:
         extra_ruta = _analysruta(t, sprak)
+    mer_delar += [_las_html(nedladdning.ruta(nr, sprak)), _las_html(mim.ruta(nr, sprak)), _las_html(_teknikruta(s, t, sprak)),
+                  _teknikdetaljer(s, komponenter, t, sprak, variant)]
+    mer_ruta = ('<section class="visamer" aria-labelledby="vm-{nr}"><div class="vmtopp"><h3 id="vm-{nr}">{rub}</h3>'
+                '<button type="button" class="kor sek vmalla" data-vm-alla data-oppna="{oppna}" data-stang="{stang}">{oppna}</button></div>{delar}</section>'
+                ).format(nr=nr, rub=e(t['visaMer']), oppna=e(t['oppnaAlla']), stang=e(t['stangAlla']), delar="".join(mer_delar))
     extra_text = ("<p class=\"anteckning\">%s</p>" % e(stegmodul.text(ped["extra"], sprak))
                   if ped.get("extra") else "")
     return f"""
@@ -4752,22 +5089,20 @@ def _panel(s, steg, komponenter, t, sprak, variant, utestangning=True):
     </div>
     <div class="pgrid">
       <div>
-        <h3>{e(t['vad'])}</h3><p>{fet(stegmodul.text(ped['vad'], sprak))}</p>
-        <h3>{e(t['varfor'])}</h3><p>{fet(stegmodul.text(ped['varfor'], sprak))}</p>
+        <h3>{e(t['vad'])}</h3>{stegtext(stegmodul.text(ped['vad'], sprak))}
+        {varfor_mer}
       </div>
       <div class="hogerkol">
         <div class="dsruta {kk}">
           <h3>{e(t['dsH'][kk])}</h3>
           <p>{fet(stegmodul.text(ped['dataspace'], sprak))}</p>
-          {byggblock}
-          {styrning}
+          {ds_mer}
         </div>
         {sehanda}
       </div>
     </div>
     {extra_ruta}
-    {_teknikruta(s, t, sprak)}
-    {_teknikdetaljer(s, komponenter, t, sprak, variant)}
+    {mer_ruta}
     <div class="pnav">
       <button type="button" data-steg="{foreg['nr'] if foreg else nr}"{'' if foreg else ' disabled'}>← {e(namn(foreg)) if foreg else ''}</button>
       {f'<button type="button" data-steg="{nasta["nr"]}">{e(namn(nasta))} →</button>' if nasta else ''}
@@ -4796,7 +5131,8 @@ def _omsida(t, antal):
     <div class="omprojekt" id="omprojekt">
       <div><h3>{e(t['omProjH'])}</h3><p>{t['omProj']}</p></div>
       <div><h3>{e(t['omBpH'])}</h3><p>{t['omBp']}</p></div>
-      <div><h3>{e(t['omKredH'])}</h3><p>{e(t['omKred'])}</p></div>
+      <div id="omkallkod"><h3>{e(t['omKredH'])}</h3><p>{t['omKred']}</p><p>{t['omKod']}</p></div>
+      <div><h3>{e(t['omAIH'])}</h3><p>{e(t['omAI'])}</p></div>
     </div>
     <div class="omdata" id="omdata">
       <h2>{e(t['omdataH'])}</h2>
@@ -4823,8 +5159,10 @@ def _ordlistesida(sprak):
     for o in sorted(ORDLISTA, key=nyckel):
         lank = ""
         if o.get("lank"):
-            lank = (' <a class="lasmer" href="%s" target="_blank" rel="noopener">%s ↗</a>'
-                    % (e(o["lank"]), "Läs mer" if sprak == "sv" else "Read more"))
+            lank = (' <a class="lasmer" href="%s" target="_blank" rel="noopener" aria-label="%s: %s (%s)">%s ↗</a>'
+                    % (e(o["lank"]), "Läs mer" if sprak == "sv" else "Read more", e(o[sprak]["term"]),
+                       "öppnas i ny flik, extern sida" if sprak == "sv" else "opens in a new tab, external site",
+                       "Läs mer" if sprak == "sv" else "Read more"))
         rader.append('<div id="ordlista-%s"><dt>%s</dt><dd>%s%s</dd></div>'
                      % (e(o["id"]), e(o[sprak]["term"]), e(o[sprak]["def"]), lank))
     return f"""
@@ -4833,6 +5171,7 @@ def _ordlistesida(sprak):
     <h2>{e(ot['rub'])}</h2>
     <p class="ordintro">{e(ot['intro'])}</p>
     <dl class="ordlista">{"".join(rader)}</dl>
+    {nedladdning.ruta(0, sprak)}
   </div>
 </section>"""
 
@@ -4892,13 +5231,16 @@ def sida(steg, komponenter, portar, vard, troskel, publika=None,
               .replace("__VARIANT__", variant))
 
     kropp = f"""
-{_stegrad(steg, t, sprak)}
 {_sidhuvud(t, sprak)}
+{_valkomst(sprak)}
 <main>
 
 <section id="kedjan" class="flik aktiv">
-  {_intro(t, antal)}
+  {_stegrad(steg, t, sprak)}
+  {_intro(t, antal, sprak)}
+  {_vagval(t)}
   {_ordningsremsa(t)}
+  <h2 class="sektionrub" id="rubrik-flode">{e(t['flodeRub'])}</h2>
   {_bild(steg, t, sprak)}
   <div id="paneler">{panelerna}</div>
   {_ingangar(portar, vard, publika, t, sprak, variant)}
@@ -4908,7 +5250,7 @@ def sida(steg, komponenter, portar, vard, troskel, publika=None,
 {_ordlistesida(sprak)}
 
 <footer>
-  <p>{e(t['sidfot1'])} <a href="/statistik?lang={sprak}">{'Statistik' if sprak == 'sv' else 'Statistics'}</a> · <a href="/nyheter?lang={sprak}">{'Version' if sprak == 'sv' else 'Version'} <span id="demoversion">{e(DEMO_VERSION)}</span></a>{'' if variant == 'extern' else ' API: <a href="/api/status">/api/status</a> · <a href="/api/steg">/api/steg</a> · <a href="/api/audit">/api/audit</a> · <a href="/api/analys">/api/analys</a> · <a href="/api/kov">/api/kov</a> · <a href="/health">/health</a>'}</p>
+  <p>{e(t['sidfot1'])} <a href="/statistik?lang={sprak}">{'Statistik' if sprak == 'sv' else 'Statistics'}</a> · <a href="{KALLKOD_URL}" target="_blank" rel="noopener" aria-label="{'Källkod på GitHub (öppnas i ny flik, extern sida)' if sprak == 'sv' else 'Source code on GitHub (opens in a new tab, external site)'}">{GITHUB_IKON}{'Källkod' if sprak == 'sv' else 'Source code'} ↗</a> · <a href="https://vattendatalabbet.se/" target="_blank" rel="noopener">{'Vattendatalabbet (SVADA)' if sprak == 'sv' else 'Swedish Water Data Lab (SVADA)'} ↗</a> · <a href="/nyheter?lang={sprak}">{'Version' if sprak == 'sv' else 'Version'} <span id="demoversion">{e(DEMO_VERSION)}</span></a>{'' if variant == 'extern' else ' API: <a href="/api/status">/api/status</a> · <a href="/api/steg">/api/steg</a> · <a href="/api/audit">/api/audit</a> · <a href="/api/analys">/api/analys</a> · <a href="/api/kov">/api/kov</a> · <a href="/health">/health</a>'}</p>
   <p>{e(t['sidfot2'])} <span id="testlage" hidden></span></p>
 </footer>
 </main>"""
@@ -4916,8 +5258,8 @@ def sida(steg, komponenter, portar, vard, troskel, publika=None,
     sidan = (f"<!doctype html><html lang=\"{sprak}\"><head><meta charset=\"utf-8\">"
              "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
              f"<title>{e(t['h1'])}</title>"
-             f"<style>{STIL}:root{{--rullhint:'{'↔ scroll sideways' if sprak == 'en' else '↔ dra i sidled'}'}}</style></head><body>{kropp}"
-             f"<script>{skript}</script></body></html>")
+             f"<style>{STIL}{nedladdning.CSS}:root{{--rullhint:'{'↔ scroll sideways' if sprak == 'en' else '↔ dra i sidled'}'}}</style></head><body>{kropp}"
+             f"<script>{skript}{nedladdning.SKRIPT}</script></body></html>")
     # Externa varianten: inga containernamn eller interna värdnamn i did:web på sidan (hård regel 4).
     return rensa.utan_containernamn(sidan) if variant == "extern" else sidan
 

@@ -3,10 +3,10 @@ message: "Om du använder Svada-mini, citera det här arbetet. / If you use Svad
 title: "Svada-mini: a local demonstration of a data space for water and wastewater data"
 type: software
 authors:
-  - family-names: "Hagström"
-    given-names: "Björn"
   - family-names: "Fjellman"
     given-names: "Niklas"
+  - family-names: "Hagström"
+    given-names: "Björn"
 license: Apache-2.0
 repository-code: "https://github.com/GoteborgsStad/svada"
 url: "https://vattendatalabbet.se"
@@ -21,4 +21,4 @@ keywords:
   - ODRL
   - FIWARE
   - water and wastewater
-date-released: "2026-10-27"
+date-released: "2026-11-12"

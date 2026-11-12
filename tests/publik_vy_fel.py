@@ -3,6 +3,7 @@
 
 Simulerar HTTP-fel och anslutningsfel från Mintaka och kontrollerar hela feltexten för båda rutterna på båda språken:
 rätt språk, ingen svarskropp eller undantagstext (de kan bära interna adresser), ingen port."""
+import re
 import sys
 import urllib.error
 
@@ -61,7 +62,9 @@ main.urllib.request.urlopen = mintaka_404
 for sprak in ("sv", "en"):
     svar = main.en_brunn("SSO1_99-0000", Begaran(sprak))
     html = svar.body.decode("utf-8")
-    kolla(svar.status_code == 404 and "Mintaka" not in html and "Tjänstefel" not in html and "Service error" not in html
+    # Synlig text: ordlistemotorns skript bär hela ordlistan (där Mintaka är en offentlig komponent) och räknas inte.
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.S)
+    kolla(svar.status_code == 404 and "Mintaka" not in text and "Tjänstefel" not in text and "Service error" not in text
           and "/brunnar?lang=%s" % sprak in html, "okänd brunn (%s): 404, ingen Mintaka i texten, länk tillbaka" % sprak)
 anropade.clear()
 for ogiltigt in ("SSO1_01-4526\n", "x y", "a/b", "x" * 200, "urn:ngsi-ld:SewerOverflowModelA:SSO1_01-4526:evil?x=1"):
@@ -105,4 +108,15 @@ _kb404 = _KakBegaran("sv", {"svada-test": "1"}); _kb404.headers = {"accept": "te
 _svar404 = __import__("asyncio").run(main.http_fel(_kb404, main.StarletteHTTPException(404, "Not Found")))
 kolla('id="testlage"' in _svar404.body.decode(), "brunnsvyn: Testläge syns även på 404-sidan")
 kolla('id="testlage"' not in main._fel(_KakBegaran("sv", {}), "x").body.decode(), "brunnsvyn: ingen markering på felsidan utan testläge")
+# MIM0 R1.3: den öppna vyns maskingränssnitt har en formell beskrivning (OpenAPI 3.1) utan interna detaljer och byggd på samma allowlist som tjänsten.
+import json as _json
+_oa = main._openapi_beskrivning()
+_text = _json.dumps(_oa)
+kolla(_oa.get("openapi") == "3.1.0" and set(_oa["paths"]) == {"/brunnar", "/brunnar/{id}", "/health"}, "OpenAPI: version 3.1.0 och exakt de tre publika sökvägarna")
+kolla(set(_oa["paths"]["/brunnar/{id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["properties"]["serie"]["items"]["properties"]) == {"observedAt", *main.OPPNA_ATTRIBUT},
+      "OpenAPI: tidsserieraden beskriver exakt de öppna attributen (allowlisten)")
+kolla(not any(x in _text for x in ("location", "sourceSrs", "localhost", "127.0.0.1", "mintaka", "host.docker.internal", "SewerOverflowModelA", ":3", ":8")),
+      "OpenAPI: inga gömda attribut, värdnamn, portar eller Distribution A i beskrivningen")
+_svar = main.openapi_json()
+kolla(_svar.status_code == 200 and _json.loads(_svar.body) == _oa, "OpenAPI: /openapi.json svarar med beskrivningen")
 sys.exit(min(fel, 99))

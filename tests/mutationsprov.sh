@@ -26,7 +26,8 @@ if kor "${KOPIA}"; then ok "omutat kod: grönt (${KOPIA##*/})"; else no "omutat 
 
 mutera() {  # mutera <namn> <fil under services/> <gammal text> <ny text> <förväntat rött avsnitt> [testkommando i kopian]
   local namn="$1" fil="$2" gammal="$3" ny="$4" vilken="$5" prov="${6:-}" d
-  d="$(mktemp -d)"; cp -R services tests "${d}/"
+  d="$(mktemp -d)"; cp -R services tests datamodell "${d}/"
+  mkdir -p "${d}/edc" && cp -R edc/bootstrap "${d}/edc/"      # renderingsprovet läser policyerna ur edc/bootstrap
   if ! python3 - "${d}/services/${fil}" "${gammal}" "${ny}" <<'PY'
 import sys
 p, gammal, ny = sys.argv[1], sys.argv[2].encode().decode("unicode_escape"), sys.argv[3].encode().decode("unicode_escape")
@@ -54,7 +55,7 @@ mutera "M1 städtråden startas aldrig" dashboard/main.py 'threading.Thread(targ
 mutera "M2 jobbet markerar inte sitt slut" dashboard/jobb.py 'skydd.jobb_slut(jid)' 'pass' "pausen efter jobb"
 mutera "M3 återhämtning efter utestängning ignoreras" dashboard/main.py 'kvar = skydd.avkylning_kvar("ute:" + mottagare)' 'kvar = 0' "429 efter återinsättning"
 mutera "M4 avbruten kropp blir tom kropp" dashboard/main.py 'raise Kroppsfel("fel.kropp_avbruten", 400)' 'return {}' "avbruten kropp startar jobb"
-mutera "M5 /api/skydd svarar alltid noll" dashboard/main.py 'return skydd.kvar_sekunder(begaran, jobbmodul.aktivt() is not None)' 'return {"utestangningS": {}, "felinjektionS": None, "pausS": 0, "regler": skydd.regler()}' "tickande tider"
+mutera "M5 /api/skydd svarar alltid noll" dashboard/main.py '    svar = skydd.kvar_sekunder(begaran, jobbmodul.aktivt() is not None)' '    svar = {"utestangningS": {}, "felinjektionS": None, "pausS": 0, "regler": {"utestangningS": 0, "felinjektionS": 0, "pausS": 0}}' "tickande tider"
 mutera "M6 en upprepad utestängning når källan igen" dashboard/main.py '            if mottagare in skydd.UTESTANGDA:\n                return {"redan": True, "mottagare": mottagare, "atgard": atgard}\n' '' "idempotens i rutten"
 mutera "M7 kroppsgränsen tas bort" dashboard/main.py 'MAX_KROPP_BYTES = 64 * 1024' 'MAX_KROPP_BYTES = 10**9' "413"
 mutera "M8 återhämtning efter felinjektion ignoreras" dashboard/main.py 'kvar = skydd.avkylning_kvar("fel")' 'kvar = 0' "429 efter avslag"
@@ -96,12 +97,32 @@ if command -v node >/dev/null 2>&1 && [ -d tools/node_modules/playwright-core ];
 fi
 
 mutera "M27 spärrens nekande visas som misslyckat igen (L1)" dashboard/jobb.py '                jobb.utfall = "nekad"' '                pass' "utfallet nekad"
-mutera "M30 KoV:s avslag avslutar inte jobbet som 'inget avtal' (webinariet p2)" dashboard/jobb.py '                jobb.utfall = "inget-avtal"\n                jobb.logg("jobb.avslag_orsak"' '                jobb.logg("jobb.avslag_orsak"' "KoV avslår"
+mutera "M30 KoV:s avslag avslutar inte jobbet som 'inget avtal' (webinariet p2)" dashboard/jobb.py '                    jobb.utfall = "inget-avtal"\n                    jobb.logg("jobb.avslag_orsak"' '                    jobb.logg("jobb.avslag_orsak"' "KoV avslår"
 mutera "M31 ett hävt avtal ger MISSLYCKADES i stället för nekad (webinariet p2)" dashboard/jobb.py 'SPARR_KODER = ("fel.inget_avtal", "fel.inget_avtal_kov", "fel.avtal_havt", "fel.avtal_utgangit", ' 'SPARR_KODER = ("fel.inget_avtal", "fel.inget_avtal_kov", ' "Leverera A (fel.avtal_havt)"
 mutera "M32 spärren mot utestängning via Caddy tas bort (externt avstängd)" dashboard/main.py '    if not UTESTANGNING_TILLATEN and skydd.via_proxy(begaran):' '    if False and skydd.via_proxy(begaran):' "avsnitt 4b: återkallelse via Caddy ska nekas"
 mutera "M33 spärren stänger även anrop direkt mot porten (testerna)" dashboard/main.py '    if not UTESTANGNING_TILLATEN and skydd.via_proxy(begaran):' '    if not UTESTANGNING_TILLATEN:' "avsnitt 4b: direktanrop ska inte beröras"
-mutera "M34 utestängningen är på som standard i extern variant" dashboard/main.py 'os.environ.get("DASH_UTESTANGNING", "nej" if _EXTERN else "ja") == "ja"' 'os.environ.get("DASH_UTESTANGNING", "ja") == "ja"' "avsnitt 4b: standardvärdet i extern variant"
+mutera "M34 utestängningen är på som standard i extern variant" dashboard/main.py '(os.environ.get("DASH_UTESTANGNING") or ("nej" if _EXTERN else "ja")) == "ja"' '(os.environ.get("DASH_UTESTANGNING") or "ja") == "ja"' "avsnitt 4b: standardvärdet i extern variant"
 mutera "M28 tomma objekt i Följ ett värde igen (L15)" dashboard/steg.py '        if isinstance(tolkat, dict) and _tomt(tolkat):' '        if False:' "Inget ännu" "python3 tests/kedjevy_rendering.py"
+
+# Kärnreglerna (åtgärd 4 i projektets testningstillämpning): enhetsprov som körs i kopian utan stack. ASCII-ankare (unicode_escape förstör å, ä, ö).
+ENH='SVADA_VERSION=2026.11.04-1 python3 -I'
+mutera "M35a leverans A kräver inte längre ett gällande avtal" dashboard/nedladdning.py 'a.get("status") == "GALLANDE" and _farskt_gallande(a["id"])' 'True' "K39: A lämnas ut under hävda avtal" "${ENH} tests/nedladdning_enhet.py"
+mutera "M35b leverans A läser registrets sparade status, inte den färska" dashboard/nedladdning.py ' and _farskt_gallande(a["id"])' '' "K39: hävd just nu men gällande i listan" "${ENH} tests/nedladdning_enhet.py"
+mutera "M35c leverans A öppen när statusen inte kan läsas" dashboard/nedladdning.py '    except Exception:\n        return False' '    except Exception:\n        return True' "K39: stängt som standard" "${ENH} tests/nedladdning_enhet.py"
+mutera "M37 okänt avtal räknas som gällande (öppet som standard)" ingest-service/avtalsregister.py 'return {"id": avtals_id, "status": "OKAND", "orsak": "okant-avtal"}' 'return {"id": avtals_id, "status": "GALLANDE", "orsak": "okant-avtal"}' "avtal_enhet: stängt som standard" "${ENH} tests/avtal_enhet.py"
+mutera "M41 schemakontrollen avvisar inte längre position i profil B" ingest-service/schemakontroll.py '    if s is False:' '    if False:' "schemakontroll_enhet" "${ENH} tests/schemakontroll_enhet.py"
+mutera "M42 INTERNT-spärren träffar inte längre edc-provider" dashboard/nedladdning.py 'r"(?:edc-provider|edc-consumer|' 'r"(?:zzz-ingen-matchning|edc-consumer|' "K39: inga interna adresser i en fil" "${ENH} tests/nedladdning_enhet.py"
+mutera "M43 ett varsel vars avbrott är över visas fortfarande" gemensam/aterstall.py '    if nu > tid + dt.timedelta(minutes=VARAKTIGHET_TYP[typ]):' '    if False:' "aterstall_enhet: ett glömt varsel ska försvinna" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
+mutera "M44 nya jobb spärras inte de sista två minuterna" gemensam/aterstall.py '        return tid - dt.timedelta(seconds=SPARR_NYA_JOBB_S) <= nu <= tid' '        return False  # tid' "aterstall_enhet: spärren före uppdateringen" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
+mutera "M45 en tid utan tidszon godtas som varsel" gemensam/aterstall.py 'tid.tzinfo is None' 'False' "aterstall_enhet: en tid utan zon är tvetydig" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
+mutera "M46 den planerade händelsen får inte längre ge plats åt en tidigare natt" gemensam/aterstall.py 'planerad[0] <= nasta' 'True' "aterstall_enhet: den tidigaste händelsen styr" "cp services/gemensam/aterstall.py services/publik-vy/aterstall.py && ${ENH} tests/aterstall_enhet.py"
+mutera "M47 staden pekas inte längre ut som betrodd före förhandlingen" dashboard/jobb.py '    kallor.kov_betrodd_satt(kallor.STAD_DID, BETRODD_SEK)' '    pass' "betrodd_enhet: med val" "${ENH} tests/betrodd_enhet.py"
+mutera "M48 utpekningen som betrodd tas inte bort efter förhandlingen" dashboard/jobb.py '        kallor.kov_betrodd_bort(kallor.STAD_DID)' '        pass' "betrodd_enhet: direkt efteråt" "${ENH} tests/betrodd_enhet.py"
+mutera "M49 ett avtal som skrevs direkt tar inte besökaren förbi KoV-steget" dashboard/jobb.py 'res.get("betrodd") and res.get("avtal")' 'False' "betrodd_enhet: ett avtal som skrevs direkt" "${ENH} tests/betrodd_enhet.py"
+mutera "M50 Visa mer finns inte längre som grupp i stegpanelerna" dashboard/vy.py '<section class="visamer" aria-labelledby="vm-{nr}">' '<div class="visamer" aria-labelledby="vm-{nr}">' "Visa mer: en grupp med egna delar per steg" "python3 tests/kedjevy_rendering.py"
+mutera "M51 en del i Visa mer är uppfälld i HTML:en (rörigheten är tillbaka)" dashboard/vy.py '<details class="lasmer" data-visamer><summary>%s</summary>' '<details class="lasmer" data-visamer open><summary>%s</summary>' "Visa mer: hopfälld i HTML:en" "python3 tests/kedjevy_rendering.py"
+mutera "M52 Samordnaren ligger utanför Visa mer" dashboard/vy.py "        mer_delar.append(_las(e(t['samordnaren']), _svadaruta(t, sprak, utestangning)))" '        extra_ruta = _svadaruta(t, sprak, utestangning)' "Visa mer: Samordnaren som egen del" "python3 tests/kedjevy_rendering.py"
+mutera "M53 produktnamnet i steg 1 är vanlig löptext, inte markerat som namn" dashboard/steg.py 'som dataprodukten {{Modellerad br' 'som dataprodukten Modellerad br' "namnmarkering i steg 1" "python3 tests/kedjevy_rendering.py"
 
 section "Mutation i skydd.py:s eget lager (täcks av enhetstestet skydd_enhet.py, inte av integrationstestet)"
 D="$(mktemp -d)"; cp -R services tests "${D}/"

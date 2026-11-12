@@ -318,6 +318,7 @@ class Avtalsregister:
                 p["forhandlingId"] = self._forhandling_for.get(id_)
                 p["dhiAvtalId"] = self._dhi_avtal_for.get(id_)
                 ps = self._provider_status.get(p["dhiAvtalId"])
+                p["tillkomst"] = (ps or {}).get("tillkomst") or p.get("tillkomst")      # hur avtalet tillkom: "kov-beslut" eller "betrodd-organisation" (scenario)
                 if not kraver_kov:
                     # Utan KoV-spärr kan avtalet inte hävas i PoC:en.
                     p["status"], p["havning"] = "GALLANDE", None

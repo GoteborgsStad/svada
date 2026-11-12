@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir \
       "uvicorn==${UVICORN_VERSION}"
 
 WORKDIR /app
-COPY auktorisation.py avtalsregister.py validering.py ngsild.py main.py ./
+COPY auktorisation.py avtalsregister.py validering.py ngsild.py schemakontroll.py main.py ./
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8060

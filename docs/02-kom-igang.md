@@ -76,7 +76,7 @@ Nyckelparametrar i `.env`: `FCF_BATCH_INTERVAL_S=600` (10 minuter = ett modeller
 
 ## 2.5 Verifiering
 
-Hård regel 11: ett arbetspaket är klart först när allt är grönt.
+Hård regel 11: testa det berörda efter varje ändring och hela provet före push; ett arbetspaket är klart för push först när allt är grönt (nivåerna beskrivs i det interna arbetsmaterialet).
 
 ```bash
 bash tests/verify_all.sh      # alla delar, ~20 minuter
@@ -94,9 +94,19 @@ termer.
 |---|---|---|
 | "det finns inget kontraktsavtal för Distribution B" | Providern omstartad – in-memory stores | Kör om `registrera-edc`, förhandla sedan igen |
 | KoV-godkännandet "försvann" | Samma sak – omregistreringen nollställer besluten | Begär A igen och godkänn på nytt |
+| `/status/avtalsstatus` svarar 404 (providern), eller hälsovägen 404 (identitetstjänsten), kvar i minuter efter en omstart, fast loggen säger "Runtime … ready" | En API-route registreras inte vid uppstart, utan felrad. Mätt 2026-11-01: 5 av 180 omstarter under CPU-last (providern 2 av 90, identitetstjänsten 3 av 90), 0 av 80 utan last; en gång ingen lyssnare alls. Orsaken är inte fastställd. Samma fenomen som avtals-API:t 2026-10-14 | `bash tools/vanta-friska.sh edc-provider edc-consumer identity-hub-dhi identity-hub-stad` (startar om det som inte blir friskt, utom identitetstjänsterna som kräver att connectorerna startas om efter; körs även av `starta-demo.sh` steg 4b), därefter `registrera-edc` om providern startats om |
+| Katalogen svarar "Unable to obtain credentials … 405" (STS-vägen) strax efter en omstart av stadens identitetstjänst | Startfönstret: webbservern lyssnar före routerna (först 404, STS 405, sedan 503, sedan 200). Mätt: 405 syns bara före "frisk", aldrig tillsammans med frisk hälsa (0 av 60) | Vänta tills tjänsten är frisk (`tools/vanta-friska.sh`), försök sedan igen (`verify_ap8_fas3` 8f3.7 gör det) |
+| Brunnslistan tar >10 s eller ger 502 efter många leveranser | Tidsserien har samlat historik (cirka 3 400 rader per brunn efter en dags provkörning; 15 s vid 300 000 rader). Gäller lokala stackar som körts länge; den publika demon återställs varje natt | `bash aterstall-demo.sh` |
+| Nedladdningen av leveransen (steg 4) svarar att leveransen saknas | Leveransens innehåll ligger i ingest-tjänstens minne (högst 30 avtal) och försvinner vid omstart | Leverera om |
 | Transfern hänger, inget ingest-kvitto | Känd svaghet i EDC:s deprecerade inbäddade dataplan | Kontrollrummet gör om upp till tre gånger – vänta ut det |
 | Steg 6 visar "Distribution A kan inte läsas just nu" | Inget gällande avtal om A, eller avtalet har hävts | Förhandla A (steg 3) och låt KoV godkänna |
 | Förhandling `TERMINATED` med "Policy … not equal" | `ContractRequest` bar bara offertens `@id` | Skicka hela katalogofferten + `assigner` + `target` |
 | Offert-`@id` fungerar plötsligt sämre | Id:t är base64-kodat och ändras vid varje omregistrering | Hämta alltid offerten ur katalogen strax före förhandlingen |
 | Tyst 401 i varje DSP-anrop | En hubb startades om ensam och har nya nycklar | Starta om hubbarna och connectorerna tillsammans, kör `registrera-edc` |
 | OOM, containrar dör | Dockers minne för lågt | Höj minnet, kör färre profiler |
+
+## Uppdatera en installation som redan har data
+
+Sedan 2026-10-29 lagras attributen i stadens plattform under datamodellens adresser. Data som lades in före den ändringen ligger under andra adresser och hittas inte av de nya frågorna.
+Kör `bash aterstall-demo.sh` efter uppdateringen (det nollställer demons data och laddar om det), så blir allt enhetligt. Brunnsladdarens image byggs en gång: efter ändringar i den, bygg om den
+(`docker compose -f compose.stad.yml --profile laddning build ladda-brunnar`).

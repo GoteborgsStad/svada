@@ -281,6 +281,8 @@ public class SvadaParticipantBootstrapExtension implements ServiceExtension {
      */
     public static final String INSTALLNING_ISSUER_MOTTAGARE = "svada.issuer.mottagare";
     public static final String INSTALLNING_ISSUER_DID = "svada.issuer.did";
+    /** Deltagarregistret (Deltagarregister): "id=Namn|dsp-adress,id=Namn|dsp-adress" (SVADA_ISSUER_DELTAGARINFO). */
+    public static final String INSTALLNING_ISSUER_DELTAGARINFO = "svada.issuer.deltagarinfo";
     /**
      * TESTLÄGE för tests/verify_ap8_fas3.sh. Kommaseparerad lista, tom = av (standard).
      * "svada-roll": utfärdaren signerar dessutom ett RollIntyg åt mottagaren (rätt text,
@@ -557,6 +559,11 @@ public class SvadaParticipantBootstrapExtension implements ServiceExtension {
                 webService.registerResource("did", new StatusListController(statusLista,
                         config.getString(INSTALLNING_STATUS_NYCKEL, null), monitor));
                 monitor.info("SVADA participant-bootstrap: statuslista för återkallelse aktiv på " + statusUrl);
+                // Deltagarregistret (MIM3 RC5.1): samma lista över deltagare, med namn och connectorns adress.
+                var register = Deltagarregister.instans();
+                register.konfigurera(did, Deltagarregister.tolka(config.getString(INSTALLNING_ISSUER_DELTAGARINFO, null)));
+                webService.registerResource("did", new DeltagarregisterPublik(register, statusLista));
+                monitor.info("SVADA participant-bootstrap: deltagarregistret aktivt på /participants");
             }
             if (mottagare.isEmpty() || utbytesDir == null) {
                 monitor.warning(("SVADA participant-bootstrap: %s=true men %s/%s saknas - " +

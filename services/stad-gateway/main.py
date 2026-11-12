@@ -79,6 +79,7 @@ STARTAD = dt.datetime.now(dt.timezone.utc)
 # Headers som ska följa med i BÅDA riktningarna. Authorization skickas
 # medvetet INTE vidare: den är gatewayens, inte orion-stads (orion-stad har
 # ingen egen autentisering och skulle bara ignorera den).
+MODELL_KONTEXT_URL = os.environ.get("MODELL_KONTEXT_URL", "")
 VIDARE_IN = ("accept", "content-type", "link", "ngsild-tenant",
              "ngsild-path", "accept-language")
 VIDARE_UT = ("content-type", "link", "ngsild-results-count",
@@ -109,6 +110,37 @@ def _offentlig_text(fel):
     return fel.detalj, fel.kod, fel.parametrar
 
 
+def onskat_sprak(huvud):
+    """Språket webbläsaren ber om (Accept-Language-huvudet): svenska bara om svenska är det första önskemålet (efter q-värde), annars
+    engelska. Utan huvud (curl, sökrobotar, våra prov) svenska. Samma funktion i kontrollrummet, brunnsvyn och gatewayen (provet jämför)."""
+    onskemal = []
+    for i, del_ in enumerate((huvud or "").split(",")):
+        tag, _, q = del_.strip().partition(";")
+        tag = tag.strip().lower()
+        if not tag or tag == "*":
+            continue
+        try:
+            vikt = float(q.strip()[2:]) if q.strip().startswith("q=") else 1.0
+        except ValueError:
+            vikt = 0.0
+        if vikt > 0:
+            onskemal.append((-vikt, i, tag))
+    if not onskemal:
+        return "sv"
+    return "sv" if sorted(onskemal)[0][2].split("-")[0] == "sv" else "en"
+
+
+def _avslagssprak(request):
+    """?lang= vinner, sedan kakan svada-sprak, sist webbläsarens språk."""
+    val = request.query_params.get("lang")
+    if val in ("sv", "en"):
+        return val
+    kaka = request.cookies.get("svada-sprak")
+    if kaka in ("sv", "en"):
+        return kaka
+    return onskat_sprak(request.headers.get("accept-language"))
+
+
 def _avslagssvar(request, fel, sokvag):
     """Ett NEJ som går att läsa – för människa respektive maskin."""
     if _vill_ha_html(request):
@@ -117,8 +149,7 @@ def _avslagssvar(request, fel, sokvag):
         return HTMLResponse(
             vy.avslag(offentligt, sokvag, EGEN_PUBLIK, "",
                       PUBLIK_VY_PUBLIK, MINTAKA_PUBLIK,
-                      "en" if (request.query_params.get("lang") == "en"
-                               or (request.query_params.get("lang") != "sv" and request.cookies.get("svada-sprak") == "en")) else "sv"),
+                      _avslagssprak(request)),
             status_code=fel.status)
     return JSONResponse(
         status_code=fel.status,
@@ -212,6 +243,8 @@ async def proxy(sokvag: str, request: Request):
         varde = request.headers.get(namn)
         if varde:
             req.add_header(namn, varde)
+    if MODELL_KONTEXT_URL:    # vår egen kontext (aldrig besökarens): Orion svarar med de korta attributnamnen
+        req.add_header("Link", '<%s>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' % MODELL_KONTEXT_URL)
 
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_S) as svar:
@@ -232,12 +265,23 @@ async def proxy(sokvag: str, request: Request):
                      "kod": "gateway.cip_otillganglig", "parametrar": {}})
 
 
+# Orion nämner kontextadressen den fick (den interna) i svaret; besökaren ska se den publika adressen, inte ett internt värdnamn.
+PUBLIK_KONTEXT = os.environ.get("PUBLIK_VY_PUBLIK_URL", "").rstrip("/") + "/modell/utkast/0.1/context.jsonld"
+
+
+def _publik_kontext(kropp):
+    if not MODELL_KONTEXT_URL or not os.environ.get("PUBLIK_VY_PUBLIK_URL"):
+        return kropp
+    return kropp.replace(MODELL_KONTEXT_URL.encode("utf-8"), PUBLIK_KONTEXT.encode("utf-8"))
+
+
 def _vidarebefordra(status, headers, kropp):
     ut = {}
+    kropp = _publik_kontext(kropp)
     for namn in VIDARE_UT:
         varde = headers.get(namn)
         if varde:
-            ut[namn] = varde
+            ut[namn] = varde.replace(MODELL_KONTEXT_URL, PUBLIK_KONTEXT) if MODELL_KONTEXT_URL and os.environ.get("PUBLIK_VY_PUBLIK_URL") else varde
     media = ut.pop("content-type", None)
     return Response(content=kropp, status_code=status, headers=ut,
                     media_type=media)

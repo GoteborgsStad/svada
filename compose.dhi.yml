@@ -194,6 +194,8 @@ services:
       EDC_HEALTH_URL: http://edc-provider:19191/api/check/health
       EDC_ASSET_B_ID: ${EDC_ASSET_B_ID}
       EDC_ASSET_B_URL: ${EDC_ASSET_B_URL}
+      # Datamodellens utkast (brunnsvyns publika adress + /modell): katalogens dct:conformsTo pekar dit så att modellen går att hitta (MIM2 R1).
+      MODELL_ADRESS: ${PUBLIK_URL_BRUNNAR:-http://localhost:${PUBLIK_VY_PORT}}/modell
       # Distribution A registreras med egen policy/kontraktsdefinition.
       EDC_ASSET_A_ID: ${EDC_ASSET_A_ID}
       EDC_ASSET_A_URL: ${EDC_ASSET_A_URL}
@@ -213,6 +215,36 @@ services:
     networks: [dhi-internal]
     mem_limit: 128m
     restart: "no"
+
+  # -------------------------------------------------------------------
+  # registrera-edc-bevakare – läker katalogen. Providerns lager är in-memory och töms vid
+  # omstart; bevakaren registrerar om policy, asset och kontraktsdefinition när en tillgång
+  # saknas (samma skript som registrera-edc, med --bevaka). Körs med dhi-edc.
+  # -------------------------------------------------------------------
+  registrera-edc-bevakare:
+    image: ${PYTHON_IMAGE}
+    container_name: ${SVADA_PREFIX:-svada}-registrera-edc-bevakare
+    security_opt:
+      - "no-new-privileges:true"
+    profiles: ["dhi-edc", "etapp4"]
+    entrypoint: ["python", "/bootstrap/registrera.py", "--bevaka"]
+    environment:
+      EDC_MGMT_URL: http://edc-provider:19193/management
+      EDC_HEALTH_URL: http://edc-provider:19191/api/check/health
+      EDC_ASSET_B_ID: ${EDC_ASSET_B_ID}
+      EDC_ASSET_B_URL: ${EDC_ASSET_B_URL}
+      MODELL_ADRESS: ${PUBLIK_URL_BRUNNAR:-http://localhost:${PUBLIK_VY_PORT}}/modell
+      EDC_ASSET_A_ID: ${EDC_ASSET_A_ID}
+      EDC_ASSET_A_URL: ${EDC_ASSET_A_URL}
+      EDC_STAD_DID: ${SVADA_PARTICIPANT_DID_STAD}
+      EDC_PROVIDER_MGMT_KEY: ${EDC_PROVIDER_MGMT_KEY}
+      AVTAL_GILTIGHET: ${AVTAL_GILTIGHET:-30d}
+      TZ: ${TZ}
+    volumes:
+      - ./edc/bootstrap:/bootstrap:ro
+    networks: [dhi-internal]
+    mem_limit: 64m
+    restart: ${SVADA_RESTART:-unless-stopped}
 
   # -------------------------------------------------------------------
   # identity-hub-dhi – DHI:s IdentityHub (verifierbar identitet,

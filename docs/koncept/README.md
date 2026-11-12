@@ -132,6 +132,7 @@ och demon redan använder.
 | C4 | Connectorn: kontrollplan, dataplan och de fyra API-ytorna | `edc/konfig/`, `edc/` | ✅ klar |
 | C5 | Skalningen: från PoC till Sverige och EU (scenariodokument) | `edc/konfig/consumer.properties` (operatörsmönstret) | ✅ klar |
 | C6 | Från laptop till drift: uthållighet, lagring och gallring | `.env`, compose-filerna | ✅ klar |
+| C7 | Nedladdning: se att det är riktig data bakom (kontrollsumma, auditlogg) | `services/dashboard/nedladdning.py` | ✅ klar |
 
 Piloten (06) är byggd först för att validera mall, ankarkonvention och
 synk-script på ett verkligt fall innan resten skrivs. När mallen sitter är
@@ -161,7 +162,7 @@ koden utan motsvarande uppdatering i dokumenten blir rött.
 
 ---
 
-*Konceptbiblioteket (12 koncept: 02–08 + C1, C2, C4–C6), Svada-mini 2026-10-10. Synk verifieras
+*Konceptbiblioteket (13 koncept: 02–08 + C1, C2, C4–C7), Svada-mini 2026-10-10. Synk verifieras
 av `tests/verify_docs.sh` i `verify_all.sh`. Svenska genomgående (hård regel 9).
 C5 är ett scenariodokument (troligt framtidsläge), till skillnad från övriga som
 beskriver byggd och verifierad kod. C6 beskriver driftaxeln – vad PoC:en

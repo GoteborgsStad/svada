@@ -182,4 +182,9 @@ _b = avtalsregister.sammanfatta_policy({"permission": [{"action": "odrl:use", "d
 kolla(_b["plikter"] == ["attribute (duty on use)"], "B: attribueringsplikten (duty på use) visas som skyldighet, inte som 'inga'")
 kolla(avtalsregister.sammanfatta_policy({"permission": [{"action": "odrl:use"}]})["plikter"] == [], "ingen duty ger inga skyldigheter")
 
+# Stängt som standard: ett avtal som registret inte känner till är aldrig gällande (M37)
+_okant = avtalsregister.Avtalsregister(DEAD, "", DEAD, "", {"asset-a": "a", "asset-b": "b"})
+_st = _okant.status("finns-inte")
+kolla(_st["status"] == "OKAND" and _st.get("orsak") == "okant-avtal", "ett okänt avtal är OKAND, aldrig GALLANDE (stängt som standard): %r" % (_st,))
+
 sys.exit(1 if fel else 0)

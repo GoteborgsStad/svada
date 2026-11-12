@@ -1,0 +1,293 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modell.svada.invalid/utkast/0.1/schema.json",
+  "title": "SewerOverflowModelResult, profile A (DRAFT 0.1, not decided)",
+  "description": "DRAFT. A temporary model made for the PoC. Not decided. Not agreed with the data owner, the provider or the City's technical custodian. Not submitted to Smart Data Models. Not proposed as a general model. A modelled result for one sewer overflow chamber and one modelled day: inflow, overflow, level, the period, where the values come from and under which agreement they were delivered. Key-value form (the simplified NGSI-LD form).",
+  "$ref": "#/$defs/SewerOverflowModelResult",
+  "$defs": {
+    "SewerOverflowModelResult": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^urn:ngsi-ld:",
+          "description": "Entity identifier (NGSI-LD URN)."
+        },
+        "type": {
+          "const": "SewerOverflowModelResult"
+        },
+        "inflowMeanM3S": {
+          "type": "number",
+          "description": "Mean inflow rate to the chamber over the modelled day. Unit: cubic metre per second (MQS)."
+        },
+        "inflowPeakM3S": {
+          "type": "number",
+          "description": "Highest modelled inflow rate to the chamber during the modelled day. Unit: cubic metre per second (MQS)."
+        },
+        "inflowVolumeM3": {
+          "type": "number",
+          "description": "Total volume that flowed into the chamber during the modelled day (sum of inflow rate times time step). Unit: cubic metre (MTQ)."
+        },
+        "overflowVolumeM3": {
+          "type": "number",
+          "description": "Total volume that overflowed from the chamber during the modelled day. Unit: cubic metre (MTQ)."
+        },
+        "overflowPeakM3S": {
+          "type": "number",
+          "description": "Highest modelled overflow rate during the modelled day. Unit: cubic metre per second (MQS)."
+        },
+        "overflowDurationMin": {
+          "type": "number",
+          "description": "Total time within the modelled day during which the modelled overflow rate was above zero (a sum, not the longest single episode). Unit: minute (MIN)."
+        },
+        "waterLevelMaxM": {
+          "type": "number",
+          "description": "Highest modelled water level in the chamber during the modelled day. The height reference is not specified in the source data. Unit: metre (MTR)."
+        },
+        "modelledDay": {
+          "type": "string",
+          "format": "date",
+          "description": "The calendar day (UTC) the result is modelled for."
+        },
+        "periodStart": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Start of the modelled period (ISO 8601, UTC)."
+        },
+        "periodEnd": {
+          "type": "string",
+          "format": "date-time",
+          "description": "End of the modelled period (ISO 8601, UTC). Also used as the observedAt time of the values."
+        },
+        "dataSource": {
+          "type": "string",
+          "description": "Where the values come from: measured (a full day of measurements), measured-partial (part of the day) or modelled-synthetic (a synthetic series, not data).",
+          "enum": [
+            "measured",
+            "measured-partial",
+            "modelled-synthetic"
+          ]
+        },
+        "modelVersion": {
+          "type": "string",
+          "description": "Name and version of the calculation model that produced the values."
+        },
+        "overflowStart": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Start of the first time step with overflow in the modelled day. Absent when there was no overflow."
+        },
+        "overflowEnd": {
+          "type": "string",
+          "format": "date-time",
+          "description": "End of the last time step with overflow in the modelled day. Absent when there was no overflow. Overflow need not be continuous between start and end."
+        },
+        "measuredCoverage": {
+          "type": "number",
+          "description": "Share (0 to 1) of the day's time steps that rest on measured values. Only for chambers with a sensor."
+        },
+        "syntheticScale": {
+          "type": "number",
+          "description": "Scale factor applied to a measured pattern to make a synthetic inflow series. Present only when dataSource is modelled-synthetic. PoC specific."
+        },
+        "syntheticOverflowScale": {
+          "type": "number",
+          "description": "Scale factor applied to make a synthetic overflow series. Present only when dataSource is modelled-synthetic. PoC specific."
+        },
+        "sampleCount": {
+          "type": "integer",
+          "description": "Number of time steps the day's aggregates are computed from."
+        },
+        "refWeir": {
+          "type": "string",
+          "format": "uri",
+          "description": "The chamber this result belongs to (identifier of a SewerOverflowWeir entity)."
+        },
+        "location": {
+          "type": "object",
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "properties": {
+            "type": {
+              "const": "Point"
+            },
+            "coordinates": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 3
+            }
+          },
+          "description": "Position of the chamber (GeoJSON point, longitude and latitude). Only in the profile A."
+        },
+        "sourceSrs": {
+          "type": "string",
+          "description": "The coordinate reference system the source position was given in (for example EPSG:4619). Only in the profile A."
+        },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "contractAgreementId": {
+              "type": "string",
+              "description": "Identifier of the contract agreement under which the data was delivered (provider side)."
+            },
+            "contractAgreementUrl": {
+              "type": "string",
+              "description": "Address of the agreement in the City's agreement register."
+            },
+            "dataset": {
+              "type": "string",
+              "description": "Name of the data product."
+            },
+            "distribution": {
+              "type": "string",
+              "description": "Distribution of the data product: A (full) or B (open)."
+            },
+            "distributionId": {
+              "type": "string",
+              "description": "Identifier of the distribution in the catalogue."
+            },
+            "batchId": {
+              "type": "string",
+              "description": "Identifier of the delivery batch."
+            },
+            "producedAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Time the values were produced (ISO 8601, UTC)."
+            },
+            "ingestedAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Time the City's platform received the delivery (ISO 8601, UTC)."
+            },
+            "accessRights": {
+              "type": "string",
+              "description": "Whether the distribution is public or non-public."
+            },
+            "informationClass": {
+              "type": "string",
+              "description": "The information class of the distribution (for example K0R1T1 or K1R1T1)."
+            },
+            "license": {
+              "type": "string",
+              "description": "The licence or agreement terms the distribution is offered under."
+            },
+            "publisher": {
+              "type": "string",
+              "description": "The organisation that produced and published the data."
+            },
+            "receivedVia": {
+              "type": "string",
+              "description": "How the data reached the City's platform."
+            },
+            "transferProcessId": {
+              "type": "string",
+              "description": "Identifier of the transfer in the data space connector."
+            }
+          },
+          "required": [
+            "dataset",
+            "distribution",
+            "distributionId",
+            "batchId",
+            "producedAt",
+            "ingestedAt",
+            "accessRights",
+            "informationClass",
+            "license",
+            "publisher",
+            "receivedVia"
+          ],
+          "additionalProperties": false,
+          "description": "Where the delivery came from and under which agreement."
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "inflowMeanM3S",
+        "inflowPeakM3S",
+        "inflowVolumeM3",
+        "overflowVolumeM3",
+        "overflowPeakM3S",
+        "overflowDurationMin",
+        "waterLevelMaxM",
+        "modelledDay",
+        "periodStart",
+        "periodEnd",
+        "dataSource",
+        "modelVersion",
+        "refWeir",
+        "provenance"
+      ]
+    },
+    "SewerOverflowWeir": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^urn:ngsi-ld:SewerOverflowWeir:"
+        },
+        "type": {
+          "const": "SewerOverflowWeir"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the chamber."
+        },
+        "weirId": {
+          "type": "string",
+          "description": "The data owner's key for the chamber. The same key follows the chamber through the whole chain and ends the entity identifier."
+        },
+        "regionId": {
+          "type": "string",
+          "description": "Identifier of the region (area) the chamber belongs to in the source register."
+        },
+        "category": {
+          "type": "string",
+          "description": "Classification of the chamber in the source register."
+        },
+        "weirType": {
+          "type": "string",
+          "description": "Type of chamber or weir structure in the source register."
+        },
+        "seriesRef": {
+          "type": "string",
+          "description": "Reference to the sensor series of the chamber in the source system, when there is one."
+        },
+        "outlet": {
+          "type": "string",
+          "description": "The discharge point (outlet) the chamber overflows to."
+        },
+        "recipient": {
+          "type": "string",
+          "description": "The receiving water body (recipient) of the discharge point."
+        },
+        "source": {
+          "type": "string",
+          "description": "Where the chamber's record comes from: the name of the data owner's register file it was read from."
+        },
+        "dataProvider": {
+          "type": "string",
+          "description": "The party that supplied the chamber's record to the data space (the provider)."
+        },
+        "description": {
+          "type": "string",
+          "description": "A free-text description of the chamber from the data owner's register."
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "name",
+        "weirId"
+      ],
+      "description": "A sewer overflow chamber (brunn) as recorded in the data owner's register."
+    }
+  }
+}

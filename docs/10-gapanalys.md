@@ -30,7 +30,7 @@ samt grunddata, betrodda källor och aggregeringsanalys (§5.3, §8.5).
 |---|---|---|
 | Kritisk | 1 | G1 |
 | Väsentlig | 6 | G2, G3, G4, G5, G10, G15 |
-| Måttlig | 8 | G6, G7, G8, G11, G12, G16, G21, G23 |
+| Måttlig | 10 | G6, G7, G8, G11, G12, G16, G21, G23, G25, G26 |
 | Låg | 5 | G13, G17, G18, G19, G20 |
 | Åtgärdad | 2 | G9 (stängd 2026-07-24), G22 (stängd 2026-07-28) |
 
@@ -179,6 +179,10 @@ PROV-O-mönstret. Det beskrevs i den tidigare tiostegsversionen, som inte ingår
 | G20 | Tidsupplösning (§8.2: fem minuter) | Dygnsaggregat levereras | Måttlig–låg: protokollmässigt identisk kedja, innehållsmässigt en annan produkt – och flera av §8.4:s kvalitetsregler blir omätbara |
 | G23 | Hävning och utgång av avtal | Hävning är en PoC-mekanism (avslag häver tidigare avtal, KoV-knapp); DSP definierar ingen hävning av ett slutfört avtal; statusen synkas genom att staden pollar en smal, skrivskyddad statusendpoint hos DHI med egen nyckel (inte management-API:t) | Måttlig – i drift ska hävning och statusspridning gå genom protokollet eller en statuslista, inte genom att en stadstjänst pollar providern; kräver också beständig lagring av avtal och hävningar |
 | G24 | Engelska versionen | Kontrollrummet och den publika vyn finns på engelska; händelser lagras som kod och parametrar och visas ur en meddelandekatalog (`meddelanden.py`); formell text är engelsk, data svenskt | Låg – gatewayens HTML-sida, identitetsverifieringens felsvar och exempelobjektens datavärden är svenska |
+| G25 | Avtalsreferens i levererade data | Staden skriver avtalets id, länk, licens och informationsklass som proveniens på varje entitet i Orion-LD. Avtalets id är stadens eget, inte DHI:s, och referensen är osignerad. DHI kan alltså inte i efterhand bevisa att just det avtalet gällde för en viss leverans | Måttlig – DSSC Blueprint v3 kräver inget av detta: villkoren hör till dataproduktens maskinläsbara metadata, och ingen skribent för proveniens är angiven (vår lösning ryms). En avtalsreferens som DHI signerar i leveranskuvertet är vår egen skärpning, inte ett blueprintkrav |
+| G26 | Avtalen är tekniskt riktiga men inte juridiskt giltiga | Förhandlingen i EDC (DSP, ODRL) är på riktigt, men avtalen ligger i minnet hos EDC och i stadens register och saknar juridisk bindning (ingen rättsligt gällande part, ingen underskrift, ingen regelbok) | Måttlig – hänger ihop med G15. Blueprintens avsnitt om dataproduktavtal (Data product contract) räknar upp vad ett avtal ska ange: identifiering av data, tillåtna ändamål, användningsbegränsningar, avslut och härlett material. Den listan kan avtalen stämmas av mot |
+
+**Notering om Orion-LD (bevakas, ingen plan).** Stadens CIP kör Orion-LD (`orion-stad`). Orion-LD är i underhållsläge (GitHub-ärende #2007) och en ny NGSI-LD-broker, coraine, är på väg från samma utvecklare. Datum och migreringsväg är osäkra. NGSI-LD-gränssnittet är detsamma, så ingestflödet och Mintaka berörs av brokerbytet, inte av dataprodukten eller protokollen.
 
 ## 10.4 Åtgärdade gap och medvetna substitutioner
 

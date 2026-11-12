@@ -86,6 +86,10 @@ DSP_VERSION = os.environ.get("EDC_DSP_VERSION", "2025-1")
 # inte dashboarden, så här gäller det delade nätets namn (inte värden).
 PROVIDER_DSP = "http://edc-provider:19194/protocol/%s" % DSP_VERSION
 DSP_PROTOKOLL = "dataspace-protocol-http:%s" % DSP_VERSION
+# Stadens egen DID: den hoppas över när staden letar leverantör i deltagarregistret.
+STAD_DID = os.environ.get("SVADA_PARTICIPANT_DID_STAD", "")
+LEVERANTOR_CACHE_S = 5.0
+_leverantor = {"tid": 0.0, "svar": None}
 INGEST_PUSH_URL = os.environ.get("INGEST_PUSH_URL",
                                  "http://ingest-service:8060/ingest")
 TRANSFER_TYPE = os.environ.get("EDC_TRANSFER_TYPE", "HttpData-PUSH")
@@ -204,6 +208,10 @@ def anrop(adress, metod="GET", kropp=None, headers=None, timeout=None,
     if kropp is not None:
         data = json.dumps(kropp).encode("utf-8")
         huvuden["Content-Type"] = "application/json"
+    kontext = os.environ.get("MODELL_KONTEXT_URL", "")
+    if kontext and ("/ngsi-ld/v1/" in adress or "/temporal/entities" in adress):
+        # Datamodellens kontext: Orion och Mintaka svarar då med de korta attributnamnen (de lagras under modellens adresser).
+        huvuden["Link"] = '<%s>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"' % kontext
     huvuden.update(headers or {})
     begaran = urllib.request.Request(adress, data=data, method=metod,
                                      headers=huvuden)
@@ -314,6 +322,26 @@ def kov_hav(dhi_avtals_id):
                  {}, headers=huvuden, timeout=30)
 
 
+def kov_betrodda():
+    """De organisationer KoV just nu har pekat ut som betrodda (scenario), hos providern."""
+    return anrop(url("edc_provider_mgmt", "/management/kov/betrodda"), headers=EDC_PROVIDER_MGMT_HUVUD)
+
+
+def kov_betrodd_satt(did, sek):
+    """KoV (rollintyget) pekar ut en organisation som betrodd i högst sek sekunder: avtal om A skrivs då direkt, utan KoV-prövning."""
+    huvuden = dict(EDC_PROVIDER_MGMT_HUVUD)
+    huvuden["Authorization"] = "Bearer %s" % hamta_kov_token()
+    return anrop(url("edc_provider_mgmt", "/management/kov/betrodda?did=%s&sek=%d" % (urllib.parse.quote(did, safe=""), int(sek))),
+                 "POST", {}, headers=huvuden, timeout=30)
+
+
+def kov_betrodd_bort(did):
+    huvuden = dict(EDC_PROVIDER_MGMT_HUVUD)
+    huvuden["Authorization"] = "Bearer %s" % hamta_kov_token()
+    return anrop(url("edc_provider_mgmt", "/management/kov/betrodda?did=%s" % urllib.parse.quote(did, safe="")),
+                 "DELETE", headers=huvuden, timeout=30)
+
+
 def svada_status():
     """Samordningsrollens lista över intyg i statuslistan: mottagare, typ, index, återkallat."""
     return anrop(url("identity_hub_svada_did", "/svada-status"), headers=SVADA_STATUS_HUVUD)
@@ -371,13 +399,44 @@ def transferprocess(tid):
                  headers=EDC_CONSUMER_MGMT_HUVUD)
 
 
+def deltagarregister():
+    """Samordnarens öppna deltagarregister (MIM3 RC5.1, Svadas utfärdare): deltagare med DID, namn, medlems- och deltagarstatus och
+    connectorns adress. Inga roller: rollen intygar organisationen själv."""
+    return anrop(url("identity_hub_svada_did", "/participants"))
+
+
+def valj_leverantor():
+    """Staden hittar leverantören i deltagarregistret i stället för att ha adressen inlagd (MIM3 RC5.1): den första deltagaren som inte
+    är staden själv och som har en connectoradress. Registret är rådgivande; det är connectorerna som verkställer medlemskapet, så en
+    deltagare vars medlemsintyg är återkallat väljs ändå och nekas av DCP (provet 11.5 bygger på det). Når staden inte registret används
+    den konfigurerade adressen (kalla = konfiguration). Svaret sparas några sekunder.
+    Returnerar {id, namn, adress, kalla, medlemskap, deltagande}; adressen har DSP-versionen på slutet."""
+    nu = time.time()
+    if _leverantor["svar"] is not None and nu - _leverantor["tid"] < LEVERANTOR_CACHE_S:
+        return _leverantor["svar"]
+    svar = {"id": PROVIDER_ID, "namn": None, "adress": PROVIDER_DSP, "kalla": "konfiguration", "medlemskap": None, "deltagande": None}
+    try:
+        for p in (deltagarregister().get("participants") or []):
+            if p.get("did") == STAD_DID or not p.get("dspEndpoint"):
+                continue
+            svar = {"id": p.get("did"), "namn": p.get("name"), "adress": p["dspEndpoint"].rstrip("/") + "/" + DSP_VERSION,
+                    "kalla": "registret", "medlemskap": (p.get("membership") or {}).get("status"),
+                    "deltagande": (p.get("participation") or {}).get("status")}
+            break
+    except KallFel:
+        pass          # registret nåddes inte: den konfigurerade leverantören
+    _leverantor["tid"], _leverantor["svar"] = nu, svar
+    return svar
+
+
 def dsp_katalog():
-    """Katalogförfrågan consumer -> provider över Dataspace Protocol."""
+    """Katalogförfrågan consumer -> provider över Dataspace Protocol. Leverantören hittas i deltagarregistret (valj_leverantor)."""
+    lev = valj_leverantor()
     return anrop(url("edc_consumer_mgmt", "/management/v3/catalog/request"),
                  "POST", {
                      "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
-                     "counterPartyId": PROVIDER_ID,
-                     "counterPartyAddress": PROVIDER_DSP,
+                     "counterPartyId": lev["id"],
+                     "counterPartyAddress": lev["adress"],
                      "protocol": DSP_PROTOKOLL},
                  headers=EDC_CONSUMER_MGMT_HUVUD, timeout=30)
 
@@ -393,6 +452,12 @@ def ingest_leveranser():
 def ingest_auktorisation(avtals_id):
     return anrop(url("ingest", "/auktorisation"), "POST",
                  {"contractAgreementId": avtals_id}, timeout=30)
+
+
+def ingest_avtalsstatus(avtals_id):
+    """Färsk avtalsstatus (synkas mot providern om den är äldre än ett par sekunder; stängt som standard). Samma väg som stadens gateway
+    använder vid varje nyckel."""
+    return anrop(url("ingest", "/avtal/%s/status" % urllib.parse.quote(str(avtals_id), safe="")))
 
 
 def orion_stad_version():

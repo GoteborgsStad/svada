@@ -20,6 +20,6 @@ else
       echo "VARNING: hittade inte Docker-bryggans adress. Sätt VARD_BIND_IP i .env till den (vanligen 172.17.0.1) innan du startar." >&2
     fi
   fi
-  echo "Skapade .env med nya slumpade hemligheter. Lösenord för proxyn (http://svada-demo.localhost:38080) finns i .demo-losenord."
+  echo "Skapade .env med nya slumpade hemligheter. Proxyn (http://svada-demo.localhost:38080) är öppen som standard; ett lösenord för DEMO_GATE=on finns i .demo-losenord."
 fi
 echo "Nästa steg: bash starta-demo.sh"

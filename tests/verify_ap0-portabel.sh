@@ -178,4 +178,19 @@ else
   ok "extra: systemd ej tillämpligt på denna plattform (Docker bevisad i 0.1)"
 fi
 
+section "Extra: tools/vanta-friska.sh startar om en container som aldrig blir frisk, och godkänner en som är det"
+# Bakgrund: en EDC-/IdentityHub-container startar ibland med en route som saknas (hälsovägen 404 i evighet). Hjälparen kör
+# containerns egen hälsokontroll direkt och startar om; här prövas den mot två tillfälliga containrar (prefixet provhalsa).
+CURL_IMG="$(grep -E '^CURL_IMAGE=' .env | cut -d= -f2)"
+docker stop -t 1 provhalsa-ok provhalsa-fel >/dev/null 2>&1
+docker run -d --rm --name provhalsa-ok  --entrypoint sleep --health-cmd true  --health-interval 1s "${CURL_IMG}" 600 >/dev/null 2>&1
+docker run -d --rm --name provhalsa-fel --entrypoint sleep --health-cmd false --health-interval 1s "${CURL_IMG}" 600 >/dev/null 2>&1
+UT="$(SVADA_PREFIX=provhalsa SEKUNDER=4 FORSOK=2 bash tools/vanta-friska.sh ok fel 2>&1)"; STATUS=$?
+docker stop -t 1 provhalsa-ok provhalsa-fel >/dev/null 2>&1
+if [ "$STATUS" = 1 ] && echo "$UT" | grep -q "ok: frisk" && echo "$UT" | grep -q "fel: inte frisk efter 4 s; startar om" && echo "$UT" | grep -q "fel blev aldrig frisk"; then
+  ok "extra: hjälparen godkänner den friska, startar om den som aldrig blir frisk och ger upp med status 1"
+else
+  no "extra: vanta-friska.sh beter sig fel (status ${STATUS}): $(echo "$UT" | tr '\n' ' ' | cut -c1-200)"
+fi
+
 finish "verify_ap0-portabel"

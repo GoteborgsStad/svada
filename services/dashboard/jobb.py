@@ -27,6 +27,8 @@ import threading
 import time
 from collections import deque
 
+from gemensam import aterstall
+
 import audit
 import kallor
 import kedjan
@@ -119,6 +121,7 @@ class _GlobaltTillstand:
         self.gjort = set()
         self.a_laget = None
         self.a_forut = None
+        self.betrodd = False
 
 
 _GLOBALT = _GlobaltTillstand()
@@ -131,7 +134,8 @@ def _tillstand(session):
 def _notera(jobb):
     """Bokför ett avslutat jobb i besökarens tillstånd (inte ur jobblistan, som rensas efter 40 jobb och delas av alla besökare).
     A-kedjan är en liten tillståndsmaskin: begärd -> godkänd -> levererad; ett avslag, en hävning eller en nekad eller felad
-    leverans av A tar besökaren tillbaka till början av A-kedjan (ny förhandling); ett misslyckat beslut ändrar inget."""
+    leverans av A tar besökaren tillbaka till början av A-kedjan (ny förhandling); ett misslyckat beslut och ett driftfel vid leveransen
+    (tjänsten nere, tidsgräns) ändrar inget: avtalet gäller, så nästa är att leverera igen."""
     t = _tillstand(jobb.session)
     ok = jobb.status == "klar" and not jobb.utfall
     a = jobb.atgard
@@ -142,13 +146,20 @@ def _notera(jobb):
         if ok:
             # En ny begäran medan ett avtal gäller: läget före sparas, så att ett avslag som inte häver något tar besökaren tillbaka dit.
             t.a_forut = t.a_laget if t.a_laget in ("godkant", "levererat") else None
-            t.a_laget = "begart"
+            res = getattr(jobb, "resultat", None)
+            # Betrodd organisation: avtalet skrevs direkt, så det finns inget KoV-beslut att vänta på.
+            t.a_laget = "godkant" if isinstance(res, dict) and res.get("betrodd") and res.get("avtal") else "begart"
     elif a == "kov-godkann":
         if ok:
             t.a_laget = "godkant"
             t.a_forut = None
     elif a == "transfer-a":
-        t.a_laget = "levererat" if ok else None
+        if ok:
+            t.a_laget = "levererat"
+        elif jobb.status == "fel" and jobb.utfall != "nekad":
+            pass            # driftfel (tjänsten nere, tidsgräns): avtalet gäller fortfarande, så "Nästa" föreslår att leverera igen
+        else:
+            t.a_laget = None
     elif a == "kov-avsla":
         if jobb.status == "klar":          # ett misslyckat beslut (401, tjänsten nere) ändrar inget
             havda = (jobb.resultat or {}).get("havdaAvtal") if isinstance(getattr(jobb, "resultat", None), dict) else None
@@ -159,6 +170,18 @@ def _notera(jobb):
         if jobb.status == "klar":
             t.a_laget = None
             t.a_forut = None
+
+
+def nollstall_globalt():
+    """Börja om utan sessioner (lokal körning, direktanrop): det delade tillståndet nollställs och de avslutade jobb som inte hör till någon
+    session rensas ur listan. Plattformens data (brunnar, katalog, avtal) berörs inte. Ett pågående jobb stoppas inte: anroparen har redan
+    kontrollerat att inget kör."""
+    with _LAS:
+        _GLOBALT.gjort.clear()
+        _GLOBALT.a_laget = None
+        _GLOBALT.a_forut = None
+        _GLOBALT.betrodd = False
+        JOBB[:] = [j for j in JOBB if j.session is not None or j.status in ("kör", "kö")]
 
 
 def nasta_atgard():
@@ -247,6 +270,11 @@ def _katalog_eller_nekad():
 
 
 def _hamta_katalog(jobb):
+    lev = kallor.valj_leverantor()
+    if lev["kalla"] == "registret":
+        jobb.logg("jobb.leverantor_registret", namn=lev["namn"])
+    else:
+        jobb.logg("jobb.leverantor_konfig")
     katalog = _katalog_eller_nekad()
     for asset in (kallor.ASSET_B, kallor.ASSET_A):
         d = kedjan.dataset_for(katalog, asset)
@@ -255,7 +283,77 @@ def _hamta_katalog(jobb):
     return katalog
 
 
+BETRODD_SEK = 120      # hur länge staden är utpekad som betrodd hos DHI under en förhandling (providern tillåter högst 600 s)
+
+
+def _betrodd_bort_tyst():
+    """Tar bort stadens utpekning som betrodd hos providern. True om det gick (eller inget fanns), False om providern inte svarade."""
+    try:
+        kallor.kov_betrodd_bort(kallor.STAD_DID)
+        return True
+    except Exception:       # noqa: BLE001 – utpekningen går ut av sig själv hos providern (högst BETRODD_SEK s); inget internt värdnamn i meddelandet
+        return False
+
+
+def _stada_kvarlamnad_betrodd():
+    """En tidigare utpekning som blev kvar (borttagningen föll, kontrollrummet startades om) får aldrig gälla en annan besökares förhandling:
+    före varje A-förhandling tas den bort om den finns."""
+    try:
+        kvar = [b for b in kallor.kov_betrodda() if b.get("did") == kallor.STAD_DID]
+    except Exception:       # noqa: BLE001 – providern nere: förhandlingen faller ändå
+        return
+    if kvar:
+        _betrodd_bort_tyst()
+
+
+def _vanta_obeprovade_a(jobb):
+    """Väntar (högst 10 s) tills providerns gate har prövat alla A-förhandlingar som redan finns, innan en utpekning görs. En post syns i kön en stund
+    innan gaten sett den (väntande, men inte pausad); den ska inte hinna omfattas av en utpekning som görs för någon annans förhandling."""
+    for _ in range(10):
+        try:
+            obeprovade = [p for p in kedjan.kov_kon() if p.get("kovBeslut") == "VANTANDE" and not p.get("pending")]
+        except Exception:   # noqa: BLE001
+            return
+        if not obeprovade:
+            return
+        time.sleep(1)
+
+
+@contextlib.contextmanager
+def _egen_betrodd(jobb):
+    """Scenariot "betrodd organisation": besökarens eget val gäller bara medan hennes egen A-förhandling körs. KoV (rollintyget, via
+    providern) pekar ut staden som betrodd strax före förhandlingen och tar bort utpekningen direkt efteråt, även vid fel. Tre skydd mot att
+    någon annans förhandling omfattas: (1) providern godkänner bara förhandlingar som skapats efter utpekningen, (2) jobbet väntar in att
+    redan väntande förhandlingar prövats innan det pekar ut, och (3) en kvarlämnad utpekning städas före varje A-förhandling. Jobben körs ett
+    i taget för hela demon. Säkerhetsnät: utpekningen går ut av sig själv hos providern."""
+    _stada_kvarlamnad_betrodd()
+    if not getattr(_tillstand(jobb.session), "betrodd", False):
+        yield False
+        return
+    _vanta_obeprovade_a(jobb)
+    try:
+        kallor.kov_betrodd_satt(kallor.STAD_DID, BETRODD_SEK)
+    except Exception:       # noqa: BLE001 – kan ha registrerats trots felet: ta bort, och säg det utan interna adresser
+        _betrodd_bort_tyst()
+        raise Jobbfel("fel.betrodd_utpekning")
+    jobb.logg("jobb.betrodd_pa", sek=BETRODD_SEK)
+    try:
+        yield True
+    finally:
+        if _betrodd_bort_tyst():
+            jobb.logg("jobb.betrodd_av")
+        else:
+            jobb.logg("jobb.betrodd_kvar")
+
+
 def _forhandla(jobb, asset):
+    if asset == kallor.ASSET_A:
+        with _egen_betrodd(jobb) as betrodd:
+            return _forhandla_steg(jobb, asset, betrodd)
+    return _forhandla_steg(jobb, asset, False)
+
+
+def _forhandla_steg(jobb, asset, betrodd):
     dist = "A" if asset == kallor.ASSET_A else "B"
     katalog = _katalog_eller_nekad()
     fid = kedjan.forhandla(asset, katalog)
@@ -267,15 +365,21 @@ def _forhandla(jobb, asset):
         post = None
         for _ in range(25):
             post = kedjan.kov_post_for(fid)
-            if post:
+            # Posten syns i kön en stund innan providerns gate hunnit pröva den (väntande, men inte pausad). Vänta in prövningen: antingen pausas
+            # förhandlingen (pending) hos KoV, eller så är den redan avgjord (till exempel automatiskt för en betrodd organisation). Annars kunde
+            # jobbet gå vidare innan gaten sett förhandlingen, och en annan besökares utpekning hinna omfatta den.
+            if post and (post.get("pending") or post.get("kovBeslut") != "VANTANDE"):
                 break
             time.sleep(1)
         if post:
             jobb.logg("jobb.kon", id=post.get("id"), tillstand=post.get("state"),
-                      pending=post.get("pending"), beslut=post.get("kovBeslut"))
+                      pending=post.get("pending"),
+                      beslut="AUTOMATISKT" if post.get("betroddAutomatiskt") else post.get("kovBeslut"))
             if post.get("kovBeslut") == "VANTANDE":
                 jobb.logg("jobb.kov_panel")
                 return {"forhandlingId": fid, "kov": post, "avtal": None}
+            if post.get("betroddAutomatiskt"):
+                jobb.logg("jobb.kov_automatiskt")
         avtal, tillstand = kedjan.vanta_avtal(fid, 30)
     else:
         # Besked direkt, inte först efter väntan: är DHI utestängd slutförs förhandlingen aldrig (L19).
@@ -295,7 +399,7 @@ def _forhandla(jobb, asset):
             ute = []
         if ute:
             jobb.logg("jobb.inget_avtal_utestangd", delar=sorted(set(ute)))
-    return {"forhandlingId": fid, "avtal": avtal, "tillstand": tillstand}
+    return {"forhandlingId": fid, "avtal": avtal, "tillstand": tillstand, "betrodd": betrodd}
 
 
 def _ingest_meddelande(post):
@@ -498,6 +602,8 @@ def starta(atgard, argument=None):
         raise Jobbfel("fel.okand_atgard", atgard=atgard)
     if atgard in _KRAVER_ID and not (isinstance(argument, dict) and isinstance(argument.get("id"), str) and _ID.match(argument["id"])):
         raise Jobbfel("fel.jobb_argument", atgard=atgard)
+    if aterstall.sparr_nya_jobb(os.environ.get("VARSEL_FIL", "")):      # planerad uppdatering strax: ingen ska börja en kedja som ändå avbryts
+        raise Upptaget("fel.uppdatering_strax")
     etikett_kod, steg, funktion = ATGARDER[atgard]
     s = sessioner.aktuell()
     with _LAS:

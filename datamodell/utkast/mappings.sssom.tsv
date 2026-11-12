@@ -1,0 +1,29 @@
+#curie_map:
+#  svada: https://modell.svada.invalid/utkast/0.1/
+#  skos: http://www.w3.org/2004/02/skos/core#
+#  rdfs: http://www.w3.org/2000/01/rdf-schema#
+#  semapv: https://w3id.org/semapv/vocab/
+#mapping_set_id: https://modell.svada.invalid/utkast/0.1/mappings.sssom.tsv
+#comment: DRAFT, not decided. DRAFT. A temporary model made for the PoC. Not decided. Not agreed with the data owner, the provider or the City's technical custodian. Not submitted to Smart Data Models. Not proposed as a general model.
+subject_id	predicate_id	object_id	mapping_justification	comment
+svada:SewerOverflowWeir	rdfs:seeAlso	http://inspire.ec.europa.eu/codelist/SewerAppurtenanceTypeValue/dischargeStructure	semapv:ManualMappingCuration	INSPIRE sewer appurtenance 'discharge structure'. A possible broader term; to be decided with the data owner.
+svada:inflowMeanM3S	rdfs:seeAlso	https://smartdatamodels.org/dataModel.OpenChannelManagement/waterInflow	semapv:ManualMappingCuration	Raw-water open-channel junction; same quantity, different domain. Not equal.
+svada:inflowPeakM3S	rdfs:seeAlso	https://smartdatamodels.org/dataModel.OpenChannelManagement/waterInflow	semapv:ManualMappingCuration	As inflowMeanM3S.
+svada:inflowVolumeM3	rdfs:seeAlso	https://smartdatamodels.org/dataModel.OpenChannelManagement/waterInflow	semapv:ManualMappingCuration	Smart Data Models OpenChannelManagement: water inflow. Close in meaning; the unit and the period differ.
+svada:overflowVolumeM3	rdfs:seeAlso	https://smartdatamodels.org/dataModel.Environment/waterDischarge	semapv:ManualMappingCuration	Volume (cubic metre) discharged into water, defined for stormwater and treatment plant discharges. Related, not equal.
+svada:overflowPeakM3S	rdfs:seeAlso	https://smartdatamodels.org/dataModel.Environment/waterDischarge	semapv:ManualMappingCuration	Smart Data Models Environment (WaterObserved): water discharge. Close in meaning; ours is the modelled peak overflow.
+svada:waterLevelMaxM	rdfs:seeAlso	https://smartdatamodels.org/dataModel.Environment/waterLevel	semapv:ManualMappingCuration	Current water level of an observation (in that subject: of a storage tank). Ours is a maximum over a day. Related, not equal.
+svada:periodStart	skos:closeMatch	https://smartdatamodels.org/dataModel.Environment/dateObservedFrom	semapv:ManualMappingCuration	Start of an observation period. Ours is a modelled period, not an observed one.
+svada:periodEnd	skos:closeMatch	https://smartdatamodels.org/dataModel.Environment/dateObservedTo	semapv:ManualMappingCuration	End of an observation period. Ours is a modelled period, not an observed one.
+svada:location	skos:exactMatch	https://uri.etsi.org/ngsi-ld/location	semapv:ManualMappingCuration	Core NGSI-LD term, reused as is.
+svada:sourceSrs	rdfs:seeAlso	https://www.opengis.net/def/crs/EPSG/0/4619	semapv:ManualMappingCuration	The OGC address of the EPSG code used in the PoC data.
+svada:name	skos:exactMatch	https://uri.etsi.org/ngsi-ld/name	semapv:ManualMappingCuration	Core NGSI-LD term, reused as is.
+svada:weirType	rdfs:seeAlso	http://inspire.ec.europa.eu/codelist/SewerAppurtenanceTypeValue/dischargeStructure	semapv:ManualMappingCuration	INSPIRE sewer appurtenance 'discharge structure'. Possible broader term; to be decided with the data owner.
+svada:source	skos:closeMatch	http://purl.org/dc/terms/source	semapv:ManualMappingCuration	Dublin Core: a related resource from which the described resource is derived.
+svada:dataProvider	skos:closeMatch	http://purl.org/dc/terms/publisher	semapv:ManualMappingCuration	Dublin Core: the entity responsible for making the resource available.
+svada:description	skos:closeMatch	http://purl.org/dc/terms/description	semapv:ManualMappingCuration	Dublin Core: an account of the resource.
+svada:provenance.dataset	skos:closeMatch	http://purl.org/dc/terms/title	semapv:ManualMappingCuration	Title of a dataset.
+svada:provenance.producedAt	skos:closeMatch	http://www.w3.org/ns/prov#generatedAtTime	semapv:ManualMappingCuration	PROV-O generatedAtTime.
+svada:provenance.accessRights	skos:closeMatch	http://purl.org/dc/terms/accessRights	semapv:ManualMappingCuration	Dublin Core accessRights.
+svada:provenance.license	skos:closeMatch	http://purl.org/dc/terms/license	semapv:ManualMappingCuration	Dublin Core license.
+svada:provenance.publisher	skos:closeMatch	http://purl.org/dc/terms/publisher	semapv:ManualMappingCuration	Dublin Core publisher.

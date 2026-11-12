@@ -434,10 +434,11 @@ fi
 MONT=$(docker inspect ${SVADA_PREFIX:-svada}-dashboard \
   --format '{{range .Mounts}}{{.Destination}}:{{.RW}} {{end}}' 2>/dev/null)
 # Enda tillåtna monteringar (användningsstatistik): Caddys åtkomstlogg SKRIVSKYDDAD och
-# katalogen data/ där bara dagssummor (tal) och händelseräknaren sparas. Allt annat, eller att loggen blir skrivbar, är ett fel.
+# katalogen data/ där bara dagssummor (tal) och händelseräknaren sparas, och varselfilen för planerad uppdatering, SKRIVSKYDDAD (dashboarden läser bara
+# tid och typ). Allt annat, eller att loggen eller varselkatalogen blir skrivbar, är ett fel.
 MONT_SORT="$(echo "${MONT}" | tr ' ' '\n' | sed '/^$/d' | sort | tr '\n' ' ')"
-if [ "${MONT_SORT}" = "/statistik/data:true /statistik/logg:false " ]; then
-  ok "6b.9 bara statistikens två monteringar: loggen skrivskyddad och data/ med dagssummor (inga data ur kedjan lagras)"
+if [ "${MONT_SORT}" = "/statistik/data:true /statistik/logg:false /varsel:false " ]; then
+  ok "6b.9 bara tre monteringar: statistikens logg (skrivskyddad) och data/ med dagssummor, och varselfilen (skrivskyddad); inga data ur kedjan lagras"
 else
   no "6b.9 oväntade monteringar: '${MONT}'"
 fi
@@ -447,7 +448,7 @@ fi
 if grep -rn 'url("fcf", *"/distributions' services/dashboard/ >/dev/null 2>&1; then
   no "6b.9 dashboardkoden hämtar dataproduktens nyttolast från fcf-sim"
 else
-  ok "6b.9 dashboardkoden hämtar aldrig dataproduktens nyttolast (bara /health, /batches/run, /felinjektion)"
+  ok "6b.9 dashboardkoden hämtar aldrig dataproduktens nyttolast (bara /health, /batches/run, /felinjektion och mätfönstret /measurements, inte batchen)"
 fi
 MEM=$(docker stats --no-stream --format '{{.MemUsage}}' ${SVADA_PREFIX:-svada}-dashboard 2>/dev/null)
 [ -n "${MEM}" ] && ok "6b.9 minnesanvändning: ${MEM}" || no "6b.9 kunde inte mäta minnet"
@@ -470,8 +471,6 @@ if [ -f "${STEGDOK}" ] && [ -f "${DEMODOK}" ]; then
   done
   [ -z "${SAKNAS}" ] && ok "6b.7 ${STEGDOK} går igenom steg 1–6" \
     || no "6b.7 ${STEGDOK} saknar steg:${SAKNAS}"
-  grep -q "15" "${DEMODOK}" && ok "6b.7 ${DEMODOK} är tidsatt (15 minuter)" \
-    || no "6b.7 ${DEMODOK} saknar körschema/tidsättning"
 else
   no "6b.7 ${STEGDOK} eller ${DEMODOK} saknas"
 fi

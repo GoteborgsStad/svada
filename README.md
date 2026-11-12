@@ -24,8 +24,8 @@ bash tools/forsta-start.sh     # skapar .env ur .env.exempel och slumpar fram he
 bash starta-demo.sh            # bygger och startar kedjan (första gången flera minuter)
 ```
 
-Öppna kontrollrummet på <http://localhost:38800>. Det finns också en proxy med lösenordsgrind på `http://svada-demo.localhost:38080`; användarnamn och
-lösenord ligger i `.demo-losenord`. Stoppa med `bash stoppa-demo.sh` (raderar ingen data). Nollställ med `bash aterstall-demo.sh`.
+Öppna kontrollrummet på <http://localhost:38800>. Det finns också en proxy på `http://svada-demo.localhost:38080` (öppen som standard; sätt `DEMO_GATE=on` i `.env` för en lösenordsgrind, med användarnamn och
+lösenord i `.demo-losenord`). Stoppa med `bash stoppa-demo.sh` (raderar ingen data). Nollställ med `bash aterstall-demo.sh`.
 
 **Obs:** att köra från noll på en ren maskin är **inte provat än** (det är bara provat i utvecklingsmiljön). Skriv gärna ett ärende om något saknas.
 
@@ -49,6 +49,19 @@ Testsviten är skriven för `extern`.
 
 **Ansvar.** Du ansvarar själv för dina installationer och för att följa licenserna för de komponenter du hämtar, bygger och kör, i synnerhet AGPL (Orion-LD, Mintaka) och SSPL (MongoDB) om du erbjuder dem som en tjänst till andra. Licensbedömningen i [TREDJEPART.md](TREDJEPART.md) är gjord av projektet och **inte juridiskt granskad**.
 
+## Interoperabilitet: MIM:arna
+
+Vi redovisar öppet hur vi följer OASC:s Minimal Interoperability Mechanisms (MIMs), MIM för MIM: vad vi följer, vad vi inte följer och varför. Det vi inte kan följa fullt ut bara för att det här är en PoC redovisas, men påverkar inte om vi säger att vi följer en MIM. Bedömningen är vår egen, MIM:arna har inget konformitetsprov. Metoden och statustabellen finns i [översikten](docs/mims/README.md), och [listan över vad vi skulle behöva ändra](docs/mims/forbattringar.md) hålls uppdaterad, som är skriven på engelska med svensk sammanfattning.
+
+| MIM | Handlar om | Vårt påstående | Kort |
+|---|---|---|---|
+| [MIM0](docs/mims/mim0-accessing-data.md) | Åtkomst till data | Följs | Maskinläsbart (JSON, NGSI-LD), formellt beskrivet (OpenAPI, ETSI), frågor på tid och attribut. Prenumeration gäller inte vårt användningsfall. |
+| [MIM1](docs/mims/mim1-interlinking-data.md) | Länkning av data | Följs (modellen är ett utkast) | Unika id och relationen `refWeir` finns. Betydelsen av våra typer och attribut publiceras maskinläsbart i datamodellutkastets kontext och går att slå upp (R2.1, R2.2); utkastet är inte beslutat. Kvar: att följa relationen genom gatewayen är inte prövat (R3.1). |
+| [MIM2](docs/mims/mim2-representing-data.md) | Representation av data | Följs, med en PoC-begränsning | Öppen standard (NGSI-LD), explicita enheter och tider; modellen bygger på NGSI-LD och är länkad till erkända modeller, katalogen och den öppna vyn pekar på den, och varje leverans kontrolleras mot dess schema. Modellen är en tillfällig PoC-modell som inte föreslås som allmän (R1.2b). |
+| [MIM3](docs/mims/mim3-exchanging-data.md) | Utbyte av data | Följs | Villkor (ODRL), rätt att granska, identifiering av parterna, katalog, deltagarregister, avtal och hävning. Regelbok och förfrågningar om ny data är PoC-begränsningar. |
+| [MIM6](docs/mims/mim6-securing-data.md) | Säkra data | Följs, med PoC-begränsningar | Åtkomst via ODRL, avtalskontroll och verifierbara intyg. Saknas: nyckelhantering, granskningsrutiner och integritetsskydd av lagrade data (PoC). |
+| [MIM7](docs/mims/mim7-geospatial-data.md) | Geodata | Går inte att bedöma (inga krav i v9.0) | Vi visar bara brunnarnas positioner som punkter på en karta, och bara i den icke-offentliga distribution A; inga OGC-tjänster. |
+
 ## Kända begränsningar
 
 * **EDC är låst på 0.17.0.** Nästa stora version (1.0) tar bort det inbyggda dataplanet som överföringen här bygger på, så ett byte är ett eget arbete. Det är inte säkert att vi gör det.
@@ -64,8 +77,10 @@ Testsviten är skriven för `extern`.
 Svada-mini är framtaget inom **[Vattendatalabbet (SVADA)](https://vattendatalabbet.se)** (Göteborgs Stad), i samarbete med [RISE](https://www.ri.se/en/infrastructure/water/project/swedish-water-data-lab-svada-transition-for-smart-water-management).
 
 **Upphovspersoner**
-* **Björn Hagström**, expert på informationshantering och data spaces ([GitHub](https://github.com/bjornhagstrom))
-* **Niklas Fjellman**, utvecklingsledare data, Göteborgs Stad
+* **Niklas Fjellman**, utvecklingsledare data, Göteborgs Stad: originaluppsättning av PoC:en: kravställning, arkitektur, utveckling av kod och test enligt Målarkitektur version 1.92, samt teknisk dokumentation
+* **Björn Hagström**, expert på informationshantering och data spaces ([GitHub](https://github.com/bjornhagstrom)): vidareutveckling av stödet för dataspaceprotokollen (identitet, verifierbara intyg, avtal) samt paketering för global kommunikation och begriplighet
+
+**Byggd med AI-assistenter.** Koden, testerna och dokumentationen är utvecklade tillsammans med AI-assistenter (bland annat Claude, Codex och Gemini). Niklas Fjellman och Björn Hagström har styrt arbetet och tar ansvar för innehållet, men allt är inte oberoende granskat av människor. Bedömningarna i [docs/mims](docs/mims/README.md) är självbedömningar, också de framtagna med hjälp av AI-assistenter.
 
 **Finansiärer av SVADA:** [Energimyndigheten](https://www.energimyndigheten.se), [Formas](https://www.formas.se), [Vinnova](https://www.vinnova.se) och [Water Wise Societies](https://waterwisesocieties.se). Projektbeskrivning hos [Vinnova](https://www.vinnova.se/en/p/the-swedish-water-data-lab-svada--transition-for-smart-water-management).
 
@@ -102,6 +117,19 @@ Licence: [Apache-2.0](LICENSE) for the code in this repository; the images that 
 
 **Responsibility.** You are responsible for your own installations and for complying with the licences of the components you pull, build and run, in particular AGPL (Orion-LD, Mintaka) and SSPL (MongoDB) if you offer them as a service to others. The licence assessment in [TREDJEPART.md](TREDJEPART.md) was made by the project and has **not been legally reviewed**.
 
+### Interoperability: the MIMs
+
+We state openly how we follow the Minimal Interoperability Mechanisms (MIMs) of OASC, MIM by MIM: what we follow, what we do not follow, and why. What we cannot follow fully only because this is a PoC is reported, but does not change whether we say that we follow a MIM. The assessment is our own; the MIMs have no conformance test. The method and the status table are in the [overview](docs/mims/README.md), and the [list of what we would have to change](docs/mims/forbattringar.md) is kept up to date.
+
+| MIM | About | Our claim | In short |
+|---|---|---|---|
+| [MIM0](docs/mims/mim0-accessing-data.md) | Accessing data | Followed | Machine-readable (JSON, NGSI-LD), formally described (OpenAPI, ETSI), queries by time and attribute. Subscriptions do not apply to our use case. |
+| [MIM1](docs/mims/mim1-interlinking-data.md) | Interlinking data | Followed (the model is a draft) | Unique ids and the `refWeir` relationship exist. The meaning of our types and attributes is published in machine-readable form in the draft data model's context and can be looked up (R2.1, R2.2); the draft is not decided. Left: following the relationship through the gateway is not tested (R3.1). |
+| [MIM2](docs/mims/mim2-representing-data.md) | Representing data | Followed, with a PoC limitation | Open standard (NGSI-LD), explicit units and times; the model is built on NGSI-LD and linked to recognised models, the catalogue and the open view point to it, and every delivery is checked against its schema. The model is a temporary PoC model not proposed as a general one (R1.2b). |
+| [MIM3](docs/mims/mim3-exchanging-data.md) | Exchanging data | Followed | Terms (ODRL), right to audit, identification of the parties, catalogue, participant directory, agreement and termination. A rulebook and requests for new data are PoC limitations. |
+| [MIM6](docs/mims/mim6-securing-data.md) | Securing data | Followed, with PoC limitations | Access through ODRL, agreement checks and verifiable credentials. Missing: key management, review procedures and integrity protection of stored data (PoC). |
+| [MIM7](docs/mims/mim7-geospatial-data.md) | Geospatial data | Cannot be assessed (no requirements in v9.0) | We only show the positions of the chambers as points on a map, and only in the non-public Distribution A; no OGC services. |
+
 ### Known limitations
 
 * **EDC is pinned to 0.17.0.** The next major version (1.0) removes the embedded data plane that the transfer here relies on, so an upgrade is a piece of work of its own. We may not do it.
@@ -117,8 +145,10 @@ Licence: [Apache-2.0](LICENSE) for the code in this repository; the images that 
 Svada-mini was created within **[the Swedish Water Data Lab (SVADA)](https://vattendatalabbet.se)** (City of Gothenburg), in cooperation with [RISE](https://www.ri.se/en/infrastructure/water/project/swedish-water-data-lab-svada-transition-for-smart-water-management).
 
 **Authors**
-* **Björn Hagström**, expert on information management and data spaces ([GitHub](https://github.com/bjornhagstrom))
-* **Niklas Fjellman**, development lead, data, City of Gothenburg
+* **Niklas Fjellman**, development lead, data, City of Gothenburg: original setup of the PoC: requirements, architecture, and development of code and tests according to the Target Architecture (Målarkitektur) version 1.92, plus technical documentation
+* **Björn Hagström**, expert on information management and data spaces ([GitHub](https://github.com/bjornhagstrom)): extended the PoC with data space protocol support (identity, verifiable credentials, agreements) and packaged it for global communication and clarity
+
+**Built with AI assistants.** The code, the tests and the documentation were developed together with AI assistants (among them Claude, Codex and Gemini). Niklas Fjellman and Björn Hagström have directed the work and are responsible for the content, but not everything has been independently reviewed by humans. The assessments in [docs/mims](docs/mims/README.md) are self-assessments, also prepared with the help of AI assistants.
 
 **SVADA is funded by** the [Swedish Energy Agency](https://www.energimyndigheten.se) (Energimyndigheten), [Formas](https://www.formas.se), [Vinnova](https://www.vinnova.se) and [Water Wise Societies](https://waterwisesocieties.se). Project description at [Vinnova](https://www.vinnova.se/en/p/the-swedish-water-data-lab-svada--transition-for-smart-water-management).
 

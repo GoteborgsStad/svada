@@ -41,6 +41,7 @@ MGMT = os.environ.get("EDC_MGMT_URL", "http://edc-provider:19193/management")
 HEALTH = os.environ.get("EDC_HEALTH_URL", "http://edc-provider:19191/api/check/health")
 ASSET_ID = os.environ["EDC_ASSET_B_ID"]
 ASSET_URL = os.environ["EDC_ASSET_B_URL"]
+MODELL_ADRESS = os.environ.get("MODELL_ADRESS", "")
 ASSET_A_ID = os.environ["EDC_ASSET_A_ID"]
 ASSET_A_URL = os.environ["EDC_ASSET_A_URL"]
 # verifierbar DCP-identitet (steg 5): Stadens VERIFIERADE DID, ersätter __STAD_DID__-platshållaren
@@ -87,6 +88,15 @@ def rensa_kommentarer(nod):
     return nod
 
 
+def utan_tomma_lankar(nod):
+    """Tar bort {"@id": ""} ur listor (till exempel conformsTo-adressen till modellen när MODELL_ADRESS inte är satt)."""
+    if isinstance(nod, dict):
+        return {n: utan_tomma_lankar(v) for n, v in nod.items()}
+    if isinstance(nod, list):
+        return [utan_tomma_lankar(v) for v in nod if v != {"@id": ""}]
+    return nod
+
+
 def las(filnamn: str) -> dict:
     """Läser en JSON-mall, byter ut placeholders och rensar kommentarer."""
     text = (BOOTSTRAP_DIR / filnamn).read_text(encoding="utf-8")
@@ -95,8 +105,10 @@ def las(filnamn: str) -> dict:
                 .replace("__ASSET_A_ID__", ASSET_A_ID)
                 .replace("__ASSET_A_URL__", ASSET_A_URL)
                 .replace("__STAD_DID__", STAD_DID)
-                .replace("__AVTAL_GILTIGHET__", AVTAL_GILTIGHET))
-    return rensa_kommentarer(json.loads(text))
+                .replace("__AVTAL_GILTIGHET__", AVTAL_GILTIGHET)
+                .replace("__MODELL_ADRESS__", MODELL_ADRESS))
+    mall = rensa_kommentarer(json.loads(text))
+    return utan_tomma_lankar(mall)
 
 
 def anropa(metod: str, url: str, kropp: dict | None = None):
@@ -176,5 +188,31 @@ def main() -> None:
          "(A bakom KoV-gaten, B automatisk).")
 
 
+def bevaka(intervall: int = 15) -> None:
+    """Läker katalogen: EDC:s in-memory-lager töms när providern startar om, och då är katalogen
+    tom tills registreringen körs igen. Här kollas båda tillgångarna med jämna mellanrum och
+    registreringen (idempotent) körs om så fort någon saknas. Avtal som låg i lagret går inte att
+    återskapa; det är besökarens nästa förhandling som ger ett nytt."""
+    logg(f"bevakar katalogen var {intervall}:e sekund")
+    while True:
+        try:
+            saknas = [
+                i for i in (ASSET_ID, ASSET_A_ID)
+                if anropa("GET", f"{MGMT}/v3/assets/{i}")[0] == 404
+            ]
+        except (urllib.error.URLError, OSError, TimeoutError):
+            saknas = []  # providern är inte uppe ännu; försök igen
+        if saknas:
+            logg(f"katalogen saknar {', '.join(saknas)} (providern har startat om?) – registrerar om")
+            try:
+                main()
+            except SystemExit as fel:
+                logg(f"omregistreringen lyckades inte, försöker igen: {fel}")
+        time.sleep(intervall)
+
+
 if __name__ == "__main__":
-    main()
+    if "--bevaka" in sys.argv[1:]:
+        bevaka()
+    else:
+        main()

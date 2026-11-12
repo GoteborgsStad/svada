@@ -19,7 +19,9 @@ MINTAKA="http://localhost:${MINTAKA_PORT}"
 # ÅTGÄRD G22: :2026 är numera stad-gateway, inte orion-stad rakt ut. All
 # läsning och skrivning av CIP:en kräver token; bara liveness är öppen.
 # Verifieringen är stadens egen komponent och använder drifttoken.
-ORION_AUTH=(-H "Authorization: Bearer ${STAD_GATEWAY_DRIFT_TOKEN}")
+# Datamodellens kontext som Link-header (som i tests/lib.sh): attributen lagras under modellens adresser.
+LANK_MODELL=(-H "Link: <${MODELL_KONTEXT_URL:-http://publik-vy:8085/modell/utkast/0.1/context.jsonld}>; rel=\"http://www.w3.org/ns/json-ld#context\"; type=\"application/ld+json\"")
+ORION_AUTH=(-H "Authorization: Bearer ${STAD_GATEWAY_DRIFT_TOKEN}" "${LANK_MODELL[@]}")
 COMPOSE="docker compose -f compose.stad.yml"
 KROK_ID="urn:ngsi-ld:SewerOverflowWeir:SSO1_01-4526"
 # Attribut som bara verifieringen skriver – används för temporaltestet 1.5.
@@ -59,7 +61,7 @@ vanta_mintaka() {
     # limit=1&lastN=1 på 2 s och med oförändrad frågeform (kollektion +
     # typfilter). Själva påståendet i 1.5 – att ett skrivet värde återfinns
     # i historiken – är orört och läser fortfarande riktig historik.
-    kod=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+    kod=$(curl -s "${LANK_MODELL[@]}" -o /dev/null -w '%{http_code}' --max-time 20 \
       "${MINTAKA}/temporal/entities?type=SewerOverflowWeir&timerel=after&timeAt=2020-01-01T00:00:00Z&limit=1&lastN=1")
     # 206 Partial Content är ett GILTIGT svar från NGSI-LD:s temporal-API:
     # när historiken vuxit (överföringen fyller den med dygnsbatchar) sidindelar
@@ -172,7 +174,7 @@ else
 fi
 traff=""
 for _ in $(seq 1 20); do
-  traff=$(curl -s --max-time 15 \
+  traff=$(curl -s "${LANK_MODELL[@]}" --max-time 15 \
     "${MINTAKA}/temporal/entities/${KROK_ID}?timerel=after&timeAt=2020-01-01T00:00:00Z&attrs=${TEST_ATTR}" \
     | jq --argjson v "$VARDE" '[.. | objects | select(.value? == $v)] | length' 2>/dev/null)
   [ "${traff:-0}" != "0" ] && break

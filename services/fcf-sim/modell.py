@@ -31,7 +31,7 @@ PUNKTER_PER_DYGN = 288     # 24 h / 5 min
 C_OVERFALL = 1.7           # avbördningskoefficient, skarpkantat överfall (SI)
 KRON_BREDD_M = 1.0         # antagen krönbredd, samma för alla brunnar i PoC:en
 
-MODELLVERSION = "fcf-sim 1.0.0 / enkel-overfallsmodell"
+MODELLVERSION = "FCF-simulator 1.0.0 / enkel överfallsmodell"
 
 
 def _hash_tal(text, salt):

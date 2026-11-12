@@ -157,6 +157,14 @@ Medveten förenkling: listan ligger i utfärdarens minne och index tilldelas vid
 ansöknings- eller invändningsflöde (regelboken, G15); utfärdaren är inte förankrad i eIDAS.
 Testas av `tests/verify_ap11.sh`.
 
+### Notis: DCP och W3C-intyg, inte OpenID4VC (2026-10-28)
+
+I dataspace-sammanhang nämns ofta OpenID4VCI, OpenID4VP och SD-JWT VC. Det är tre olika saker: VCI är protokollet för att *få* ett intyg av en utfärdare, VP är protokollet för att *visa* ett intyg för en verifierare, och SD-JWT VC är ett *intygsformat* där enskilda fält kan döljas. De bygger på EU:s plånboksspår (EUDI, eIDAS 2.0) och är avsedda för en människas plånbok.
+
+Svada-mini använder en annan väg: **DCP** (Decentralized Claims Protocol) mellan organisationernas tjänster, med W3C-intyg signerade som JWT, did:web och återkallelse via Bitstring Status List. Där visar en connector sitt medlemsintyg automatiskt vid varje anrop, utan en människa i flödet. Det är den väg Eclipse EDC och IdentityHub har moget stöd för, och DSP kräver ingen av dem. Att EDC kan använda OpenID4VC i stället är en uppgift från andra källor (bland annat IDSA:s rapporter om dataspace-kopplingar); hur färdigt det stödet är har vi **inte** kontrollerat.
+
+Status enligt sökning 2026-10-28, ej läst i specifikationerna: OpenID4VCI 1.0 och OpenID4VP 1.0 är slutliga (2025), grundformatet SD-JWT är RFC 9901, men SD-JWT VC är fortfarande ett IETF-utkast på väg mot RFC. Stödet i riktiga plånböcker är ojämnt. OpenID4VC blir aktuellt för oss först om en *person* (till exempel hos KoV) ska bevisa något med en plånbok; för maskin-till-maskin mellan DHI, staden och Svada är DCP rätt val.
+
 ## Bevis
 
 Idag: `tests/verify_ap4a.sh` **4a.4** – markören finns (`grep "MEDVETEN
@@ -296,3 +304,7 @@ anonym på vägen dit.
 
 * Gotcha: `pipefail` + `grep -q` gjorde 4a.4-markörtestet falskt rött (SIGPIPE 141).
 * Identitetsproven: `tests/verify_ap8_fas1.sh`, `verify_ap8_fas2.sh`, `verify_ap8_fas3.sh`. Relaterat: [[06-kov-gate]], [[05-dsp-odrl]].
+
+### Notis: deltagarregistret (2026-10-28)
+
+Svadas utfärdare (samordningsrollen) har ett öppet deltagarregister, `GET /participants` på utfärdarens DID-adress (`identity-hub/…/Deltagarregister.java`, `DeltagarregisterPublik.java`). Varje deltagare redovisas med DID, namn, medlems- och deltagarstatus (läses ur statuslistan vid varje anrop, så en återkallelse syns direkt) och adressen där deras connector svarar på Dataspace Protocol. Registret anger **inga roller**: rollen intygar organisationen själv. Namn och adresser kommer ur `.env` (`SVADA_DELTAGARNAMN_*`, `SVADA_DSP_ADRESS_*`) via `SVADA_ISSUER_DELTAGARINFO`; adressen är deltagarens egen uppgift till samordnaren och kontrolleras inte. MEDVETEN FÖRENKLING: i minnet, ingen ansökan eller borttagning (G15). Provas i `tests/verify_ap11.sh`, avsnitt 11.8. Bakgrund och beslut: `docs/plan/deltagarregister-plan.md` (MIM3 RC5.1).

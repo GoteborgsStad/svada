@@ -316,7 +316,8 @@ if [ -d tools/node_modules/playwright-core ] && command -v node >/dev/null 2>&1;
     ST=$(curl -s --max-time 10 "${DASH}/api/jobb/${JID}" | jq -r '.status // "okänd"')
     [ "${ST}" = "klar" ] || no "K3 förberedelsen: ${ATG} blev inte klar (status ${ST}); proven av steg 5 och 6 i läge B förutsätter en B-leverans"
   done
-  DASH="${DASH}" PUBLIKVY="http://localhost:${PUBLIK_VY_PORT}" node tests/kedjevy_webblasare.mjs 2>&1 | tee "${TMP}/webblasare.log"
+  # Delkörning och förkortade väntor (ONLY, STILLA_MAX) är till för nivå 1–2; ett fullt prov får aldrig ärva dem ur skalet.
+  env -u ONLY -u STILLA_MAX DASH="${DASH}" PUBLIKVY="http://localhost:${PUBLIK_VY_PORT}" node tests/kedjevy_webblasare.mjs 2>&1 | tee "${TMP}/webblasare.log"
   WRC=${PIPESTATUS[0]}
   WFEL=$(grep -c '^  \[FEL\]' "${TMP}/webblasare.log")
   if [ "${WRC}" -ne 0 ]; then no "K3 webbläsartestet avslutades med kod ${WRC} (${WFEL} [FEL]-rader)"
@@ -325,6 +326,100 @@ if [ -d tools/node_modules/playwright-core ] && command -v node >/dev/null 2>&1;
 else
   echo "  [HOPPAR ÖVER] webbläsartestet kräver 'cd tools && npm install' och Chrome"
 fi
+
+# K39: nedladdningarna (nedladdning.py, filer.py): registret, åtkomst, interna adresser, kontrollsummor; utan stack
+section "K39 Nedladdning (nedladdning_enhet.py, utan stack)"
+python3 -I tests/nedladdning_enhet.py > "${TMP}/nedladdning-enhet.log" 2>&1; NDRC=$?
+cat "${TMP}/nedladdning-enhet.log"
+[ "${NDRC}" -eq 0 ] && ok "K39 nedladdningarna: $(grep -c '\[OK\]' "${TMP}/nedladdning-enhet.log") kontroller gröna" || no "K39 nedladdningarna misslyckades (exit ${NDRC})"
+
+# K40: nedladdningarna mot stacken. Filerna är det kedjan faktiskt har, med SHA-256 som stämmer med de byte som skickas, leveransens summa
+# är den ingest-service räknade vid mottagandet (och som auditloggen bär), och inget internt läcker.
+section "K40 Nedladdning mot stacken: faktiska filer, kontrollsumma, auditloggen, inget internt"
+PUBV="http://localhost:${PUBLIK_VY_PORT}"
+for ATG in kor-batch forhandla-b transfer-b; do        # en B-leverans ska finnas (den ska vara mottagen under ett avtal)
+  JID=$(curl -s --max-time 30 -X POST "${DASH}/api/atgard/${ATG}" -H 'content-type: application/json' -d '{}' | jq -r '.id // empty')
+  for _ in $(seq 1 60); do [ "$(curl -s --max-time 10 "${DASH}/api/jobb/${JID}" | jq -r '.status')" != "kör" ] && break; sleep 2; done
+done
+shasum_fil() { shasum -a 256 "$1" | cut -d' ' -f1; }
+NDFEL=0
+for F in matvarden matvarden-csv katalog deltagare odrl-b odrl-a avtal leverans-b schemakontroll cip-b analys-b-csv analys-b-json ordlista mim; do
+  KOD=$(curl -s --max-time 60 -D "${TMP}/nd-$F.h" -o "${TMP}/nd-$F.body" -w '%{http_code}' "${DASH}/api/ladda-ned/${F}")
+  if [ "${KOD}" != "200" ]; then echo "  [FEL] ${F}: HTTP ${KOD} ($(head -c 200 "${TMP}/nd-$F.body"))"; NDFEL=$((NDFEL+1)); continue; fi
+  HS=$(grep -i '^x-content-sha256:' "${TMP}/nd-$F.h" | tr -d '\r' | awk '{print $2}'); BS=$(shasum_fil "${TMP}/nd-$F.body")
+  if [ "${F}" != "leverans-b" ]; then
+    [ "${HS}" = "${BS}" ] && echo "  [OK] ${F}: kontrollsumman stämmer med filen" || { echo "  [FEL] ${F}: huvudet ${HS} men filen ${BS}"; NDFEL=$((NDFEL+1)); }
+  fi
+  grep -qiE 'edc-provider|edc-consumer|orion-stad|stad-gateway|ingest-service|identity-hub|host\.docker\.internal|127\.0\.0\.1|mintaka:' "${TMP}/nd-$F.body" && { echo "  [FEL] ${F}: interna adresser i filen"; NDFEL=$((NDFEL+1)); }
+  grep -qi '^content-disposition: attachment; filename="svada-' "${TMP}/nd-$F.h" || { echo "  [FEL] ${F}: saknar Content-Disposition med filnamn"; NDFEL=$((NDFEL+1)); }
+done
+[ "${NDFEL}" -eq 0 ] && ok "K40 14 filer: 200, kontrollsumma rätt, inga interna adresser, filnamn" || no "K40 ${NDFEL} fel bland de 14 filerna"
+# Leveransen: byte för byte det som togs emot; summan är den som räknades vid mottagandet och som auditloggen bär.
+HS=$(grep -i '^x-content-sha256:' "${TMP}/nd-leverans-b.h" | tr -d '\r' | awk '{print $2}'); BS=$(shasum_fil "${TMP}/nd-leverans-b.body")
+[ "${HS}" = "${BS}" ] && ok "K40 leverans-b: summan som räknades vid mottagandet är summan av filen" || no "K40 leverans-b: mottagningssumman ${HS} är inte filens ${BS}"
+curl -s --max-time 30 "${DASH}/api/audit" | jq -e --arg s "${HS}" '[.handelser[]? | select(.typ=="leverans") | .detaljer.sha256] | index($s) != null' >/dev/null \
+  && ok "K40 auditloggen bär leveransens SHA-256" || no "K40 auditloggen saknar leveransens SHA-256 ${HS}"
+[ "$(jq '.records | length' "${TMP}/nd-leverans-b.body")" = "91" ] && ok "K40 leverans-b innehåller 91 poster" || no "K40 leverans-b har inte 91 poster"
+# Engelska: filen ska komma som den är, med summa och filnamn (översättningen av API-svar får inte röra nedladdningar).
+curl -s --max-time 60 -D "${TMP}/nd-en.h" -o "${TMP}/nd-en.body" -H 'Accept-Language: en-US' "${DASH}/api/ladda-ned/odrl-b?lang=en" >/dev/null
+HS=$(grep -i '^x-content-sha256:' "${TMP}/nd-en.h" | tr -d '\r' | awk '{print $2}')
+[ -n "${HS}" ] && [ "${HS}" = "$(shasum_fil "${TMP}/nd-en.body")" ] && grep -qi '^content-disposition: attachment; filename="svada-.*\.json"' "${TMP}/nd-en.h" \
+  && ok "K40 engelska: nedladdningen bär kontrollsumma och filnamn, och summan stämmer med filen" || no "K40 engelska: nedladdningen saknar summa eller filnamn, eller summan stämmer inte"
+[ "$(jq 'length' "${TMP}/nd-cip-b.body")" -ge 91 ] && ok "K40 stadens plattform (B) har minst 91 poster" || no "K40 cip-b har färre än 91 poster"
+! head -1 "${TMP}/nd-analys-b-csv.body" | grep -qi 'position\|lon\|lat' && ok "K40 analysen för B saknar positioner" || no "K40 analys-b-csv har positioner"
+curl -s --max-time 30 "${DASH}/api/audit" | jq -e '[.handelser[]? | select(.typ=="nedladdning")] | length > 0' >/dev/null && ok "K40 nedladdningarna syns i auditloggen" || no "K40 nedladdningar saknas i auditloggen"
+# A följer avtalet: finns inget GÄLLANDE A-avtal i stadens register ska varje A-fil nekas med exakt 403; finns ett får svaret vara 200 (eller 409 när
+# ingen leverans är mottagen än), aldrig 403 av fel skäl eller ett serverfel. (Förr godkändes 200, 403 och 409 oavsett, så en fil som lämnades ut utan avtal gav grönt.)
+GALLANDE_A=$(curl -s --max-time 30 "${DASH}/api/avtal" | jq '[.avtal[]? | select(.distribution=="A" and .status=="GALLANDE")] | length')
+for A in leverans-a cip-a analys-a-csv analys-a-geojson; do
+  KOD=$(curl -s --max-time 60 -o "${TMP}/nd-a.body" -w '%{http_code}' "${DASH}/api/ladda-ned/${A}")
+  if [ "${GALLANDE_A:-0}" -eq 0 ]; then
+    [ "${KOD}" = "403" ] && ok "K40 ${A}: 403 utan gällande A-avtal" || no "K40 ${A}: ${KOD} men inget gällande A-avtal finns (förväntat 403)"
+  else
+    case "${KOD}" in 200|409) ok "K40 ${A}: ${KOD} med gällande A-avtal";; *) no "K40 ${A}: ${KOD} med gällande A-avtal (förväntat 200 eller 409)";; esac
+  fi
+done
+# Efter en hävning: webbläsartestet strax före lämnar ett gällande A-avtal, så grenen "403 utan avtal" ovan körs annars nästan aldrig. Här häver vi
+# alla gällande A-avtal (testtillstånd; senare skript förhandlar nya) och kräver exakt 403 på varje A-fil, även leverans-a som läser ur ingest.
+# Hävningen är ett jobb och kedjan kör ett jobb i taget: häv ett avtal, vänta tills jobbet är klart, ta nästa.
+for _ in $(seq 1 12); do
+  DHI=$(curl -s --max-time 30 "${DASH}/api/avtal" | jq -r '[.avtal[]? | select(.distribution=="A" and .status=="GALLANDE" and .dhiAvtalId) | .dhiAvtalId][0] // empty')
+  [ -z "${DHI}" ] && break
+  JID=$(curl -s --max-time 60 -X POST "${DASH}/api/kov/avtal/${DHI}/hav" | jq -r '.id // empty')
+  [ -z "${JID}" ] && { sleep 3; continue; }      # upptaget: ett annat jobb kör, försök igen
+  for _ in $(seq 1 30); do [ "$(curl -s --max-time 10 "${DASH}/api/jobb/${JID}" | jq -r '.status')" != "kör" ] && break; sleep 2; done
+done
+for _ in $(seq 1 30); do     # hävningen är ett jobb: vänta tills registret säger att inget A-avtal gäller
+  GALLANDE_EFTER=$(curl -s --max-time 30 "${DASH}/api/avtal" | jq '[.avtal[]? | select(.distribution=="A" and .status=="GALLANDE")] | length')
+  [ "${GALLANDE_EFTER:-1}" -eq 0 ] && break; sleep 2
+done
+if [ "${GALLANDE_EFTER:-1}" -eq 0 ]; then
+  for A in leverans-a cip-a analys-a-csv analys-a-geojson; do
+    KOD=$(curl -s --max-time 60 -o "${TMP}/nd-a.body" -w '%{http_code}' "${DASH}/api/ladda-ned/${A}")
+    [ "${KOD}" = "403" ] && ok "K40 ${A}: 403 efter att alla A-avtal hävts" || no "K40 ${A}: ${KOD} efter hävning (förväntat 403)"
+  done
+else
+  no "K40 kunde inte häva A-avtalen (${GALLANDE_EFTER} gäller fortfarande), så nekandet efter hävning är inte prövat"
+fi
+[ "$(curl -s -o /dev/null -w '%{http_code}' "${DASH}/api/ladda-ned/finns-inte")" = "404" ] && ok "K40 en okänd fil ger 404" || no "K40 okänd fil ger inte 404"
+# Brunnsvyn: CSV, JSON med summa, datamodellen som zip med manifest och termlistan som CSV
+curl -s --max-time 30 -D "${TMP}/pv.h" -o "${TMP}/pv.csv" "${PUBV}/brunnar?format=csv"
+[ "$(grep -i '^x-content-sha256:' "${TMP}/pv.h" | tr -d '\r' | awk '{print $2}')" = "$(shasum_fil "${TMP}/pv.csv")" ] && [ "$(wc -l < "${TMP}/pv.csv")" -ge 92 ] \
+  && ok "K40 brunnsvyn: CSV med kontrollsumma och minst 91 brunnar" || no "K40 brunnsvyns CSV"
+curl -s --max-time 30 -D "${TMP}/pj.h" -o "${TMP}/pj.json" "${PUBV}/brunnar?format=json"
+[ "$(grep -i '^x-content-sha256:' "${TMP}/pj.h" | tr -d '\r' | awk '{print $2}')" = "$(shasum_fil "${TMP}/pj.json")" ] && ok "K40 brunnsvyn: JSON bär kontrollsumman av de byte som skickas" || no "K40 brunnsvyns JSON-summa"
+curl -s --max-time 30 -D "${TMP}/z.h" -o "${TMP}/utkast.zip" "${PUBV}/modell/utkast/0.1/utkast.zip"
+curl -s --max-time 30 -o "${TMP}/utkast2.zip" "${PUBV}/modell/utkast/0.1/utkast.zip"
+python3 -I - "${TMP}/utkast.zip" > "${TMP}/zipprov.log" 2>&1 <<'PY' && ok "K40 datamodellen som zip: manifestet stämmer med varje fil och LÄS-MIG säger utkast" || { cat "${TMP}/zipprov.log"; no "K40 zip-provet"; }
+import hashlib, json, sys, zipfile
+z = zipfile.ZipFile(sys.argv[1]); m = json.loads(z.read("MANIFEST.json"))["sha256"]
+assert m and all(hashlib.sha256(z.read(n)).hexdigest() == h for n, h in m.items()), "manifest"
+assert b"DRAFT" in z.read("READ-ME.txt")
+assert b"invalid" not in z.read("context.jsonld") and b"modell.svada" not in z.read("context.jsonld")
+PY
+cmp -s "${TMP}/utkast.zip" "${TMP}/utkast2.zip" && ok "K40 zip-filen är densamma vid varje hämtning (samma summa)" || no "K40 zip-filen skiljer mellan hämtningar"
+[ "$(grep -i '^x-content-sha256:' "${TMP}/z.h" | tr -d '\r' | awk '{print $2}')" = "$(shasum_fil "${TMP}/utkast.zip")" ] && ok "K40 zip: kontrollsumman i huvudet stämmer" || no "K40 zip-summan"
+[ "$(curl -s --max-time 30 "${PUBV}/modell/utkast/0.1/termlista.csv" | wc -l)" -ge 52 ] && ok "K40 termlistan som CSV har alla termer" || no "K40 termlistan som CSV"
 
 # K28: en egen vy per besökare (sessioner.py och sessionsdelarna i jobb.py): kaka, tidsgräns, tak, jobbkö, ägande. Utan stack och nätverk.
 section "K28 En egen vy per besökare: sessioner, jobbkö och ägande (sessioner_enhet.py, utan stack och utan nätverk)"
@@ -376,10 +471,21 @@ sys.exit(0 if d and all(re.match(r'^\d{4}-\d\d-\d\d$', dag) and all(tillatna.mat
 PY"
 SV="$(curl -s -o "${TMP}/stat-sv.html" -w '%{http_code}' --max-time 20 "${DASH}/statistik?lang=sv")"; EN="$(curl -s -o "${TMP}/stat-en.html" -w '%{http_code}' --max-time 20 "${DASH}/statistik?lang=en")"
 [ "${SV}" = 200 ] && [ "${EN}" = 200 ] && grep -q "Besökare per dag" "${TMP}/stat-sv.html" && grep -q "Visitors per day" "${TMP}/stat-en.html" && ok "K27f sidan /statistik svarar på svenska och engelska" || no "K27f /statistik: sv ${SV}, en ${EN}"
-! grep -qiE 'https?://|<script|cookie=' "${TMP}/stat-sv.html" && ok "K27g sidan har inget skript och inga externa adresser" || no "K27g sidan har skript eller externa adresser"
+# Enda tillåtna externa adressen är den vanliga länken till källkoden (ingen resurs som laddas, inget som spårar).
+! sed 's#<a href="https://github.com/GoteborgsStad/svada" target="_blank" rel="noopener">##' "${TMP}/stat-sv.html" | grep -qiE 'https?://|<script|cookie=' && ok "K27g sidan har inget skript och inga externa adresser utom länken till källkoden" || no "K27g sidan har skript eller externa adresser"
 grep -q "Step 1 – The model (simulated) creates the data product" "${TMP}/stat-en.html" && ! grep -q "Steps 1" "${TMP}/stat-en.html" && grep -q "Steg 1 – Modellen (simulerad) skapar" "${TMP}/stat-sv.html" && ok "K27j stegen heter detsamma som i kontrollrummet, på rätt språk ('Step 1', inte 'Steps 1')" || no "K27j stegnamnen i statistiken stämmer inte med kontrollrummets, eller engelskan är halvöversatt"
 curl -s --max-time 20 "${DASH}/api/status" | jq -e '.avtalA | has("gallande")' >/dev/null && ok "K27i /api/status bär avtalA.gallande, som sidan använder för att läsa om steg 6 när avtalet om A slutar gälla (F1)" || no "K27i /api/status saknar avtalA"
 grep -q 'href="/statistik' <(curl -s --max-time 20 "${DASH}/?lang=sv") && ok "K27h kontrollrummets sidfot länkar till statistiken" || no "K27h länken till /statistik saknas i sidfoten"
+# K27k: avtalssidan följer vyns språk (även utan ?lang, via webbläsarens språk), har en växlare sv/en och Tillbaka går dit besökaren kom ifrån (?fran=).
+AVT_K27=$(curl -s --max-time 20 "${DASH}/api/avtal" | jq -r '.avtal[0].id // empty')
+if [ -n "${AVT_K27}" ]; then
+  A1=$(curl -s --max-time 20 -H 'Accept-Language: en' "${DASH}/avtal/${AVT_K27}?fran=steg-5"); A2=$(curl -s --max-time 20 "${DASH}/avtal/${AVT_K27}?lang=sv&fran=steg-5"); A3=$(curl -s --max-time 20 "${DASH}/avtal/${AVT_K27}?lang=en&fran=%22%3Cx")
+  printf '%s' "${A1}" | grep -q '<html lang="en"' && printf '%s' "${A1}" | grep -q 'href="/?lang=en#steg-5"' && printf '%s' "${A1}" | grep -q 'hreflang="sv"' \
+    && printf '%s' "${A2}" | grep -q '<html lang="sv"' && printf '%s' "${A2}" | grep -q 'hreflang="en"' && printf '%s' "${A3}" | grep -q 'href="/?lang=en#suveranitet"' \
+    && ok "K27k avtalssidan: följer språket, har växlare och Tillbaka går till stegets flik (okänt ursprung ger Suveränitet)" || no "K27k avtalssidans språk, växlare eller Tillbaka-länk"
+else
+  echo "  [HOPPAR ÖVER] K27k avtalssidan (inget avtal finns än)"
+fi
 
 # K33: språket följer sidan (X-Svada-Lang) och felsidor (404-sida för webbläsare, 404 för ogiltigt avtals-id), i dashboard-imagen utan nätverk
 section "K33 Språk per sida och felsidor (sprak_enhet.py, i dashboard-imagen, utan stack)"
@@ -392,12 +498,68 @@ if docker image inspect "${DASH_IMAGE}" >/dev/null 2>&1; then
 else
   no "K33 hittar ingen dashboard-image; testet kan inte köras"
 fi
+# K33b: språkregeln efter webbläsaren är samma i kontrollrummet, brunnsvyn och gatewayen (ingen stack, inga beroenden)
+python3 tests/sprak_publik_enhet.py 2>&1 | tee "${TMP}/sprak-publik.log" | grep -E '^  \[FEL\]'
+[ "${PIPESTATUS[0]}" -eq 0 ] && ok "K33b språkregeln är lika i de tre tjänsterna ($(grep -c '^  \[OK\]' "${TMP}/sprak-publik.log") kontroller gröna)" || no "K33b språkregeln i de tre tjänsterna"
+
+# K36: staden hittar leverantören i deltagarregistret (MIM3 RC5.1), i dashboard-imagen utan nätverk
+section "K36 Leverantören hittas i deltagarregistret (leverantor_enhet.py, i dashboard-imagen, utan stack)"
+if docker image inspect "${DASH_IMAGE}" >/dev/null 2>&1; then
+  docker run --rm --network none -v "${PWD}/services:/srv:ro" -v "${PWD}/tests:/tst:ro" "${DASH_IMAGE}" python /tst/leverantor_enhet.py 2>&1 | tee "${TMP}/leverantor-enhet.log"
+  LVRC=${PIPESTATUS[0]}
+  LVFEL=$(grep -c '^  \[FEL\]' "${TMP}/leverantor-enhet.log"); LVOK=$(grep -c '^  \[OK\]' "${TMP}/leverantor-enhet.log")
+  if [ "${LVRC}" -eq 0 ] && [ "${LVFEL}" -eq 0 ] && [ "${LVOK}" -ge 12 ]; then ok "K36 leverantörsvalet: ${LVOK} kontroller gröna"
+  else no "K36 leverantörsvalet: exit ${LVRC}, ${LVFEL} fel, ${LVOK} OK (väntade minst 12)"; fi
+else
+  no "K36 hittar ingen dashboard-image; testet kan inte köras"
+fi
 
 # K32: portförskjutningen (två installationer på samma värd)
 section "K32 Portförskjutning: värdportarna flyttas, de interna lämnas (portforskjutning_enhet.py, utan stack)"
 python3 -I tests/portforskjutning_enhet.py > "${TMP}/portforskjutning.log" 2>&1; PRC=$?
 cat "${TMP}/portforskjutning.log"
 [ "${PRC}" -eq 0 ] && ok "K32 portförskjutningen: klassningen och förskjutningen stämmer" || no "K32 portförskjutningen misslyckades (exit ${PRC})"
+
+# K34: datamodellens utkast (termlistan stämmer med koden, filerna är genererade, UTKAST-märkningen finns; utan stack)
+section "K34 Datamodellens utkast stämmer med koden och är märkt som utkast (datamodell_enhet.py, utan stack)"
+python3 -I tests/datamodell_enhet.py > "${TMP}/datamodell-enhet.log" 2>&1; DMRC=$?
+cat "${TMP}/datamodell-enhet.log"
+[ "${DMRC}" -eq 0 ] && ok "K34 datamodellens utkast: $(grep -c '\[OK\]' "${TMP}/datamodell-enhet.log") kontroller gröna" || no "K34 datamodellens utkast misslyckades (exit ${DMRC})"
+
+# K35: datamodellen på brunnsvyns adress (modell.py): bara fasta filer, varje term uppslagbar, allt märkt som utkast; utan stack
+section "K35 Datamodellens utkast på brunnsvyns adress (modell_publik_enhet.py, utan stack)"
+python3 -I tests/modell_publik_enhet.py > "${TMP}/modell-publik-enhet.log" 2>&1; MPRC=$?
+cat "${TMP}/modell-publik-enhet.log"
+[ "${MPRC}" -eq 0 ] && ok "K35 datamodellen på brunnsvyn: $(grep -c '\[OK\]' "${TMP}/modell-publik-enhet.log") kontroller gröna" || no "K35 datamodellen på brunnsvyn misslyckades (exit ${MPRC})"
+
+# K37: MIM-rutorna på stegen och sidorna (mim.py): status mot docs/mims, länkar, båda språken, inget internt; utan stack
+section "K37 MIM-rutor (mim_enhet.py, utan stack)"
+python3 -I tests/mim_enhet.py > "${TMP}/mim-enhet.log" 2>&1; MIRC=$?
+cat "${TMP}/mim-enhet.log"
+[ "${MIRC}" -eq 0 ] && ok "K37 MIM-rutorna: $(grep -c '\[OK\]' "${TMP}/mim-enhet.log") kontroller gröna" || no "K37 MIM-rutorna misslyckades (exit ${MIRC})"
+
+# K38: schemakontrollen vid inläsning (schemakontroll.py): exempelfilerna godkänns, avvikelser hittas, saknat schema redovisas öppet; utan stack
+section "K38 Schemakontroll vid inläsning (schemakontroll_enhet.py, utan stack)"
+python3 -I tests/schemakontroll_enhet.py > "${TMP}/schemakontroll-enhet.log" 2>&1; SKRC=$?
+cat "${TMP}/schemakontroll-enhet.log"
+[ "${SKRC}" -eq 0 ] && ok "K38 schemakontrollen: $(grep -c '\[OK\]' "${TMP}/schemakontroll-enhet.log") kontroller gröna" || no "K38 schemakontrollen misslyckades (exit ${SKRC})"
+
+# K41: avtalsscenariot "betrodd organisation" (jobb.py, _egen_betrodd): utpekningen hos providern görs före och tas bort efter besökarens egen A-förhandling
+section "K41 Avtalsscenariot betrodd organisation (betrodd_enhet.py, utan stack)"
+docker run --rm --network none -e DEMO_VARIANT=extern -v "${PWD}/services:/srv:ro" -v "${PWD}/tests:/tst:ro" "${DASH_IMAGE}" python /tst/betrodd_enhet.py 2>&1 | grep -v '^\[jobb \|^\[audit\]' > "${TMP}/betrodd-enhet.log"; BERC=${PIPESTATUS[0]}
+cat "${TMP}/betrodd-enhet.log"
+[ "${BERC}" -eq 0 ] && ok "K41 betrodd organisation: $(grep -c '\[OK\]' "${TMP}/betrodd-enhet.log") kontroller gröna" || no "K41 betrodd organisation misslyckades (exit ${BERC})"
+
+# K41b: /api/scenario över HTTP: standard av, ogiltig kropp ger 400, sant och falskt sparas, och ett läge som slagits på städas direkt
+section "K41b /api/scenario över HTTP (validering och eget val)"
+SC0=$(curl -s --max-time 20 "${DASH}/api/scenario" | jq -r '.betrodd')
+SC_BAD=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d '{"betrodd":"ja"}' "${DASH}/api/scenario")
+SC_EXTRA=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' -d '{"betrodd":true,"x":1}' "${DASH}/api/scenario")
+SC_ON=$(curl -s --max-time 20 -X POST -H 'content-type: application/json' -d '{"betrodd":true}' "${DASH}/api/scenario" | jq -r '.betrodd')
+SC_OFF=$(curl -s --max-time 20 -X POST -H 'content-type: application/json' -d '{"betrodd":false}' "${DASH}/api/scenario" | jq -r '.betrodd')
+[ "${SC0}" = "false" ] && [ "${SC_BAD}" = 400 ] && [ "${SC_EXTRA}" = 400 ] && [ "${SC_ON}" = "true" ] && [ "${SC_OFF}" = "false" ] \
+  && ok "K41b /api/scenario: av som standard, ogiltig kropp 400, sant och falskt sparas (av igen efter provet)" \
+  || no "K41b /api/scenario: standard=${SC0}, felaktig=${SC_BAD}, extra fält=${SC_EXTRA}, på=${SC_ON}, av=${SC_OFF}"
 
 # K31: versionsnumret (.env är källan; nyheter.py, sidfoten, /api/status, /nyheter och brunnsvyn följer det)
 section "K31 Versionsnummer: .env, /nyheter, sidfoten och /api/status är samma version (version_enhet.py + mot stacken)"

@@ -17,6 +17,7 @@ import sys
 
 RAD = os.path.join(os.path.dirname(__file__), "..", "services")
 sys.path.insert(0, os.path.join(RAD, "dashboard"))
+sys.path.insert(0, RAD)                      # gemensam/ (nedladdning.py importerar den)
 import i18n  # noqa: E402
 import meddelanden  # noqa: E402
 
