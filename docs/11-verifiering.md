@@ -3,8 +3,7 @@
 PoC:en är byggd som en regressionsmiljö (§9.2): arkitekturens krav är
 uttryckta som körbara tester, och **hård regel 11** säger att ett
 arbetspaket är klart för push först när allt är grönt (fullt prov körs före push,
-publicering och synk till servern; under arbetet körs bara det berörda, se
-`docs/testning-tillampning.md` §3b).
+publicering och synk till servern; under arbetet körs bara det berörda).
 
 ```bash
 bash tests/verify_all.sh      # alla etapper, ~25 minuter
