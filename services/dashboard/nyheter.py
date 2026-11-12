@@ -13,6 +13,14 @@ MONSTER = re.compile(r"^\d{4}\.\d{2}\.\d{2}-\d+$")
 
 # Nyast överst. (version, datum, [(svenska, engelska), ...])
 NYHETER = [
+    ("2026.11.11-3", "2026-11-11", [
+        ("Guiden har fått fler pratbubblor: efter Förhandla A pekar den på Godkänn, och efter Leverera och Godkänn visar den vad som hände. Steg 5 och 6 har tips med \"1 av 2\" och Nästa tips, och Nästa-bubblan följer knappen när du scrollar.",
+         "The guide has more speech bubbles: after Negotiate A it points to Approve, and after Deliver and Approve it shows what happened. Steps 5 and 6 have tips with \"1 of 2\" and Next tip, and the Next bubble follows the button when you scroll."),
+        ("Steg 5 har en rubrik och en förklaring för varje ruta, och ursprungsmärkningen (provenance) är markerad. Texterna säger \"stadens dataplattform\" i stället för CIP.",
+         "Step 5 has a heading and an explanation for each box, and the provenance label is highlighted. The texts say \"the city's data platform\" instead of CIP."),
+        ("Introduktionen och sidfoten länkar till Vattendatalabbet (SVADA), projektet som PoC:en skapades inom. Vägvalet på startsidan har båda korten med innehållet överst.",
+         "The introduction and the footer link to Vattendatalabbet (SVADA), the project within which the PoC was created. On the start page the two ways in have their content aligned at the top."),
+    ]),
     ("2026.11.04-1", "2026-11-04", [
         ("Fliken Felinjektion heter nu Scenarier och har ett nytt avtalsscenario: betrodd organisation. Du kan simulera att KoV i förväg har pekat ut staden som betrodd, så att DHI:s connector skriver avtalet om A direkt utan att vänta på KoV. Avgörandet ligger kvar hos providern, och avtalet märks \"betrodd organisation, ingen KoV-prövning\" i auditloggen och på avtalssidan. Valet är ditt eget och gäller bara dina egna körningar.",
          "The Fault injection tab is now called Scenarios and has a new agreement scenario: trusted organisation. You can simulate that KoV has designated the city as trusted in advance, so that DHI's connector writes the agreement for A directly without waiting for KoV. The decision still lies with the provider, and the agreement is marked \"trusted organisation, no KoV review\" in the audit log and on the agreement page. The choice is your own and applies only to your own runs."),
